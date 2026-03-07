@@ -198,3 +198,12 @@ pub mod descriptor_update;
 
 #[cfg(verus_keep_ghost)]
 pub mod queue_capabilities;
+
+#[cfg(verus_keep_ghost)]
+pub mod sync_token;
+
+#[cfg(verus_keep_ghost)]
+pub mod pool_ownership;
+
+#[cfg(verus_keep_ghost)]
+pub mod lock_ordering;
