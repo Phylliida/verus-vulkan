@@ -214,7 +214,7 @@ pub open spec fn render_pass_well_formed(rp: RenderPassState) -> bool {
 
     // All subpasses well-formed
     && (forall|s: int| 0 <= s < rp.subpasses.len() ==>
-        subpass_well_formed(rp, s as nat))
+        #[trigger] subpass_well_formed(rp, s as nat))
 
     // All dependencies well-formed
     && (forall|d: int| 0 <= d < rp.dependencies.len() ==>
@@ -324,7 +324,9 @@ pub proof fn lemma_well_formed_subpass_refs_in_bounds(
             ==> rp.subpasses[s as int].input_attachments[i].attachment_index
                 < rp.attachments.len(),
 {
-    assert(subpass_well_formed(rp, s));
+    // Trigger the quantifier in render_pass_well_formed via int path
+    let s_int: int = s as int;
+    assert(subpass_well_formed(rp, s_int as nat));
 }
 
 /// Internal dependencies have dst > src (acyclicity).
@@ -352,7 +354,8 @@ pub proof fn lemma_color_not_depth_layout(
     ensures
         is_color_layout(rp.subpasses[s as int].color_attachments[i].layout),
 {
-    assert(subpass_well_formed(rp, s));
+    let s_int: int = s as int;
+    assert(subpass_well_formed(rp, s_int as nat));
 }
 
 /// Depth attachment layout is not ColorAttachmentOptimal.
@@ -368,7 +371,8 @@ pub proof fn lemma_depth_not_color_layout(
         !(layout == ImageLayout::ColorAttachmentOptimal)
     }),
 {
-    assert(subpass_well_formed(rp, s));
+    let s_int: int = s as int;
+    assert(subpass_well_formed(rp, s_int as nat));
 }
 
 /// Transition from initial to final layout for each attachment is valid
@@ -398,7 +402,8 @@ pub proof fn lemma_preserve_not_used(
     ensures
         !subpass_uses_attachment(rp, s, att),
 {
-    assert(subpass_well_formed(rp, s));
+    let s_int: int = s as int;
+    assert(subpass_well_formed(rp, s_int as nat));
     let sp = rp.subpasses[s as int];
 
     // Color: none of the color attachments reference att

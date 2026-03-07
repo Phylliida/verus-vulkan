@@ -130,7 +130,7 @@ pub open spec fn descriptor_set_fully_bound(
     layout: DescriptorSetLayoutState,
 ) -> bool {
     forall|i: int| 0 <= i < layout.bindings.len() ==> {
-        let b = layout.bindings[i].binding;
+        let b = #[trigger] layout.bindings[i].binding;
         dset.bindings.contains_key(b)
         && !(dset.bindings[b] === DescriptorBinding::Empty)
     }
