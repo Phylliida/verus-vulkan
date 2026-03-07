@@ -11,6 +11,7 @@ use crate::completion::*;
 use crate::recording_commands::*;
 use crate::recording::*;
 use crate::sync::*;
+use crate::sync_token::*;
 
 verus! {
 
@@ -19,6 +20,9 @@ verus! {
 // These proofs demonstrate that the Vulkan ghost state model correctly
 // tracks resource lifetimes through the full create→record→submit→wait→destroy
 // lifecycle.
+//
+// Every submission proof now requires the submitting thread to hold
+// exclusive access to the queue — enforcing thread safety at the proof level.
 
 /// **Crown jewel**: A resource that is only used in one submission, protected
 /// by a fence, can be safely destroyed after waiting on that fence.
@@ -26,6 +30,8 @@ verus! {
 /// This is the fundamental safety property of the Vulkan memory model:
 /// GPU work references resources, fences signal when work completes,
 /// and after a fence wait the host can safely destroy those resources.
+///
+/// The caller must prove they hold exclusive queue access (thread safety).
 pub proof fn lemma_submit_wait_destroy_safe(
     dev: DeviceState,
     queue: QueueState,
@@ -33,8 +39,12 @@ pub proof fn lemma_submit_wait_destroy_safe(
     fence_id: nat,
     resource: ResourceId,
     fence_states: Map<nat, FenceState>,
+    thread: ThreadId,
+    reg: TokenRegistry,
 )
     requires
+        // Thread safety: submitter holds the queue
+        holds_exclusive(reg, queue.queue_id, thread),
         // The submission uses a fence
         info.fence_id == Some(fence_id),
         fence_states.contains_key(fence_id),
@@ -45,7 +55,7 @@ pub proof fn lemma_submit_wait_destroy_safe(
             ==> !dev.pending_submissions[i].referenced_resources.contains(resource),
     ensures ({
         // After submit: resource is in a pending submission
-        let (new_queue, record) = submit_ghost(queue, info);
+        let (new_queue, record) = submit_ghost(queue, info, thread, reg).unwrap();
         let new_dev = DeviceState {
             pending_submissions: dev.pending_submissions.push(record),
             ..dev
@@ -55,7 +65,7 @@ pub proof fn lemma_submit_wait_destroy_safe(
         safe_to_destroy_resource(post_wait_dev, resource)
     }),
 {
-    let (new_queue, record) = submit_ghost(queue, info);
+    let (new_queue, record) = submit_ghost(queue, info, thread, reg).unwrap();
     let new_subs = dev.pending_submissions.push(record);
     let new_dev = DeviceState {
         pending_submissions: new_subs,
@@ -86,8 +96,11 @@ pub proof fn lemma_fresh_resource_submit_wait_destroy(
     fence_id: nat,
     resource: ResourceId,
     fence_states: Map<nat, FenceState>,
+    thread: ThreadId,
+    reg: TokenRegistry,
 )
     requires
+        holds_exclusive(reg, queue.queue_id, thread),
         info.fence_id == Some(fence_id),
         fence_states.contains_key(fence_id),
         info.referenced_resources.contains(resource),
@@ -105,7 +118,7 @@ pub proof fn lemma_fresh_resource_submit_wait_destroy(
             live_pipelines: 0,
             live_descriptor_pools: 0,
         };
-        let (_, record) = submit_ghost(queue, info);
+        let (_, record) = submit_ghost(queue, info, thread, reg).unwrap();
         let new_dev = DeviceState {
             pending_submissions: dev.pending_submissions.push(record),
             ..dev
@@ -128,7 +141,7 @@ pub proof fn lemma_fresh_resource_submit_wait_destroy(
     };
 
     // Empty submissions → no submission references resource
-    lemma_submit_wait_destroy_safe(dev, queue, info, fence_id, resource, fence_states);
+    lemma_submit_wait_destroy_safe(dev, queue, info, fence_id, resource, fence_states, thread, reg);
 }
 
 /// The command buffer lifecycle is correctly maintained through submit→complete.

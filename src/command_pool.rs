@@ -1,5 +1,6 @@
 use vstd::prelude::*;
 use crate::command::*;
+use crate::sync_token::*;
 
 verus! {
 
@@ -39,31 +40,60 @@ pub open spec fn create_command_pool(
 }
 
 /// Allocate a command buffer from the pool.
+///
+/// Per Vulkan spec: "commandPool is an externally synchronized parameter"
+/// for vkAllocateCommandBuffers.
 pub open spec fn allocate_cb(
     pool: CommandPoolState,
     cb_id: nat,
-) -> CommandPoolState {
-    CommandPoolState {
-        allocated_cbs: pool.allocated_cbs.insert(cb_id),
-        ..pool
+    thread: ThreadId,
+    reg: TokenRegistry,
+) -> Option<CommandPoolState> {
+    if !holds_exclusive(reg, pool.id, thread) {
+        None
+    } else {
+        Some(CommandPoolState {
+            allocated_cbs: pool.allocated_cbs.insert(cb_id),
+            ..pool
+        })
     }
 }
 
 /// Free a command buffer back to the pool.
+///
+/// Per Vulkan spec: "commandPool is an externally synchronized parameter"
+/// for vkFreeCommandBuffers.
 pub open spec fn free_cb(
     pool: CommandPoolState,
     cb_id: nat,
-) -> CommandPoolState {
-    CommandPoolState {
-        allocated_cbs: pool.allocated_cbs.remove(cb_id),
-        ..pool
+    thread: ThreadId,
+    reg: TokenRegistry,
+) -> Option<CommandPoolState> {
+    if !holds_exclusive(reg, pool.id, thread) {
+        None
+    } else {
+        Some(CommandPoolState {
+            allocated_cbs: pool.allocated_cbs.remove(cb_id),
+            ..pool
+        })
     }
 }
 
 /// Reset pool: all allocated CBs go to Initial state.
 /// Returns the set of CBs that need to be reset.
-pub open spec fn reset_pool_cbs(pool: CommandPoolState) -> Set<nat> {
-    pool.allocated_cbs
+///
+/// Per Vulkan spec: "commandPool is an externally synchronized parameter"
+/// for vkResetCommandPool.
+pub open spec fn reset_pool_cbs(
+    pool: CommandPoolState,
+    thread: ThreadId,
+    reg: TokenRegistry,
+) -> Option<Set<nat>> {
+    if !holds_exclusive(reg, pool.id, thread) {
+        None
+    } else {
+        Some(pool.allocated_cbs)
+    }
 }
 
 /// After pool reset, all CBs are in Initial state.
@@ -118,8 +148,11 @@ pub proof fn lemma_fresh_pool_empty(
 pub proof fn lemma_allocate_adds_cb(
     pool: CommandPoolState,
     cb_id: nat,
+    thread: ThreadId,
+    reg: TokenRegistry,
 )
-    ensures cb_from_pool(allocate_cb(pool, cb_id), cb_id),
+    requires holds_exclusive(reg, pool.id, thread),
+    ensures cb_from_pool(allocate_cb(pool, cb_id, thread, reg).unwrap(), cb_id),
 {
 }
 
@@ -127,8 +160,11 @@ pub proof fn lemma_allocate_adds_cb(
 pub proof fn lemma_free_removes_cb(
     pool: CommandPoolState,
     cb_id: nat,
+    thread: ThreadId,
+    reg: TokenRegistry,
 )
-    ensures !cb_from_pool(free_cb(pool, cb_id), cb_id),
+    requires holds_exclusive(reg, pool.id, thread),
+    ensures !cb_from_pool(free_cb(pool, cb_id, thread, reg).unwrap(), cb_id),
 {
 }
 
@@ -137,9 +173,13 @@ pub proof fn lemma_allocate_preserves_existing(
     pool: CommandPoolState,
     cb_id: nat,
     other: nat,
+    thread: ThreadId,
+    reg: TokenRegistry,
 )
-    requires cb_from_pool(pool, other),
-    ensures cb_from_pool(allocate_cb(pool, cb_id), other),
+    requires
+        cb_from_pool(pool, other),
+        holds_exclusive(reg, pool.id, thread),
+    ensures cb_from_pool(allocate_cb(pool, cb_id, thread, reg).unwrap(), other),
 {
 }
 
@@ -148,11 +188,14 @@ pub proof fn lemma_free_preserves_others(
     pool: CommandPoolState,
     cb_id: nat,
     other: nat,
+    thread: ThreadId,
+    reg: TokenRegistry,
 )
     requires
         cb_from_pool(pool, other),
         other != cb_id,
-    ensures cb_from_pool(free_cb(pool, cb_id), other),
+        holds_exclusive(reg, pool.id, thread),
+    ensures cb_from_pool(free_cb(pool, cb_id, thread, reg).unwrap(), other),
 {
 }
 
@@ -160,9 +203,13 @@ pub proof fn lemma_free_preserves_others(
 pub proof fn lemma_reset_returns_all(
     pool: CommandPoolState,
     cb_id: nat,
+    thread: ThreadId,
+    reg: TokenRegistry,
 )
-    requires cb_from_pool(pool, cb_id),
-    ensures reset_pool_cbs(pool).contains(cb_id),
+    requires
+        cb_from_pool(pool, cb_id),
+        holds_exclusive(reg, pool.id, thread),
+    ensures reset_pool_cbs(pool, thread, reg).unwrap().contains(cb_id),
 {
 }
 
@@ -175,6 +222,29 @@ pub proof fn lemma_fresh_pool_well_formed(
     ensures
         command_pool_well_formed(
             create_command_pool(id, queue_family, individual_reset)),
+{
+}
+
+/// Without exclusive pool access, allocate fails.
+pub proof fn lemma_no_access_no_allocate(
+    pool: CommandPoolState,
+    cb_id: nat,
+    thread: ThreadId,
+    reg: TokenRegistry,
+)
+    requires !holds_exclusive(reg, pool.id, thread),
+    ensures allocate_cb(pool, cb_id, thread, reg).is_none(),
+{
+}
+
+/// Without exclusive pool access, reset fails.
+pub proof fn lemma_no_access_no_reset(
+    pool: CommandPoolState,
+    thread: ThreadId,
+    reg: TokenRegistry,
+)
+    requires !holds_exclusive(reg, pool.id, thread),
+    ensures reset_pool_cbs(pool, thread, reg).is_none(),
 {
 }
 

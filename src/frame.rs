@@ -10,6 +10,7 @@ use crate::swapchain::*;
 use crate::sync::*;
 use crate::submit::*;
 use crate::completion::*;
+use crate::sync_token::*;
 
 verus! {
 
@@ -47,6 +48,8 @@ pub open spec fn frame_submission_well_formed(frame: FrameSubmission) -> bool {
 
 /// The full acquire→submit ghost transition.
 /// Returns updated (swapchain, queue, device, cb_states, sem_states, fence_states).
+///
+/// Requires the submitting thread to hold exclusive access to the queue.
 pub open spec fn frame_acquire_and_submit(
     swapchain: SwapchainState,
     queue: QueueState,
@@ -55,34 +58,40 @@ pub open spec fn frame_acquire_and_submit(
     cb_states: Map<nat, CommandBufferState>,
     sem_states: Map<nat, SemaphoreState>,
     fence_states: Map<nat, FenceState>,
+    thread: ThreadId,
+    reg: TokenRegistry,
 ) -> Option<(SwapchainState, QueueState, DeviceState, Map<nat, CommandBufferState>, Map<nat, SemaphoreState>, Map<nat, FenceState>)> {
     // Step 1: Acquire the swapchain image
     match acquire_image(swapchain, frame.image_index) {
         None => None,
         Some(new_swapchain) => {
-            // Step 2: Submit the rendering work
-            let (new_queue, record) = submit_ghost(queue, frame.submit_info);
-            let new_dev = DeviceState {
-                pending_submissions: dev.pending_submissions.push(record),
-                ..dev
-            };
-            // Step 3: Transition CBs to pending
-            let new_cbs = transition_cbs_to_pending(
-                frame.submit_info.command_buffers, cb_states,
-            );
-            // Step 4: Consume wait semaphores
-            let new_sems = consume_wait_semaphores(
-                frame.submit_info.wait_semaphores, sem_states,
-            );
-            // Step 5: Mark fence as associated with this submission
-            let new_fences = match frame.submit_info.fence_id {
-                Some(fid) => fence_states.insert(
-                    fid,
-                    FenceState { submission_id: Some(record.id), ..fence_states[fid] },
-                ),
-                None => fence_states,
-            };
-            Some((new_swapchain, new_queue, new_dev, new_cbs, new_sems, new_fences))
+            // Step 2: Submit the rendering work (requires exclusive queue access)
+            match submit_ghost(queue, frame.submit_info, thread, reg) {
+                None => None,
+                Some((new_queue, record)) => {
+                    let new_dev = DeviceState {
+                        pending_submissions: dev.pending_submissions.push(record),
+                        ..dev
+                    };
+                    // Step 3: Transition CBs to pending
+                    let new_cbs = transition_cbs_to_pending(
+                        frame.submit_info.command_buffers, cb_states,
+                    );
+                    // Step 4: Consume wait semaphores
+                    let new_sems = consume_wait_semaphores(
+                        frame.submit_info.wait_semaphores, sem_states,
+                    );
+                    // Step 5: Mark fence as associated with this submission
+                    let new_fences = match frame.submit_info.fence_id {
+                        Some(fid) => fence_states.insert(
+                            fid,
+                            FenceState { submission_id: Some(record.id), ..fence_states[fid] },
+                        ),
+                        None => fence_states,
+                    };
+                    Some((new_swapchain, new_queue, new_dev, new_cbs, new_sems, new_fences))
+                },
+            }
         },
     }
 }
@@ -170,8 +179,6 @@ pub proof fn lemma_acquire_present_cycle(
     }),
 {
     let after_acquire = acquire_image(swapchain, idx).unwrap();
-    // after_acquire.image_states[idx] == Acquired (by acquire spec)
-    // present_image on Acquired → PresentPending
 }
 
 /// After present_complete, the image returns to Available.

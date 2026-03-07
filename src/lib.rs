@@ -207,3 +207,6 @@ pub mod pool_ownership;
 
 #[cfg(verus_keep_ghost)]
 pub mod lock_ordering;
+
+#[cfg(verus_keep_ghost)]
+pub mod thread_safe_ops;
