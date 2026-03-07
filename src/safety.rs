@@ -174,6 +174,7 @@ pub proof fn lemma_cb_lifecycle_through_frame(
     // Complete transitions cb_id back to Executable
     let record = SubmissionRecord {
         id: 0,
+        queue_id: 0,
         referenced_resources: Set::empty(),
         fence_id: None,
         completed: false,
@@ -209,6 +210,7 @@ pub proof fn lemma_semaphore_signal_wait_cycle(
     // After signaling, sem_id is signaled
     let record = SubmissionRecord {
         id: 0,
+        queue_id: 0,
         referenced_resources: Set::empty(),
         fence_id: None,
         completed: false,

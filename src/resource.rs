@@ -13,6 +13,8 @@ pub enum ResourceId {
     Image { id: nat, mip_level: nat, array_layer: nat },
     /// A swapchain image, identified by swapchain id + image index.
     SwapchainImage { swapchain_id: nat, image_index: nat },
+    /// A descriptor set, identified by a unique id.
+    DescriptorSet { id: nat },
 }
 
 /// Two resources overlap if they refer to the same underlying memory.
@@ -32,6 +34,10 @@ pub open spec fn resource_overlap(a: ResourceId, b: ResourceId) -> bool {
         (ResourceId::SwapchainImage { swapchain_id: sid_a, image_index: idx_a },
          ResourceId::SwapchainImage { swapchain_id: sid_b, image_index: idx_b }) => {
             sid_a == sid_b && idx_a == idx_b
+        },
+        (ResourceId::DescriptorSet { id: id_a },
+         ResourceId::DescriptorSet { id: id_b }) => {
+            id_a == id_b
         },
         _ => false,
     }

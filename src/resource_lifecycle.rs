@@ -27,6 +27,18 @@ pub struct ResourceLifecycleState {
     pub pending_use_count: nat,
 }
 
+// ── Helpers ─────────────────────────────────────────────────────────────
+
+/// Extract the primary nat id from a ResourceId for sync token lookup.
+pub open spec fn resource_sync_id(r: ResourceId) -> nat {
+    match r {
+        ResourceId::Buffer { id } => id,
+        ResourceId::Image { id, .. } => id,
+        ResourceId::SwapchainImage { swapchain_id, .. } => swapchain_id,
+        ResourceId::DescriptorSet { id } => id,
+    }
+}
+
 // ── Spec Functions ──────────────────────────────────────────────────────
 
 /// Create a resource (enters Created state).
@@ -155,6 +167,49 @@ pub proof fn lemma_complete_decreases_count(state: ResourceLifecycleState)
     requires state.pending_use_count > 0,
     ensures
         complete_use(state).pending_use_count == state.pending_use_count - 1,
+{
+}
+
+// ── Safety Proofs: Use-After-Free & Double-Destroy ──────────────────────
+
+/// A destroyed resource cannot be used.
+pub proof fn lemma_destroyed_cannot_use(state: ResourceLifecycleState)
+    requires state.lifecycle == ResourceLifecycle::Destroyed,
+    ensures !can_use(state),
+{
+}
+
+/// A destroyed resource cannot be destroyed again.
+pub proof fn lemma_destroyed_cannot_destroy(state: ResourceLifecycleState)
+    requires state.lifecycle == ResourceLifecycle::Destroyed,
+    ensures !can_destroy(state),
+{
+}
+
+/// A newly created resource cannot be destroyed (must bind first).
+pub proof fn lemma_created_cannot_destroy(state: ResourceLifecycleState)
+    requires state.lifecycle == ResourceLifecycle::Created,
+    ensures !can_destroy(state),
+{
+}
+
+/// After destroying, the resource is not alive.
+pub proof fn lemma_can_destroy_then_not_alive(state: ResourceLifecycleState)
+    requires can_destroy(state),
+    ensures !resource_alive(destroy_resource(state)),
+{
+}
+
+/// A resource cannot be simultaneously usable and destroyed.
+pub proof fn lemma_use_and_destroy_exclusive(state: ResourceLifecycleState)
+    ensures !(can_use(state) && state.lifecycle == ResourceLifecycle::Destroyed),
+{
+}
+
+/// A resource in use cannot be bound (binding requires Created state).
+pub proof fn lemma_in_use_cannot_bind(state: ResourceLifecycleState)
+    requires state.lifecycle == ResourceLifecycle::InUse,
+    ensures !can_bind(state),
 {
 }
 

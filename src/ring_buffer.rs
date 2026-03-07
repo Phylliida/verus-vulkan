@@ -12,6 +12,8 @@ verus! {
 /// Getting the modular arithmetic wrong causes a frame to overwrite
 /// resources still in use by a previous frame's GPU work.
 pub struct RingBufferState {
+    /// Unique identifier for this ring buffer (used for thread-safe sync token lookup).
+    pub id: nat,
     /// Total number of slots (e.g., 3 for triple buffering).
     pub capacity: nat,
     /// Next slot to write (monotonically increasing, use % capacity for index).

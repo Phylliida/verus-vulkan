@@ -122,6 +122,7 @@ pub open spec fn submit_ghost(
     } else {
         let record = SubmissionRecord {
             id: queue.next_sequence,
+            queue_id: queue.queue_id,
             referenced_resources: info.referenced_resources,
             fence_id: info.fence_id,
             completed: false,

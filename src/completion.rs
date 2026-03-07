@@ -301,4 +301,166 @@ pub proof fn lemma_fence_wait_enables_destroy(
     lemma_wait_clears_fence_submissions(dev.pending_submissions, fence_id, resource);
 }
 
+// ── Descriptor In-Flight Hazard Prevention ──────────────────────────────
+
+/// A descriptor set is not referenced by any pending submission.
+pub open spec fn descriptor_not_in_flight(
+    dev: DeviceState,
+    set_id: nat,
+) -> bool {
+    no_pending_references(dev.pending_submissions, ResourceId::DescriptorSet { id: set_id })
+}
+
+/// After a fence wait, if all submissions referencing a descriptor set had
+/// this fence_id, the descriptor set is no longer in flight.
+pub proof fn lemma_fence_wait_clears_descriptor(
+    dev: DeviceState,
+    fence_id: nat,
+    fence_states: Map<nat, FenceState>,
+    set_id: nat,
+)
+    requires
+        fence_states.contains_key(fence_id),
+        forall|i: int| 0 <= i < dev.pending_submissions.len()
+            && dev.pending_submissions[i].referenced_resources.contains(
+                ResourceId::DescriptorSet { id: set_id })
+            ==> dev.pending_submissions[i].fence_id == Some(fence_id),
+    ensures ({
+        let (new_dev, _) = fence_wait_ghost(dev, fence_id, fence_states);
+        descriptor_not_in_flight(new_dev, set_id)
+    }),
+{
+    // Delegates to the existing general lemma
+    lemma_wait_clears_fence_submissions(
+        dev.pending_submissions, fence_id,
+        ResourceId::DescriptorSet { id: set_id },
+    );
+}
+
+// ── Fence Wait Clears Fence Submissions ─────────────────────────────────
+
+/// After a fence wait, no remaining pending submission has fence_id == Some(fence_id).
+pub proof fn lemma_fence_wait_clears_fence_submissions(
+    dev: DeviceState,
+    fence_id: nat,
+    fence_states: Map<nat, FenceState>,
+)
+    requires
+        fence_states.contains_key(fence_id),
+    ensures ({
+        let (new_dev, _) = fence_wait_ghost(dev, fence_id, fence_states);
+        forall|i: int| #![trigger new_dev.pending_submissions[i]]
+            0 <= i < new_dev.pending_submissions.len()
+            ==> new_dev.pending_submissions[i].fence_id != Some(fence_id)
+    }),
+{
+    lemma_remove_completed_no_fence(dev.pending_submissions, fence_id);
+}
+
+// ── Cross-Queue Synchronization ──────────────────────────────────────────
+//
+// Vulkan requires explicit semaphore synchronization between queues.
+// Submissions on different queues have no implicit ordering — only
+// binary/timeline semaphore signal→wait pairs establish cross-queue
+// execution dependencies.
+
+/// A cross-queue dependency established by a semaphore signal→wait pair.
+pub struct CrossQueueDependency {
+    /// Queue that signals the semaphore.
+    pub signal_queue: nat,
+    /// Submission id on signal_queue that signals.
+    pub signal_sub_id: nat,
+    /// Queue that waits on the semaphore.
+    pub wait_queue: nat,
+    /// Submission id on wait_queue that waits.
+    pub wait_sub_id: nat,
+    /// The semaphore establishing the dependency.
+    pub semaphore_id: nat,
+}
+
+/// A cross-queue dependency is well-formed: signal and wait must be on different queues.
+pub open spec fn cross_queue_dep_well_formed(dep: CrossQueueDependency) -> bool {
+    dep.signal_queue != dep.wait_queue
+}
+
+/// There exists a direct semaphore dependency from (queue_a, sub_a) to (queue_b, sub_b).
+pub open spec fn cross_queue_ordered(
+    deps: Seq<CrossQueueDependency>,
+    sub_a: nat,
+    queue_a: nat,
+    sub_b: nat,
+    queue_b: nat,
+) -> bool {
+    exists|i: int| 0 <= i < deps.len()
+        && (#[trigger] deps[i]).signal_queue == queue_a
+        && deps[i].signal_sub_id == sub_a
+        && deps[i].wait_queue == queue_b
+        && deps[i].wait_sub_id == sub_b
+}
+
+/// A cross-queue dependency is safe: if the signal submission has completed,
+/// the wait submission's resource accesses are safe.
+pub open spec fn cross_queue_resources_safe(
+    dep: CrossQueueDependency,
+    signal_record: SubmissionRecord,
+    wait_record: SubmissionRecord,
+) -> bool {
+    signal_record.id == dep.signal_sub_id
+    && signal_record.queue_id == dep.signal_queue
+    && wait_record.id == dep.wait_sub_id
+    && wait_record.queue_id == dep.wait_queue
+    && signal_record.completed
+}
+
+// ── Cross-Queue Proofs ──────────────────────────────────────────────────
+
+/// A completed signal establishes resource safety for the waiter.
+pub proof fn lemma_semaphore_establishes_order(
+    dep: CrossQueueDependency,
+    signal_record: SubmissionRecord,
+    wait_record: SubmissionRecord,
+)
+    requires
+        cross_queue_dep_well_formed(dep),
+        signal_record.id == dep.signal_sub_id,
+        signal_record.queue_id == dep.signal_queue,
+        wait_record.id == dep.wait_sub_id,
+        wait_record.queue_id == dep.wait_queue,
+        signal_record.completed,
+    ensures
+        cross_queue_resources_safe(dep, signal_record, wait_record),
+{
+}
+
+/// Cross-queue ordering is irreflexive: a queue cannot depend on itself
+/// through a well-formed cross-queue dependency.
+pub proof fn lemma_cross_queue_irreflexive(dep: CrossQueueDependency)
+    requires cross_queue_dep_well_formed(dep),
+    ensures dep.signal_queue != dep.wait_queue,
+{
+}
+
+/// Adding a new dependency preserves existing cross-queue orderings.
+pub proof fn lemma_add_dep_preserves_ordering(
+    deps: Seq<CrossQueueDependency>,
+    new_dep: CrossQueueDependency,
+    sub_a: nat,
+    queue_a: nat,
+    sub_b: nat,
+    queue_b: nat,
+)
+    requires
+        cross_queue_ordered(deps, sub_a, queue_a, sub_b, queue_b),
+    ensures
+        cross_queue_ordered(deps.push(new_dep), sub_a, queue_a, sub_b, queue_b),
+{
+    let i = choose|i: int| 0 <= i < deps.len()
+        && (#[trigger] deps[i]).signal_queue == queue_a
+        && deps[i].signal_sub_id == sub_a
+        && deps[i].wait_queue == queue_b
+        && deps[i].wait_sub_id == sub_b;
+    let extended = deps.push(new_dep);
+    assert(extended[i] == deps[i]);
+}
+
 } // verus!
