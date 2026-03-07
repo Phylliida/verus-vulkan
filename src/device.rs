@@ -121,7 +121,68 @@ pub open spec fn device_ready_for_shutdown(dev: DeviceState) -> bool {
     && dev.pending_submissions.len() == 0
 }
 
+// ── Wait-Idle Specs ─────────────────────────────────────────────────────
+
+/// Filter out all submissions belonging to a specific queue.
+/// Returns only submissions from OTHER queues (removes `queue_id`'s submissions).
+pub open spec fn filter_by_queue(
+    submissions: Seq<SubmissionRecord>,
+    queue_id: nat,
+) -> Seq<SubmissionRecord>
+    decreases submissions.len(),
+{
+    if submissions.len() == 0 {
+        Seq::empty()
+    } else {
+        let head = submissions[0];
+        let rest = filter_by_queue(submissions.subrange(1, submissions.len() as int), queue_id);
+        if head.queue_id == queue_id {
+            rest
+        } else {
+            Seq::new(1, |_i| head).add(rest)
+        }
+    }
+}
+
+/// Ghost update: vkDeviceWaitIdle — all pending submissions complete.
+pub open spec fn device_wait_idle_ghost(dev: DeviceState) -> DeviceState {
+    DeviceState {
+        pending_submissions: Seq::empty(),
+        ..dev
+    }
+}
+
+/// Ghost update: vkQueueWaitIdle — all submissions on `queue_id` complete.
+pub open spec fn queue_wait_idle_ghost(
+    dev: DeviceState,
+    queue_id: nat,
+) -> DeviceState {
+    DeviceState {
+        pending_submissions: filter_by_queue(dev.pending_submissions, queue_id),
+        ..dev
+    }
+}
+
 // ── Lemmas ──────────────────────────────────────────────────────────────
+
+/// After vkDeviceWaitIdle with zero resource counters, the device is ready for shutdown.
+pub proof fn lemma_wait_idle_enables_shutdown(dev: DeviceState)
+    requires
+        dev.live_buffers == 0,
+        dev.live_images == 0,
+        dev.live_pipelines == 0,
+        dev.live_descriptor_pools == 0,
+    ensures
+        device_ready_for_shutdown(device_wait_idle_ghost(dev)),
+{
+}
+
+/// vkDeviceWaitIdle preserves device_well_formed (heap fields unchanged).
+pub proof fn lemma_wait_idle_preserves_well_formed(dev: DeviceState)
+    requires device_well_formed(dev),
+    ensures device_well_formed(device_wait_idle_ghost(dev)),
+{
+}
 
 /// Allocating within budget preserves device_well_formed.
 pub proof fn lemma_allocate_preserves_well_formed(

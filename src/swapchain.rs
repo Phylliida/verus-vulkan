@@ -14,6 +14,8 @@ pub enum SwapchainImageState {
 
 /// A swapchain with N images, each in some lifecycle state.
 pub struct SwapchainState {
+    /// Unique identifier for this swapchain (used for thread-safe sync token lookup).
+    pub id: nat,
     pub image_states: Seq<SwapchainImageState>,
 }
 
@@ -74,6 +76,7 @@ pub open spec fn acquire_image(swapchain: SwapchainState, idx: nat) -> Option<Sw
         match swapchain.image_states[idx as int] {
             SwapchainImageState::Available => Some(SwapchainState {
                 image_states: swapchain.image_states.update(idx as int, SwapchainImageState::Acquired),
+                ..swapchain
             }),
             _ => None,
         }
@@ -90,6 +93,7 @@ pub open spec fn present_image(swapchain: SwapchainState, idx: nat) -> Option<Sw
         match swapchain.image_states[idx as int] {
             SwapchainImageState::Acquired => Some(SwapchainState {
                 image_states: swapchain.image_states.update(idx as int, SwapchainImageState::PresentPending),
+                ..swapchain
             }),
             _ => None,
         }
@@ -106,6 +110,7 @@ pub open spec fn present_complete(swapchain: SwapchainState, idx: nat) -> Option
         match swapchain.image_states[idx as int] {
             SwapchainImageState::PresentPending => Some(SwapchainState {
                 image_states: swapchain.image_states.update(idx as int, SwapchainImageState::Available),
+                ..swapchain
             }),
             _ => None,
         }
