@@ -17,6 +17,10 @@ pub struct SubmissionRecord {
     pub fence_id: Option<nat>,
     /// Whether the GPU has finished executing this submission.
     pub completed: bool,
+    /// Command buffer ids submitted in this batch.
+    pub command_buffers: Seq<nat>,
+    /// Semaphore ids to signal when execution completes.
+    pub signal_semaphores: Seq<nat>,
 }
 
 /// True iff `resource` is not referenced by any pending (incomplete) submission.
