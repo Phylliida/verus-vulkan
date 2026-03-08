@@ -86,7 +86,6 @@ pub proof fn lemma_alloc_free_roundtrip(
 
 /// Creating and destroying a buffer returns live_buffers to its original value.
 pub proof fn lemma_create_destroy_buffer_roundtrip(dev: DeviceState)
-    requires dev.live_buffers > 0 || true,
     ensures
         destroy_buffer_ghost(create_buffer_ghost(dev)).live_buffers == dev.live_buffers,
 {
@@ -113,7 +112,6 @@ pub proof fn lemma_buffer_lifecycle_preserves_well_formed(
     requires
         device_well_formed(dev),
         heap_fits(dev, heap_idx, size),
-        dev.live_buffers > 0 || true,
     ensures
         device_well_formed(
             destroy_and_free_buffer(
