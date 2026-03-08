@@ -1,5 +1,9 @@
 use vstd::prelude::*;
 use crate::swapchain::*;
+use crate::image_layout::ImageLayout;
+use crate::resource::ResourceId;
+use crate::sync_token::*;
+use super::image_layout::RuntimeImageLayoutTracker;
 
 verus! {
 
@@ -93,10 +97,17 @@ pub fn create_swapchain_exec(
 }
 
 /// Exec: acquire the next available image at index `idx`.
-pub fn acquire_next_image_exec(sc: &mut RuntimeSwapchain, idx: u64)
+/// Caller must prove exclusive access to the swapchain.
+pub fn acquire_next_image_exec(
+    sc: &mut RuntimeSwapchain,
+    idx: u64,
+    thread: Ghost<ThreadId>,
+    reg: Ghost<TokenRegistry>,
+)
     requires
         runtime_swapchain_wf(&*old(sc)),
         can_acquire_image(&*old(sc), idx as nat),
+        holds_exclusive(reg@, old(sc).handle as nat, thread@),
     ensures
         sc@ == acquire_image(old(sc)@, idx as nat).unwrap(),
         sc@.image_states[idx as int] == SwapchainImageState::Acquired,
@@ -106,10 +117,24 @@ pub fn acquire_next_image_exec(sc: &mut RuntimeSwapchain, idx: u64)
 }
 
 /// Exec: present the image at index `idx`.
-pub fn present_exec(sc: &mut RuntimeSwapchain, idx: u64)
+/// Caller must prove the image is in PresentSrc layout via their layout tracker.
+/// Requires exclusive access to both the swapchain and the presentation queue.
+pub fn present_exec(
+    sc: &mut RuntimeSwapchain,
+    idx: u64,
+    layout_tracker: &RuntimeImageLayoutTracker,
+    image_resource: Ghost<ResourceId>,
+    thread: Ghost<ThreadId>,
+    queue_id: Ghost<nat>,
+    reg: Ghost<TokenRegistry>,
+)
     requires
         runtime_swapchain_wf(&*old(sc)),
         can_present_image(&*old(sc), idx as nat),
+        layout_tracker@.contains_key(image_resource@),
+        layout_tracker@[image_resource@] == ImageLayout::PresentSrc,
+        holds_exclusive(reg@, old(sc).handle as nat, thread@),
+        holds_exclusive(reg@, queue_id@, thread@),
     ensures
         sc@ == present_image(old(sc)@, idx as nat).unwrap(),
         sc@.image_states[idx as int] == SwapchainImageState::PresentPending,
@@ -119,11 +144,18 @@ pub fn present_exec(sc: &mut RuntimeSwapchain, idx: u64)
 }
 
 /// Exec: mark a present-pending image as available (presentation completed).
-pub fn present_complete_exec(sc: &mut RuntimeSwapchain, idx: u64)
+/// Caller must prove exclusive access to the swapchain.
+pub fn present_complete_exec(
+    sc: &mut RuntimeSwapchain,
+    idx: u64,
+    thread: Ghost<ThreadId>,
+    reg: Ghost<TokenRegistry>,
+)
     requires
         runtime_swapchain_wf(&*old(sc)),
         idx < old(sc)@.image_states.len(),
         old(sc)@.image_states[idx as int] == SwapchainImageState::PresentPending,
+        holds_exclusive(reg@, old(sc).handle as nat, thread@),
     ensures
         sc@ == present_complete(old(sc)@, idx as nat).unwrap(),
         sc@.image_states[idx as int] == SwapchainImageState::Available,
@@ -144,13 +176,18 @@ pub fn get_swapchain_image_count_exec(sc: &RuntimeSwapchain) -> (out: u64)
 }
 
 /// Exec: recreate swapchain with new image count (all images reset to Available).
+/// Caller must prove no images are in-flight (all Available) and exclusive access.
 pub fn recreate_swapchain_exec(
     sc: &mut RuntimeSwapchain,
     new_image_count: u64,
+    thread: Ghost<ThreadId>,
+    reg: Ghost<TokenRegistry>,
 ) -> (success: bool)
     requires
         runtime_swapchain_wf(&*old(sc)),
         new_image_count > 0,
+        all_available(old(sc)@),
+        holds_exclusive(reg@, old(sc).handle as nat, thread@),
     ensures
         success ==> (
             sc@.id == old(sc)@.id

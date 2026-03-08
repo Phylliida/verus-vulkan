@@ -1,6 +1,7 @@
 use vstd::prelude::*;
 use crate::resource::*;
 use crate::queue_ownership::*;
+use crate::sync_token::*;
 
 verus! {
 
@@ -135,16 +136,21 @@ pub fn register_concurrent_exec(
 }
 
 /// Exec: issue a release barrier for ownership transfer.
+/// Caller must prove exclusive access to the source queue.
 pub fn release_ownership_exec(
     tracker: &mut RuntimeOwnershipTracker,
     resource: Ghost<ResourceId>,
     src_family: Ghost<nat>,
     dst_family: Ghost<nat>,
+    queue_id: Ghost<nat>,
+    thread: Ghost<ThreadId>,
+    reg: Ghost<TokenRegistry>,
 )
     requires
         old(tracker)@.contains_key(resource@),
         old(tracker)@[resource@].owner == Some(src_family@),
         !old(tracker)@[resource@].release_pending,
+        holds_exclusive(reg@, queue_id@, thread@),
     ensures
         tracker@ == old(tracker)@.insert(
             resource@,
@@ -161,14 +167,19 @@ pub fn release_ownership_exec(
 }
 
 /// Exec: issue an acquire barrier to complete ownership transfer.
+/// Caller must prove exclusive access to the destination queue.
 pub fn acquire_ownership_exec(
     tracker: &mut RuntimeOwnershipTracker,
     resource: Ghost<ResourceId>,
     dst_family: Ghost<nat>,
+    queue_id: Ghost<nat>,
+    thread: Ghost<ThreadId>,
+    reg: Ghost<TokenRegistry>,
 )
     requires
         old(tracker)@.contains_key(resource@),
         transfer_valid(old(tracker)@[resource@], dst_family@),
+        holds_exclusive(reg@, queue_id@, thread@),
     ensures
         tracker@ == old(tracker)@.insert(
             resource@,
@@ -185,12 +196,14 @@ pub fn acquire_ownership_exec(
 }
 
 /// Exec: set a resource to concurrent mode.
+/// Caller must prove no ownership transfer is in progress.
 pub fn set_concurrent_exec(
     tracker: &mut RuntimeOwnershipTracker,
     resource: Ghost<ResourceId>,
 )
     requires
         old(tracker)@.contains_key(resource@),
+        !old(tracker)@[resource@].release_pending,
     ensures
         tracker@ == old(tracker)@.insert(resource@, concurrent_ownership()),
 {

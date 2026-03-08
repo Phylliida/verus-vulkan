@@ -1,5 +1,7 @@
 use vstd::prelude::*;
 use crate::fence::*;
+use crate::lifetime::*;
+use crate::sync_token::*;
 
 verus! {
 
@@ -34,9 +36,15 @@ pub fn create_fence_exec(id: Ghost<nat>, signaled: bool) -> (out: RuntimeFence)
 }
 
 /// Exec: reset a fence to unsignaled.
-pub fn reset_fence_exec(fence: &mut RuntimeFence)
+/// Caller must prove exclusive access to the fence.
+pub fn reset_fence_exec(
+    fence: &mut RuntimeFence,
+    thread: Ghost<ThreadId>,
+    reg: Ghost<TokenRegistry>,
+)
     requires
         runtime_fence_wf(&*old(fence)),
+        holds_exclusive(reg@, old(fence).handle as nat, thread@),
     ensures
         fence@ == reset_fence_ghost(old(fence)@),
 {
@@ -44,9 +52,16 @@ pub fn reset_fence_exec(fence: &mut RuntimeFence)
 }
 
 /// Exec: wait for a fence (marks as signaled in ghost state).
-pub fn wait_fence_exec(fence: &mut RuntimeFence, sub_id: Ghost<nat>)
+/// Caller must prove exclusive access to the fence.
+pub fn wait_fence_exec(
+    fence: &mut RuntimeFence,
+    sub_id: Ghost<nat>,
+    thread: Ghost<ThreadId>,
+    reg: Ghost<TokenRegistry>,
+)
     requires
         runtime_fence_wf(&*old(fence)),
+        holds_exclusive(reg@, old(fence).handle as nat, thread@),
     ensures
         fence@ == signal_fence_ghost(old(fence)@, sub_id@),
         fence@.signaled,
@@ -55,9 +70,17 @@ pub fn wait_fence_exec(fence: &mut RuntimeFence, sub_id: Ghost<nat>)
 }
 
 /// Exec: destroy a fence.
-pub fn destroy_fence_exec(fence: &mut RuntimeFence)
+/// Caller must prove no pending submission references this fence and exclusive access.
+pub fn destroy_fence_exec(
+    fence: &mut RuntimeFence,
+    pending_submissions: Ghost<Seq<SubmissionRecord>>,
+    thread: Ghost<ThreadId>,
+    reg: Ghost<TokenRegistry>,
+)
     requires
         runtime_fence_wf(&*old(fence)),
+        fence_not_pending(old(fence)@.id, pending_submissions@),
+        holds_exclusive(reg@, old(fence).handle as nat, thread@),
     ensures
         fence@ == destroy_fence_ghost(old(fence)@),
         !fence@.alive,

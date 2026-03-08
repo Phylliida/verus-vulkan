@@ -2,6 +2,8 @@ use vstd::prelude::*;
 use crate::semaphore::*;
 use crate::resource::*;
 use crate::sync::*;
+use crate::lifetime::*;
+use crate::sync_token::*;
 
 verus! {
 
@@ -36,12 +38,16 @@ pub fn create_semaphore_exec(id: Ghost<nat>) -> (out: RuntimeSemaphore)
 }
 
 /// Exec: signal a semaphore (marks as signaled with resource states).
+/// Caller must prove exclusive access to the semaphore.
 pub fn signal_semaphore_exec(
     sem: &mut RuntimeSemaphore,
     states: Ghost<Map<ResourceId, SyncState>>,
+    thread: Ghost<ThreadId>,
+    reg: Ghost<TokenRegistry>,
 )
     requires
         runtime_semaphore_wf(&*old(sem)),
+        holds_exclusive(reg@, old(sem).handle as nat, thread@),
     ensures
         sem@ == signal_semaphore_ghost(old(sem)@, states@),
 {
@@ -49,10 +55,16 @@ pub fn signal_semaphore_exec(
 }
 
 /// Exec: wait on a semaphore (marks as unsignaled/consumed).
-pub fn wait_semaphore_exec(sem: &mut RuntimeSemaphore)
+/// Caller must prove exclusive access to the semaphore.
+pub fn wait_semaphore_exec(
+    sem: &mut RuntimeSemaphore,
+    thread: Ghost<ThreadId>,
+    reg: Ghost<TokenRegistry>,
+)
     requires
         runtime_semaphore_wf(&*old(sem)),
         old(sem)@.signaled,
+        holds_exclusive(reg@, old(sem).handle as nat, thread@),
     ensures
         sem@ == wait_semaphore_ghost(old(sem)@),
 {
@@ -60,9 +72,18 @@ pub fn wait_semaphore_exec(sem: &mut RuntimeSemaphore)
 }
 
 /// Exec: destroy a semaphore.
-pub fn destroy_semaphore_exec(sem: &mut RuntimeSemaphore)
+/// Caller must prove no pending submission signals this semaphore and exclusive access.
+pub fn destroy_semaphore_exec(
+    sem: &mut RuntimeSemaphore,
+    pending_submissions: Ghost<Seq<SubmissionRecord>>,
+    thread: Ghost<ThreadId>,
+    reg: Ghost<TokenRegistry>,
+)
     requires
         runtime_semaphore_wf(&*old(sem)),
+        !old(sem)@.signaled,
+        semaphore_not_pending(old(sem)@.id, pending_submissions@),
+        holds_exclusive(reg@, old(sem).handle as nat, thread@),
     ensures
         sem@ == destroy_semaphore_ghost(old(sem)@),
         !sem@.alive,

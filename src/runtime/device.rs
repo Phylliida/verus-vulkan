@@ -2,6 +2,7 @@ use vstd::prelude::*;
 use crate::device::*;
 use crate::memory::*;
 use crate::lifetime::*;
+use crate::sync_token::*;
 
 verus! {
 
@@ -48,9 +49,15 @@ pub open spec fn create_device_spec(
 }
 
 /// Exec: create a buffer (increments live_buffers in ghost state).
-pub fn create_buffer_exec(dev: &mut RuntimeDevice)
+/// Caller must prove exclusive access to the device.
+pub fn create_buffer_exec(
+    dev: &mut RuntimeDevice,
+    thread: Ghost<ThreadId>,
+    reg: Ghost<TokenRegistry>,
+)
     requires
         runtime_device_wf(&*old(dev)),
+        holds_exclusive(reg@, old(dev).handle as nat, thread@),
     ensures
         dev@ == create_buffer_ghost(old(dev)@),
 {
@@ -58,10 +65,16 @@ pub fn create_buffer_exec(dev: &mut RuntimeDevice)
 }
 
 /// Exec: destroy a buffer (decrements live_buffers in ghost state).
-pub fn destroy_buffer_exec(dev: &mut RuntimeDevice)
+/// Caller must prove exclusive access to the device.
+pub fn destroy_buffer_exec(
+    dev: &mut RuntimeDevice,
+    thread: Ghost<ThreadId>,
+    reg: Ghost<TokenRegistry>,
+)
     requires
         runtime_device_wf(&*old(dev)),
         old(dev)@.live_buffers > 0,
+        holds_exclusive(reg@, old(dev).handle as nat, thread@),
     ensures
         dev@ == destroy_buffer_ghost(old(dev)@),
 {
@@ -69,9 +82,15 @@ pub fn destroy_buffer_exec(dev: &mut RuntimeDevice)
 }
 
 /// Exec: create an image (increments live_images in ghost state).
-pub fn create_image_exec(dev: &mut RuntimeDevice)
+/// Caller must prove exclusive access to the device.
+pub fn create_image_exec(
+    dev: &mut RuntimeDevice,
+    thread: Ghost<ThreadId>,
+    reg: Ghost<TokenRegistry>,
+)
     requires
         runtime_device_wf(&*old(dev)),
+        holds_exclusive(reg@, old(dev).handle as nat, thread@),
     ensures
         dev@ == create_image_ghost(old(dev)@),
 {
@@ -79,10 +98,16 @@ pub fn create_image_exec(dev: &mut RuntimeDevice)
 }
 
 /// Exec: destroy an image (decrements live_images in ghost state).
-pub fn destroy_image_exec(dev: &mut RuntimeDevice)
+/// Caller must prove exclusive access to the device.
+pub fn destroy_image_exec(
+    dev: &mut RuntimeDevice,
+    thread: Ghost<ThreadId>,
+    reg: Ghost<TokenRegistry>,
+)
     requires
         runtime_device_wf(&*old(dev)),
         old(dev)@.live_images > 0,
+        holds_exclusive(reg@, old(dev).handle as nat, thread@),
     ensures
         dev@ == destroy_image_ghost(old(dev)@),
 {
@@ -90,10 +115,18 @@ pub fn destroy_image_exec(dev: &mut RuntimeDevice)
 }
 
 /// Exec: allocate memory on a specific heap.
-pub fn allocate_memory_exec(dev: &mut RuntimeDevice, heap_idx: u64, size: u64)
+/// Caller must prove exclusive access to the device.
+pub fn allocate_memory_exec(
+    dev: &mut RuntimeDevice,
+    heap_idx: u64,
+    size: u64,
+    thread: Ghost<ThreadId>,
+    reg: Ghost<TokenRegistry>,
+)
     requires
         runtime_device_wf(&*old(dev)),
         heap_fits(old(dev)@, heap_idx as nat, size as nat),
+        holds_exclusive(reg@, old(dev).handle as nat, thread@),
     ensures
         dev@ == allocate_memory_ghost(old(dev)@, heap_idx as nat, size as nat),
 {
@@ -101,12 +134,20 @@ pub fn allocate_memory_exec(dev: &mut RuntimeDevice, heap_idx: u64, size: u64)
 }
 
 /// Exec: free memory on a specific heap.
-pub fn free_memory_exec(dev: &mut RuntimeDevice, heap_idx: u64, size: u64)
+/// Caller must prove exclusive access to the device.
+pub fn free_memory_exec(
+    dev: &mut RuntimeDevice,
+    heap_idx: u64,
+    size: u64,
+    thread: Ghost<ThreadId>,
+    reg: Ghost<TokenRegistry>,
+)
     requires
         runtime_device_wf(&*old(dev)),
         (heap_idx as nat) < old(dev)@.num_heaps,
         old(dev)@.heap_usage.contains_key(heap_idx as nat),
         size as nat <= old(dev)@.heap_usage[heap_idx as nat],
+        holds_exclusive(reg@, old(dev).handle as nat, thread@),
     ensures
         dev@ == free_memory_ghost(old(dev)@, heap_idx as nat, size as nat),
 {
@@ -114,9 +155,15 @@ pub fn free_memory_exec(dev: &mut RuntimeDevice, heap_idx: u64, size: u64)
 }
 
 /// Exec: device wait idle — all pending submissions complete.
-pub fn device_wait_idle_exec(dev: &mut RuntimeDevice)
+/// Caller must prove exclusive access to the device.
+pub fn device_wait_idle_exec(
+    dev: &mut RuntimeDevice,
+    thread: Ghost<ThreadId>,
+    reg: Ghost<TokenRegistry>,
+)
     requires
         runtime_device_wf(&*old(dev)),
+        holds_exclusive(reg@, old(dev).handle as nat, thread@),
     ensures
         dev@ == device_wait_idle_ghost(old(dev)@),
 {

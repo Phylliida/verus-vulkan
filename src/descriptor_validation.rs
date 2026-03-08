@@ -63,8 +63,9 @@ pub open spec fn bind_and_check(
     state: RecordingState,
     set_index: nat,
     set_id: nat,
+    layout_id: nat,
 ) -> RecordingState {
-    bind_descriptor_set(state, set_index, set_id)
+    bind_descriptor_set(state, set_index, set_id, layout_id)
 }
 
 // ── Proofs ──────────────────────────────────────────────────────────────
@@ -84,12 +85,17 @@ pub proof fn lemma_bind_makes_bound(
     state: RecordingState,
     set_index: nat,
     set_id: nat,
+    layout_id: nat,
 )
     ensures
-        bind_descriptor_set(state, set_index, set_id)
+        bind_descriptor_set(state, set_index, set_id, layout_id)
             .bound_descriptor_sets.contains_key(set_index),
-        bind_descriptor_set(state, set_index, set_id)
+        bind_descriptor_set(state, set_index, set_id, layout_id)
             .bound_descriptor_sets[set_index] == set_id,
+        bind_descriptor_set(state, set_index, set_id, layout_id)
+            .bound_set_layouts.contains_key(set_index),
+        bind_descriptor_set(state, set_index, set_id, layout_id)
+            .bound_set_layouts[set_index] == layout_id,
 {
 }
 
@@ -98,34 +104,59 @@ pub proof fn lemma_bind_preserves_other_sets(
     state: RecordingState,
     set_index: nat,
     set_id: nat,
+    layout_id: nat,
     other_index: nat,
 )
     requires
         other_index != set_index,
         state.bound_descriptor_sets.contains_key(other_index),
     ensures
-        bind_descriptor_set(state, set_index, set_id)
+        bind_descriptor_set(state, set_index, set_id, layout_id)
             .bound_descriptor_sets.contains_key(other_index),
-        bind_descriptor_set(state, set_index, set_id)
+        bind_descriptor_set(state, set_index, set_id, layout_id)
             .bound_descriptor_sets[other_index]
             == state.bound_descriptor_sets[other_index],
 {
 }
 
-/// If all_descriptor_sets_valid holds, then descriptor_sets_bound_for_pipeline holds.
+/// bound_set_layouts is consistent with actual descriptor set layout IDs.
+pub open spec fn bound_layouts_consistent(
+    state: RecordingState,
+    dsets: Map<nat, DescriptorSetState>,
+) -> bool {
+    forall|idx: nat| #![trigger state.bound_descriptor_sets.contains_key(idx)]
+        state.bound_descriptor_sets.contains_key(idx)
+        && dsets.contains_key(state.bound_descriptor_sets[idx])
+        ==> state.bound_set_layouts.contains_key(idx)
+            && state.bound_set_layouts[idx] == dsets[state.bound_descriptor_sets[idx]].layout_id
+}
+
+/// If all_descriptor_sets_valid holds and bound_set_layouts is consistent with the
+/// actual descriptor set layout IDs, then descriptor_sets_bound_for_pipeline holds.
 pub proof fn lemma_valid_sets_implies_bound_for_pipeline(
     state: RecordingState,
     pipeline: GraphicsPipelineState,
     dsets: Map<nat, DescriptorSetState>,
     layouts: Map<nat, DescriptorSetLayoutState>,
 )
-    requires all_descriptor_sets_valid(state, pipeline, dsets, layouts),
+    requires
+        all_descriptor_sets_valid(state, pipeline, dsets, layouts),
+        bound_layouts_consistent(state, dsets),
     ensures descriptor_sets_bound_for_pipeline(state, pipeline.descriptor_set_layouts),
 {
     assert forall|i: int| 0 <= i < pipeline.descriptor_set_layouts.len()
-        implies #[trigger] state.bound_descriptor_sets.contains_key(i as nat) by {
-        // Trigger the quantifier in all_descriptor_sets_valid
+        implies (
+            #[trigger] state.bound_descriptor_sets.contains_key(i as nat)
+            && state.bound_set_layouts.contains_key(i as nat)
+            && state.bound_set_layouts[i as nat] == pipeline.descriptor_set_layouts[i]
+        ) by {
+        // Trigger all_descriptor_sets_valid
         let _ = pipeline.descriptor_set_layouts[i];
+        // This gives us: bound_descriptor_sets.contains_key(i as nat)
+        //   && dsets[bound_descriptor_sets[i as nat]].layout_id == pipeline_layouts[i]
+        // bound_layouts_consistent triggers on bound_descriptor_sets.contains_key(i as nat)
+        // giving us: bound_set_layouts[i as nat] == dsets[bound_descriptor_sets[i as nat]].layout_id
+        // Chain: bound_set_layouts[i as nat] == pipeline_layouts[i]
     }
 }
 
@@ -164,15 +195,18 @@ pub proof fn lemma_update_preserves_fully_bound(
 }
 
 /// Binding all required descriptor sets satisfies descriptor_sets_bound_for_pipeline.
-/// (For a pipeline with N layouts, binding sets at indices 0..N-1 suffices.)
+/// (For a pipeline with N layouts, binding sets at indices 0..N-1 with matching layouts suffices.)
 pub proof fn lemma_sequential_binds_satisfy_pipeline(
     state: RecordingState,
     pipeline_layouts: Seq<nat>,
 )
     requires
         pipeline_layouts.len() == 0
-        || (forall|i: int| 0 <= i < pipeline_layouts.len()
-            ==> #[trigger] state.bound_descriptor_sets.contains_key(i as nat)),
+        || (forall|i: int| 0 <= i < pipeline_layouts.len() ==> (
+            #[trigger] state.bound_descriptor_sets.contains_key(i as nat)
+            && state.bound_set_layouts.contains_key(i as nat)
+            && state.bound_set_layouts[i as nat] == pipeline_layouts[i]
+        )),
     ensures
         descriptor_sets_bound_for_pipeline(state, pipeline_layouts),
 {

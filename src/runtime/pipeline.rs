@@ -1,5 +1,6 @@
 use vstd::prelude::*;
 use crate::pipeline::*;
+use crate::sync_token::*;
 
 verus! {
 
@@ -74,9 +75,18 @@ pub fn create_compute_pipeline_exec(
 }
 
 /// Exec: destroy a graphics pipeline (sets alive to false in ghost state).
-pub fn destroy_graphics_pipeline_exec(pipe: &mut RuntimeGraphicsPipeline)
+/// Caller must prove the pipeline is not currently bound in any active recording
+/// and holds exclusive access.
+pub fn destroy_graphics_pipeline_exec(
+    pipe: &mut RuntimeGraphicsPipeline,
+    active_pipeline_ids: Ghost<Set<nat>>,
+    thread: Ghost<ThreadId>,
+    reg: Ghost<TokenRegistry>,
+)
     requires
         runtime_gfx_pipeline_wf(&*old(pipe)),
+        !active_pipeline_ids@.contains(old(pipe)@.id),
+        holds_exclusive(reg@, old(pipe).handle as nat, thread@),
     ensures
         !pipe@.alive,
         pipe@.id == old(pipe)@.id,
@@ -88,9 +98,18 @@ pub fn destroy_graphics_pipeline_exec(pipe: &mut RuntimeGraphicsPipeline)
 }
 
 /// Exec: destroy a compute pipeline.
-pub fn destroy_compute_pipeline_exec(pipe: &mut RuntimeComputePipeline)
+/// Caller must prove the pipeline is not currently bound in any active recording
+/// and holds exclusive access.
+pub fn destroy_compute_pipeline_exec(
+    pipe: &mut RuntimeComputePipeline,
+    active_pipeline_ids: Ghost<Set<nat>>,
+    thread: Ghost<ThreadId>,
+    reg: Ghost<TokenRegistry>,
+)
     requires
         runtime_compute_pipeline_wf(&*old(pipe)),
+        !active_pipeline_ids@.contains(old(pipe)@.id),
+        holds_exclusive(reg@, old(pipe).handle as nat, thread@),
     ensures
         !pipe@.alive,
         pipe@.id == old(pipe)@.id,

@@ -1,5 +1,8 @@
 use vstd::prelude::*;
 use crate::memory::*;
+use crate::resource::*;
+use crate::memory_aliasing::*;
+use crate::sync_token::*;
 
 verus! {
 
@@ -49,10 +52,18 @@ pub fn allocate_exec(
 }
 
 /// Exec: free memory.
-pub fn free_exec(alloc: &mut RuntimeAllocation)
+/// Caller must prove no resource is still bound to this allocation and exclusive access.
+pub fn free_exec(
+    alloc: &mut RuntimeAllocation,
+    resource_bindings: Ghost<Map<ResourceId, MemoryRange>>,
+    thread: Ghost<ThreadId>,
+    reg: Ghost<TokenRegistry>,
+)
     requires
         runtime_alloc_wf(&*old(alloc)),
         old(alloc).mapped@ == false,
+        no_resources_use_allocation(resource_bindings@, old(alloc)@.id),
+        holds_exclusive(reg@, old(alloc).handle as nat, thread@),
     ensures
         !alloc@.alive,
         alloc@.id == old(alloc)@.id,
@@ -64,10 +75,16 @@ pub fn free_exec(alloc: &mut RuntimeAllocation)
 }
 
 /// Exec: map memory (marks as mapped).
-pub fn map_memory_exec(alloc: &mut RuntimeAllocation)
+/// Caller must prove exclusive access to the memory object.
+pub fn map_memory_exec(
+    alloc: &mut RuntimeAllocation,
+    thread: Ghost<ThreadId>,
+    reg: Ghost<TokenRegistry>,
+)
     requires
         runtime_alloc_wf(&*old(alloc)),
         old(alloc).mapped@ == false,
+        holds_exclusive(reg@, old(alloc).handle as nat, thread@),
     ensures
         alloc.mapped@ == true,
         alloc@ == old(alloc)@,
@@ -76,10 +93,16 @@ pub fn map_memory_exec(alloc: &mut RuntimeAllocation)
 }
 
 /// Exec: unmap memory.
-pub fn unmap_memory_exec(alloc: &mut RuntimeAllocation)
+/// Caller must prove exclusive access to the memory object.
+pub fn unmap_memory_exec(
+    alloc: &mut RuntimeAllocation,
+    thread: Ghost<ThreadId>,
+    reg: Ghost<TokenRegistry>,
+)
     requires
         runtime_alloc_wf(&*old(alloc)),
         old(alloc).mapped@ == true,
+        holds_exclusive(reg@, old(alloc).handle as nat, thread@),
     ensures
         alloc.mapped@ == false,
         alloc@ == old(alloc)@,

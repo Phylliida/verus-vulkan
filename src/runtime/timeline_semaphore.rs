@@ -1,5 +1,6 @@
 use vstd::prelude::*;
 use crate::timeline_semaphore::*;
+use crate::sync_token::*;
 
 verus! {
 
@@ -94,9 +95,17 @@ pub fn create_timeline_semaphore_exec(
 }
 
 /// Exec: destroy a timeline semaphore.
-pub fn destroy_timeline_semaphore_exec(sem: &mut RuntimeTimelineSemaphore)
+/// Caller must prove no pending GPU work references this semaphore and exclusive access.
+pub fn destroy_timeline_semaphore_exec(
+    sem: &mut RuntimeTimelineSemaphore,
+    thread: Ghost<ThreadId>,
+    reg: Ghost<TokenRegistry>,
+)
     requires
         runtime_timeline_wf(&*old(sem)),
+        old(sem)@.pending_signals == Set::<nat>::empty(),
+        old(sem)@.pending_waits == Set::<nat>::empty(),
+        holds_exclusive(reg@, old(sem).handle as nat, thread@),
     ensures
         !sem@.alive,
         sem@.id == old(sem)@.id,
@@ -108,10 +117,17 @@ pub fn destroy_timeline_semaphore_exec(sem: &mut RuntimeTimelineSemaphore)
 }
 
 /// Exec: submit a signal operation (pending until GPU completes).
-pub fn signal_timeline_exec(sem: &mut RuntimeTimelineSemaphore, value: u64)
+/// Caller must prove exclusive access to the timeline semaphore.
+pub fn signal_timeline_exec(
+    sem: &mut RuntimeTimelineSemaphore,
+    value: u64,
+    thread: Ghost<ThreadId>,
+    reg: Ghost<TokenRegistry>,
+)
     requires
         runtime_timeline_wf(&*old(sem)),
         signal_value_valid(old(sem)@, value as nat),
+        holds_exclusive(reg@, old(sem).handle as nat, thread@),
     ensures
         sem@ == submit_signal(old(sem)@, value as nat),
 {
@@ -119,9 +135,16 @@ pub fn signal_timeline_exec(sem: &mut RuntimeTimelineSemaphore, value: u64)
 }
 
 /// Exec: submit a wait operation (pending until value reached).
-pub fn wait_timeline_exec(sem: &mut RuntimeTimelineSemaphore, value: u64)
+/// Caller must prove exclusive access to the timeline semaphore.
+pub fn wait_timeline_exec(
+    sem: &mut RuntimeTimelineSemaphore,
+    value: u64,
+    thread: Ghost<ThreadId>,
+    reg: Ghost<TokenRegistry>,
+)
     requires
         runtime_timeline_wf(&*old(sem)),
+        holds_exclusive(reg@, old(sem).handle as nat, thread@),
     ensures
         sem@ == submit_wait(old(sem)@, value as nat),
 {
@@ -137,11 +160,18 @@ pub fn get_counter_value_exec(sem: &RuntimeTimelineSemaphore) -> (out: Ghost<nat
 }
 
 /// Exec: complete a pending signal (advances counter).
-pub fn complete_signal_exec(sem: &mut RuntimeTimelineSemaphore, value: u64)
+/// Caller must prove exclusive access to the timeline semaphore.
+pub fn complete_signal_exec(
+    sem: &mut RuntimeTimelineSemaphore,
+    value: u64,
+    thread: Ghost<ThreadId>,
+    reg: Ghost<TokenRegistry>,
+)
     requires
         runtime_timeline_wf(&*old(sem)),
         old(sem)@.pending_signals.contains(value as nat),
         signal_value_valid(old(sem)@, value as nat),
+        holds_exclusive(reg@, old(sem).handle as nat, thread@),
     ensures
         sem@ == complete_signal(old(sem)@, value as nat),
         sem@.counter == value as nat,
@@ -150,12 +180,15 @@ pub fn complete_signal_exec(sem: &mut RuntimeTimelineSemaphore, value: u64)
 }
 
 /// Exec: wait for multiple timeline semaphores (ghost-level batch wait).
+/// Caller must prove all semaphores are well-formed.
 pub fn wait_multiple_exec(
     sems: Ghost<Seq<TimelineSemaphoreState>>,
     values: Ghost<Seq<nat>>,
 ) -> (result: Ghost<bool>)
     requires
         sems@.len() == values@.len(),
+        forall|i: int| 0 <= i < sems@.len()
+            ==> timeline_well_formed(#[trigger] sems@[i]),
     ensures
         result@ ==> forall|i: int| 0 <= i < sems@.len()
             ==> wait_satisfied(#[trigger] sems@[i], values@[i]),

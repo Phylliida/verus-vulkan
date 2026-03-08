@@ -1,4 +1,5 @@
 use vstd::prelude::*;
+use crate::lifetime::*;
 
 verus! {
 
@@ -56,6 +57,16 @@ pub open spec fn destroy_fence_ghost(fence: FenceState) -> FenceState {
         alive: false,
         ..fence
     }
+}
+
+/// No pending (uncompleted) submission references this fence.
+pub open spec fn fence_not_pending(
+    fence_id: nat,
+    pending_submissions: Seq<SubmissionRecord>,
+) -> bool {
+    forall|i: int| 0 <= i < pending_submissions.len()
+        ==> !(#[trigger] pending_submissions[i].fence_id == Some(fence_id)
+              && !pending_submissions[i].completed)
 }
 
 // ── Lemmas ──────────────────────────────────────────────────────────────

@@ -67,6 +67,15 @@ pub open spec fn no_resources_in_flight(
     forall|i: int| 0 <= i < submissions.len() ==> (#[trigger] submissions[i]).completed
 }
 
+/// No resource in the binding map uses this allocation.
+pub open spec fn no_resources_use_allocation(
+    bindings: Map<ResourceId, MemoryRange>,
+    alloc_id: nat,
+) -> bool {
+    forall|r: ResourceId| bindings.contains_key(r)
+        ==> (#[trigger] bindings[r]).allocation_id != alloc_id
+}
+
 /// Two ranges in different allocations never overlap.
 pub open spec fn different_allocations(r1: MemoryRange, r2: MemoryRange) -> bool {
     r1.allocation_id != r2.allocation_id

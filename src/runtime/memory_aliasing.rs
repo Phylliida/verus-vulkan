@@ -104,11 +104,14 @@ pub fn create_aliasing_tracker_exec() -> (out: RuntimeAliasingTracker)
 }
 
 /// Exec: bind a resource to a memory range.
+/// Caller must prove the resource is not currently in-flight on the GPU.
 pub fn bind_resource_exec(
     tracker: &mut RuntimeAliasingTracker,
     resource: Ghost<ResourceId>,
     range: Ghost<MemoryRange>,
 )
+    requires
+        !old(tracker).in_flight@.contains(resource@),
     ensures
         tracker.bindings@ == old(tracker).bindings@.insert(resource@, range@),
         tracker.in_flight@ == old(tracker).in_flight@,
@@ -131,17 +134,68 @@ pub fn unbind_resource_exec(
 }
 
 /// Exec: mark a resource as in-flight.
+/// Caller must prove no currently in-flight resource overlaps this one (aliasing safety).
 pub fn mark_in_flight_exec(
     tracker: &mut RuntimeAliasingTracker,
     resource: Ghost<ResourceId>,
 )
     requires
         old(tracker).bindings@.contains_key(resource@),
+        no_in_flight_overlaps(old(tracker)),
+        forall|other: ResourceId|
+            old(tracker).in_flight@.contains(other)
+            && other != resource@
+            && old(tracker).bindings@.contains_key(other)
+            ==> !ranges_overlap(
+                old(tracker).bindings@[resource@],
+                old(tracker).bindings@[other],
+            ),
     ensures
         tracker.in_flight@ == old(tracker).in_flight@.insert(resource@),
         tracker.bindings@ == old(tracker).bindings@,
 {
     tracker.in_flight = Ghost(tracker.in_flight@.insert(resource@));
+}
+
+/// Exec: mark a set of resources as in-flight (batch version for submit).
+/// Caller must prove the combined old+new in-flight set has no overlapping pairs.
+pub fn mark_set_in_flight_exec(
+    tracker: &mut RuntimeAliasingTracker,
+    resources: Ghost<Set<ResourceId>>,
+)
+    requires
+        // All resources in the set are bound
+        forall|r: ResourceId| resources@.contains(r)
+            ==> old(tracker).bindings@.contains_key(r),
+        // The combined set has no overlapping pairs
+        no_in_flight_overlaps(old(tracker)),
+        forall|r1: ResourceId, r2: ResourceId|
+            (old(tracker).in_flight@.contains(r1) || resources@.contains(r1))
+            && (old(tracker).in_flight@.contains(r2) || resources@.contains(r2))
+            && r1 != r2
+            && old(tracker).bindings@.contains_key(r1)
+            && old(tracker).bindings@.contains_key(r2)
+            ==> !ranges_overlap(
+                old(tracker).bindings@[r1],
+                old(tracker).bindings@[r2],
+            ),
+    ensures
+        tracker.in_flight@ == old(tracker).in_flight@.union(resources@),
+        tracker.bindings@ == old(tracker).bindings@,
+{
+    tracker.in_flight = Ghost(tracker.in_flight@.union(resources@));
+}
+
+/// Exec: clear a set of resources from in-flight (batch version for completion).
+pub fn clear_set_in_flight_exec(
+    tracker: &mut RuntimeAliasingTracker,
+    resources: Ghost<Set<ResourceId>>,
+)
+    ensures
+        tracker.in_flight@ == old(tracker).in_flight@.difference(resources@),
+        tracker.bindings@ == old(tracker).bindings@,
+{
+    tracker.in_flight = Ghost(tracker.in_flight@.difference(resources@));
 }
 
 /// Exec: clear a resource from in-flight (GPU work completed).

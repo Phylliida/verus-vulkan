@@ -100,6 +100,30 @@ pub open spec fn layout_has_binding(
         && layout.bindings[i].descriptor_count == count
 }
 
+/// The layout contains a binding with the given number (regardless of type/count).
+pub open spec fn layout_contains_binding(
+    layout: DescriptorSetLayoutState,
+    binding_num: nat,
+) -> bool {
+    exists|i: int| 0 <= i < layout.bindings.len()
+        && layout.bindings[i].binding == binding_num
+}
+
+/// A descriptor binding type matches the layout's expected type for a binding slot.
+pub open spec fn binding_type_matches(
+    binding: DescriptorBinding,
+    desc_type: DescriptorType,
+) -> bool {
+    match binding {
+        DescriptorBinding::Empty => false,
+        DescriptorBinding::BoundBuffer { .. } => matches!(desc_type,
+            DescriptorType::UniformBuffer | DescriptorType::StorageBuffer),
+        DescriptorBinding::BoundImage { .. } => matches!(desc_type,
+            DescriptorType::SampledImage | DescriptorType::StorageImage
+            | DescriptorType::CombinedImageSampler | DescriptorType::InputAttachment),
+    }
+}
+
 /// A pool can allocate another set.
 pub open spec fn pool_can_allocate(pool: DescriptorPoolState) -> bool {
     pool.alive && pool.allocated_sets < pool.max_sets
