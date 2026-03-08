@@ -204,4 +204,46 @@ pub proof fn lemma_update_preserves_other_bindings(
 {
 }
 
+/// After freeing, the pool has one fewer allocated set.
+pub proof fn lemma_free_decrements(pool: DescriptorPoolState)
+    requires pool.allocated_sets > 0,
+    ensures
+        free_to_pool(pool).allocated_sets == pool.allocated_sets - 1,
+        free_to_pool(pool).id == pool.id,
+        free_to_pool(pool).max_sets == pool.max_sets,
+{
+}
+
+/// After allocating, if still under max, can allocate again.
+pub proof fn lemma_allocate_still_under_max(pool: DescriptorPoolState)
+    requires
+        pool_can_allocate(pool),
+        pool.allocated_sets + 1 < pool.max_sets,
+    ensures
+        pool_can_allocate(allocate_from_pool(pool)),
+{
+}
+
+/// Allocating then freeing restores the original count.
+pub proof fn lemma_allocate_free_roundtrip(pool: DescriptorPoolState)
+    requires pool_can_allocate(pool),
+    ensures free_to_pool(allocate_from_pool(pool)).allocated_sets == pool.allocated_sets,
+{
+}
+
+/// Writing a binding slot makes that slot non-empty.
+pub proof fn lemma_update_makes_bound(
+    dset: DescriptorSetState,
+    binding_num: nat,
+    new_binding: DescriptorBinding,
+)
+    requires !(new_binding === DescriptorBinding::Empty),
+    ensures ({
+        let updated = update_descriptor_binding(dset, binding_num, new_binding);
+        updated.bindings.contains_key(binding_num)
+        && !(updated.bindings[binding_num] === DescriptorBinding::Empty)
+    }),
+{
+}
+
 } // verus!

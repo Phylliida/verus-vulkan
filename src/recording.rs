@@ -220,4 +220,83 @@ pub proof fn lemma_bind_pipeline_preserves_render_pass(
 {
 }
 
+/// Binding a compute pipeline does not change the render pass state.
+pub proof fn lemma_bind_compute_preserves_render_pass(
+    state: RecordingState, id: nat,
+)
+    ensures
+        in_render_pass(bind_compute_pipeline(state, id)) == in_render_pass(state),
+        bind_compute_pipeline(state, id).active_render_pass == state.active_render_pass,
+{
+}
+
+/// Binding a descriptor set does not change the render pass state.
+pub proof fn lemma_bind_descriptor_preserves_render_pass(
+    state: RecordingState, set_index: nat, set_id: nat,
+)
+    ensures
+        in_render_pass(bind_descriptor_set(state, set_index, set_id)) == in_render_pass(state),
+{
+}
+
+/// After beginning a render pass, we are in a render pass.
+pub proof fn lemma_begin_render_pass_active(
+    state: RecordingState, rp_id: nat, fb_id: nat,
+)
+    ensures in_render_pass(begin_render_pass_recording(state, rp_id, fb_id)),
+{
+}
+
+/// After ending a render pass, we are NOT in a render pass.
+pub proof fn lemma_end_render_pass_inactive(state: RecordingState)
+    ensures !in_render_pass(end_render_pass_recording(state)),
+{
+}
+
+/// Binding a graphics pipeline preserves the bound descriptor sets.
+pub proof fn lemma_bind_graphics_preserves_descriptors(
+    state: RecordingState, pipeline_id: nat,
+)
+    ensures
+        bind_graphics_pipeline(state, pipeline_id).bound_descriptor_sets
+            == state.bound_descriptor_sets,
+{
+}
+
+/// Beginning a render pass preserves bound pipelines and descriptors.
+pub proof fn lemma_begin_rp_preserves_bindings(
+    state: RecordingState, rp_id: nat, fb_id: nat,
+)
+    ensures ({
+        let new_state = begin_render_pass_recording(state, rp_id, fb_id);
+        new_state.bound_graphics_pipeline == state.bound_graphics_pipeline
+        && new_state.bound_compute_pipeline == state.bound_compute_pipeline
+        && new_state.bound_descriptor_sets == state.bound_descriptor_sets
+    }),
+{
+}
+
+/// Next subpass preserves bound pipelines and descriptors.
+pub proof fn lemma_next_subpass_preserves_bindings(state: RecordingState)
+    requires state.active_render_pass.is_some(),
+    ensures ({
+        let new_state = next_subpass_recording(state);
+        new_state.bound_graphics_pipeline == state.bound_graphics_pipeline
+        && new_state.bound_compute_pipeline == state.bound_compute_pipeline
+        && new_state.bound_descriptor_sets == state.bound_descriptor_sets
+    }),
+{
+}
+
+/// Draw and dispatch are mutually exclusive contexts.
+pub proof fn lemma_draw_dispatch_exclusive(
+    state: RecordingState,
+    g_pipeline: GraphicsPipelineState,
+    rp: RenderPassState,
+    c_pipeline: ComputePipelineState,
+)
+    ensures !(draw_call_valid(state, g_pipeline, rp) && dispatch_call_valid(state, c_pipeline)),
+{
+}
+
 } // verus!

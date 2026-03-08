@@ -76,4 +76,98 @@ pub open spec fn access_subset(sub: AccessFlags, sup: AccessFlags) -> bool {
     sub.accesses.subset_of(sup.accesses)
 }
 
+// ── Proofs ──────────────────────────────────────────────────────────────
+
+/// stages_subset is reflexive.
+pub proof fn lemma_stages_subset_reflexive(s: PipelineStageFlags)
+    ensures stages_subset(s, s),
+{
+}
+
+/// stages_subset is transitive.
+pub proof fn lemma_stages_subset_transitive(
+    a: PipelineStageFlags, b: PipelineStageFlags, c: PipelineStageFlags,
+)
+    requires stages_subset(a, b), stages_subset(b, c),
+    ensures stages_subset(a, c),
+{
+}
+
+/// access_subset is reflexive.
+pub proof fn lemma_access_subset_reflexive(a: AccessFlags)
+    ensures access_subset(a, a),
+{
+}
+
+/// access_subset is transitive.
+pub proof fn lemma_access_subset_transitive(
+    a: AccessFlags, b: AccessFlags, c: AccessFlags,
+)
+    requires access_subset(a, b), access_subset(b, c),
+    ensures access_subset(a, c),
+{
+}
+
+/// Empty stages are a subset of any stages.
+pub proof fn lemma_empty_stages_subset(s: PipelineStageFlags)
+    ensures stages_subset(no_stages(), s),
+{
+}
+
+/// Empty accesses are a subset of any accesses.
+pub proof fn lemma_empty_access_subset(a: AccessFlags)
+    ensures access_subset(no_access(), a),
+{
+}
+
+/// An empty access set has no write access.
+pub proof fn lemma_empty_no_write_access()
+    ensures !has_write_access(no_access()),
+{
+}
+
+/// An empty access set has no read access.
+pub proof fn lemma_empty_no_read_access()
+    ensures !has_read_access(no_access()),
+{
+}
+
+/// All stage constants are distinct.
+pub proof fn lemma_stage_constants_distinct()
+    ensures
+        STAGE_TOP_OF_PIPE() != STAGE_VERTEX_SHADER(),
+        STAGE_TOP_OF_PIPE() != STAGE_FRAGMENT_SHADER(),
+        STAGE_TOP_OF_PIPE() != STAGE_COMPUTE_SHADER(),
+        STAGE_TOP_OF_PIPE() != STAGE_TRANSFER(),
+        STAGE_TOP_OF_PIPE() != STAGE_BOTTOM_OF_PIPE(),
+        STAGE_VERTEX_SHADER() != STAGE_FRAGMENT_SHADER(),
+        STAGE_VERTEX_SHADER() != STAGE_COMPUTE_SHADER(),
+        STAGE_FRAGMENT_SHADER() != STAGE_COMPUTE_SHADER(),
+        STAGE_TRANSFER() != STAGE_COMPUTE_SHADER(),
+        STAGE_COLOR_ATTACHMENT_OUTPUT() != STAGE_FRAGMENT_SHADER(),
+{
+}
+
+/// All access constants are distinct.
+pub proof fn lemma_access_constants_distinct()
+    ensures
+        ACCESS_SHADER_READ() != ACCESS_SHADER_WRITE(),
+        ACCESS_COLOR_ATTACHMENT_READ() != ACCESS_COLOR_ATTACHMENT_WRITE(),
+        ACCESS_DEPTH_STENCIL_READ() != ACCESS_DEPTH_STENCIL_WRITE(),
+        ACCESS_TRANSFER_READ() != ACCESS_TRANSFER_WRITE(),
+        ACCESS_HOST_READ() != ACCESS_HOST_WRITE(),
+        ACCESS_SHADER_READ() != ACCESS_TRANSFER_READ(),
+        ACCESS_SHADER_WRITE() != ACCESS_TRANSFER_WRITE(),
+{
+}
+
+/// stages_subset of no_stages holds only if the sub is also empty.
+pub proof fn lemma_no_stages_minimal(s: PipelineStageFlags)
+    requires stages_subset(s, no_stages()),
+    ensures s.stages == Set::<nat>::empty(),
+{
+    assert(s.stages.subset_of(Set::<nat>::empty()));
+    assert(s.stages =~= Set::<nat>::empty());
+}
+
 } // verus!

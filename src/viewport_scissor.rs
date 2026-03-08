@@ -171,4 +171,34 @@ pub proof fn lemma_single_viewport_well_formed(
 {
 }
 
+/// Well-formed viewport/scissor has at least one viewport.
+pub proof fn lemma_well_formed_nonempty(
+    state: ViewportScissorState,
+    max_viewports: nat, max_width: nat, max_height: nat,
+)
+    requires viewport_scissor_well_formed(state, max_viewports, max_width, max_height),
+    ensures state.viewports.len() > 0,
+{
+}
+
+/// Well-formed viewport/scissor has matching counts.
+pub proof fn lemma_well_formed_counts_match(
+    state: ViewportScissorState,
+    max_viewports: nat, max_width: nat, max_height: nat,
+)
+    requires viewport_scissor_well_formed(state, max_viewports, max_width, max_height),
+    ensures viewport_scissor_counts_match(state),
+{
+}
+
+/// Well-formed viewport/scissor respects max_viewports limit.
+pub proof fn lemma_well_formed_respects_limit(
+    state: ViewportScissorState,
+    max_viewports: nat, max_width: nat, max_height: nat,
+)
+    requires viewport_scissor_well_formed(state, max_viewports, max_width, max_height),
+    ensures state.viewports.len() <= max_viewports,
+{
+}
+
 } // verus!

@@ -279,4 +279,47 @@ pub proof fn lemma_empty_device_ready_for_shutdown(dev: DeviceState)
 {
 }
 
+/// Creating a buffer preserves device_well_formed.
+pub proof fn lemma_create_buffer_preserves_well_formed(dev: DeviceState)
+    requires device_well_formed(dev),
+    ensures device_well_formed(create_buffer_ghost(dev)),
+{
+}
+
+/// Destroying a buffer preserves device_well_formed.
+pub proof fn lemma_destroy_buffer_preserves_well_formed(dev: DeviceState)
+    requires device_well_formed(dev), dev.live_buffers > 0,
+    ensures device_well_formed(destroy_buffer_ghost(dev)),
+{
+}
+
+/// Creating an image increments live_images by 1.
+pub proof fn lemma_create_image_increments(dev: DeviceState)
+    ensures create_image_ghost(dev).live_images == dev.live_images + 1,
+{
+}
+
+/// Destroying an image decrements live_images by 1.
+pub proof fn lemma_destroy_image_decrements(dev: DeviceState)
+    requires dev.live_images > 0,
+    ensures destroy_image_ghost(dev).live_images == dev.live_images - 1,
+{
+}
+
+/// Creating an image preserves device_well_formed.
+pub proof fn lemma_create_image_preserves_well_formed(dev: DeviceState)
+    requires device_well_formed(dev),
+    ensures device_well_formed(create_image_ghost(dev)),
+{
+}
+
+/// Queue wait idle preserves device_well_formed.
+pub proof fn lemma_queue_wait_idle_preserves_well_formed(
+    dev: DeviceState, queue_id: nat,
+)
+    requires device_well_formed(dev),
+    ensures device_well_formed(queue_wait_idle_ghost(dev, queue_id)),
+{
+}
+
 } // verus!
