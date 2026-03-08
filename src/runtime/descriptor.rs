@@ -1,6 +1,8 @@
 use vstd::prelude::*;
 use crate::descriptor::*;
 use crate::image_layout::*;
+use crate::sync_token::*;
+use crate::pool_ownership::*;
 
 verus! {
 
@@ -153,15 +155,20 @@ pub fn create_descriptor_pool_exec(
 }
 
 /// Exec: allocate a descriptor set from a pool.
+/// Caller must prove pool-level sync (can mutate the pool).
 pub fn allocate_descriptor_set_exec(
     pool: &mut RuntimeDescriptorPool,
     handle: u64,
     set_id: Ghost<nat>,
     layout_id: Ghost<nat>,
+    thread: Ghost<ThreadId>,
+    pool_ownership: Ghost<PoolOwnership>,
+    reg: Ghost<TokenRegistry>,
 ) -> (out: RuntimeDescriptorSet)
     requires
         runtime_pool_wf(&*old(pool)),
         pool_has_capacity(&*old(pool)),
+        can_mutate_pool(pool_ownership@, thread@, reg@),
     ensures
         out@.id == set_id@,
         out@.layout_id == layout_id@,
@@ -182,11 +189,22 @@ pub fn allocate_descriptor_set_exec(
 }
 
 /// Exec: update a descriptor binding in a set.
+/// Caller must prove the binding exists in the set's layout, the binding is non-Empty,
+/// and has access to the descriptor set via pool ownership or direct token.
 pub fn update_descriptor_set_exec(
     ds: &mut RuntimeDescriptorSet,
+    layout: Ghost<DescriptorSetLayoutState>,
     binding_num: Ghost<nat>,
     new_binding: Ghost<DescriptorBinding>,
+    thread: Ghost<ThreadId>,
+    pool_ownership: Ghost<PoolOwnership>,
+    reg: Ghost<TokenRegistry>,
 )
+    requires
+        old(ds)@.layout_id == layout@.id,
+        layout_contains_binding(layout@, binding_num@),
+        !(new_binding@ === DescriptorBinding::Empty),
+        can_access_child(pool_ownership@, old(ds).handle as nat, thread@, reg@),
     ensures
         ds@ == update_descriptor_binding(old(ds)@, binding_num@, new_binding@),
 {
@@ -194,13 +212,18 @@ pub fn update_descriptor_set_exec(
 }
 
 /// Exec: free a descriptor set back to its pool.
+/// Caller must prove pool-level sync (can mutate the pool).
 pub fn free_descriptor_set_exec(
     pool: &mut RuntimeDescriptorPool,
     _ds: &mut RuntimeDescriptorSet,
+    thread: Ghost<ThreadId>,
+    pool_ownership: Ghost<PoolOwnership>,
+    reg: Ghost<TokenRegistry>,
 )
     requires
         runtime_pool_wf(&*old(pool)),
         old(pool)@.allocated_sets > 0,
+        can_mutate_pool(pool_ownership@, thread@, reg@),
     ensures
         pool@ == free_to_pool(old(pool)@),
 {
@@ -208,9 +231,16 @@ pub fn free_descriptor_set_exec(
 }
 
 /// Exec: destroy a descriptor pool.
-pub fn destroy_descriptor_pool_exec(pool: &mut RuntimeDescriptorPool)
+/// Vulkan implicitly frees all allocated sets when the pool is destroyed.
+/// Caller must prove exclusive access to the pool.
+pub fn destroy_descriptor_pool_exec(
+    pool: &mut RuntimeDescriptorPool,
+    thread: Ghost<ThreadId>,
+    reg: Ghost<TokenRegistry>,
+)
     requires
         runtime_pool_wf(&*old(pool)),
+        holds_exclusive(reg@, old(pool).handle as nat, thread@),
     ensures
         !pool@.alive,
         pool@.id == old(pool)@.id,
@@ -222,9 +252,15 @@ pub fn destroy_descriptor_pool_exec(pool: &mut RuntimeDescriptorPool)
 }
 
 /// Exec: destroy a descriptor set layout.
-pub fn destroy_descriptor_set_layout_exec(dsl: &mut RuntimeDescriptorSetLayout)
+/// Caller must prove exclusive access to the layout.
+pub fn destroy_descriptor_set_layout_exec(
+    dsl: &mut RuntimeDescriptorSetLayout,
+    thread: Ghost<ThreadId>,
+    reg: Ghost<TokenRegistry>,
+)
     requires
         runtime_dsl_wf(&*old(dsl)),
+        holds_exclusive(reg@, old(dsl).handle as nat, thread@),
     ensures
         !dsl@.alive,
         dsl@.id == old(dsl)@.id,
@@ -236,9 +272,16 @@ pub fn destroy_descriptor_set_layout_exec(dsl: &mut RuntimeDescriptorSetLayout)
 }
 
 /// Exec: reset a descriptor pool (frees all allocated sets).
-pub fn reset_descriptor_pool_exec(pool: &mut RuntimeDescriptorPool)
+/// Caller must prove pool-level sync (can mutate the pool).
+pub fn reset_descriptor_pool_exec(
+    pool: &mut RuntimeDescriptorPool,
+    thread: Ghost<ThreadId>,
+    pool_ownership: Ghost<PoolOwnership>,
+    reg: Ghost<TokenRegistry>,
+)
     requires
         runtime_pool_wf(&*old(pool)),
+        can_mutate_pool(pool_ownership@, thread@, reg@),
     ensures
         pool@.alive,
         pool@.id == old(pool)@.id,

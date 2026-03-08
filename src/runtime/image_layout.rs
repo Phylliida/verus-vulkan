@@ -106,14 +106,19 @@ pub fn create_layout_tracker_exec(
 }
 
 /// Exec: transition a single resource to a new layout.
+/// Caller must prove the resource is tracked and its current layout matches old_layout.
+/// Pass Undefined as old_layout for "don't care" semantics (contents discarded).
 pub fn transition_layout_exec(
     tracker: &mut RuntimeImageLayoutTracker,
     resource: Ghost<ResourceId>,
+    old_layout: Ghost<ImageLayout>,
     new_layout: Ghost<ImageLayout>,
 )
     requires
         layout_tracker_wf(&*old(tracker)),
         is_usable_layout(new_layout@),
+        old(tracker)@.contains_key(resource@),
+        old_layout@ == ImageLayout::Undefined || old_layout@ == old(tracker)@[resource@],
     ensures
         layout_tracker_wf(tracker),
         tracker@ == apply_layout_transition(old(tracker)@, resource@, new_layout@),

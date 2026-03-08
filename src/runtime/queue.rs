@@ -1,7 +1,12 @@
 use vstd::prelude::*;
 use crate::device::*;
 use crate::lifetime::*;
+use crate::resource::*;
+use crate::memory_aliasing::*;
+use crate::sync_token::*;
 use super::device::*;
+use super::command_buffer::CommandBufferStatus;
+use super::memory_aliasing::*;
 
 verus! {
 
@@ -22,34 +27,71 @@ impl View for RuntimeQueue {
     open spec fn view(&self) -> nat { self.queue_id@ }
 }
 
-/// Exec: submit a command buffer to the queue (ghost-level updates device).
+/// Exec: submit command buffers to the queue (ghost-level updates device).
+/// Caller must prove all referenced command buffers are Executable via a status map
+/// keyed by CB id. Also marks referenced resources as in-flight in the aliasing tracker.
 pub fn submit_exec(
     dev: &mut RuntimeDevice,
     queue: &RuntimeQueue,
     submission: Ghost<SubmissionRecord>,
+    cb_statuses: Ghost<Map<nat, CommandBufferStatus>>,
+    aliasing_tracker: &mut RuntimeAliasingTracker,
+    thread: Ghost<ThreadId>,
+    reg: Ghost<TokenRegistry>,
 )
     requires
         runtime_device_wf(&*old(dev)),
         submission@.queue_id == queue@,
+        submission@.command_buffers.len() > 0,
+        // Thread safety: exclusive queue access
+        holds_exclusive(reg@, queue@, thread@),
+        // Thread safety: CBs not held by other threads
+        forall|i: int| 0 <= i < submission@.command_buffers.len()
+            ==> not_held_by_other(reg@, #[trigger] submission@.command_buffers[i], thread@),
+        forall|i: int| 0 <= i < submission@.command_buffers.len()
+            ==> cb_statuses@.contains_key(#[trigger] submission@.command_buffers[i])
+                && cb_statuses@[submission@.command_buffers[i]] == CommandBufferStatus::Executable,
+        // All referenced resources are bound in the aliasing tracker
+        forall|r: ResourceId| submission@.referenced_resources.contains(r)
+            ==> old(aliasing_tracker).bindings@.contains_key(r),
+        // No aliasing hazard: combined in-flight set has no overlapping pairs
+        no_in_flight_overlaps(old(aliasing_tracker)),
+        forall|r1: ResourceId, r2: ResourceId|
+            (old(aliasing_tracker).in_flight@.contains(r1) || submission@.referenced_resources.contains(r1))
+            && (old(aliasing_tracker).in_flight@.contains(r2) || submission@.referenced_resources.contains(r2))
+            && r1 != r2
+            && old(aliasing_tracker).bindings@.contains_key(r1)
+            && old(aliasing_tracker).bindings@.contains_key(r2)
+            ==> !ranges_overlap(
+                old(aliasing_tracker).bindings@[r1],
+                old(aliasing_tracker).bindings@[r2],
+            ),
     ensures
         dev@.pending_submissions == old(dev)@.pending_submissions.push(submission@),
         dev@.live_buffers == old(dev)@.live_buffers,
         dev@.live_images == old(dev)@.live_images,
+        aliasing_tracker.in_flight@ == old(aliasing_tracker).in_flight@.union(submission@.referenced_resources),
+        aliasing_tracker.bindings@ == old(aliasing_tracker).bindings@,
 {
     let ghost new_state = DeviceState {
         pending_submissions: dev.state@.pending_submissions.push(submission@),
         ..dev.state@
     };
     dev.state = Ghost(new_state);
+    aliasing_tracker.in_flight = Ghost(aliasing_tracker.in_flight@.union(submission@.referenced_resources));
 }
 
 /// Exec: queue wait idle — removes all submissions for this queue.
+/// Caller must prove exclusive access to the queue.
 pub fn queue_wait_idle_exec(
     dev: &mut RuntimeDevice,
     queue: &RuntimeQueue,
+    thread: Ghost<ThreadId>,
+    reg: Ghost<TokenRegistry>,
 )
     requires
         runtime_device_wf(&*old(dev)),
+        holds_exclusive(reg@, queue@, thread@),
     ensures
         dev@ == queue_wait_idle_ghost(old(dev)@, queue@),
 {
@@ -66,12 +108,10 @@ pub open spec fn queue_id(queue: &RuntimeQueue) -> nat {
 /// Proof: submit adds exactly one submission.
 pub proof fn lemma_submit_adds_one(
     dev: &RuntimeDevice,
-    queue: &RuntimeQueue,
     submission: Ghost<SubmissionRecord>,
 )
     requires
         runtime_device_wf(dev),
-        submission@.queue_id == queue@,
     ensures ({
         let new_state = DeviceState {
             pending_submissions: dev@.pending_submissions.push(submission@),

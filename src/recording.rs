@@ -27,8 +27,22 @@ pub struct RecordingState {
     pub bound_compute_pipeline: Option<nat>,
     /// Currently bound descriptor sets: maps set index → descriptor set id.
     pub bound_descriptor_sets: Map<nat, nat>,
+    /// Currently bound descriptor set layouts: maps set index → layout id.
+    /// Tracked alongside bound_descriptor_sets so draw/dispatch can verify
+    /// that bound sets have layouts matching the pipeline's expected layouts.
+    pub bound_set_layouts: Map<nat, nat>,
     /// The active render pass instance, if recording inside a render pass.
     pub active_render_pass: Option<RenderPassInstance>,
+    /// Currently bound vertex buffers: maps binding slot → buffer id.
+    pub bound_vertex_buffers: Map<nat, nat>,
+    /// Currently bound index buffer, if any.
+    pub bound_index_buffer: Option<nat>,
+    /// Whether the dynamic viewport has been set.
+    pub viewport_set: bool,
+    /// Whether the dynamic scissor has been set.
+    pub scissor_set: bool,
+    /// Whether push constants have been set.
+    pub push_constants_set: bool,
 }
 
 // ── Spec Functions ───────────────────────────────────────────────────
@@ -39,7 +53,13 @@ pub open spec fn initial_recording_state() -> RecordingState {
         bound_graphics_pipeline: None,
         bound_compute_pipeline: None,
         bound_descriptor_sets: Map::empty(),
+        bound_set_layouts: Map::empty(),
         active_render_pass: None,
+        bound_vertex_buffers: Map::empty(),
+        bound_index_buffer: None,
+        viewport_set: false,
+        scissor_set: false,
+        push_constants_set: false,
     }
 }
 
@@ -66,13 +86,16 @@ pub open spec fn bind_compute_pipeline(
 }
 
 /// Ghost update: bind a descriptor set at a given set index.
+/// Tracks both the set id and the set's layout id for pipeline compatibility checking.
 pub open spec fn bind_descriptor_set(
     state: RecordingState,
     set_index: nat,
     set_id: nat,
+    layout_id: nat,
 ) -> RecordingState {
     RecordingState {
         bound_descriptor_sets: state.bound_descriptor_sets.insert(set_index, set_id),
+        bound_set_layouts: state.bound_set_layouts.insert(set_index, layout_id),
         ..state
     }
 }
@@ -156,13 +179,87 @@ pub open spec fn dispatch_call_valid(
     && pipeline.alive
 }
 
-/// All descriptor set indices required by the pipeline layout are bound.
+/// All descriptor set indices required by the pipeline layout are bound,
+/// and their layout ids match what the pipeline expects.
 pub open spec fn descriptor_sets_bound_for_pipeline(
     state: RecordingState,
     pipeline_layouts: Seq<nat>,
 ) -> bool {
-    forall|i: int| 0 <= i < pipeline_layouts.len() ==>
+    forall|i: int| 0 <= i < pipeline_layouts.len() ==> (
         #[trigger] state.bound_descriptor_sets.contains_key(i as nat)
+        && state.bound_set_layouts.contains_key(i as nat)
+        && state.bound_set_layouts[i as nat] == pipeline_layouts[i]
+    )
+}
+
+// ── Vertex/Index Buffer, Dynamic State, Push Constants ───────────────
+
+/// Ghost update: bind a vertex buffer at a given slot.
+pub open spec fn bind_vertex_buffer(
+    state: RecordingState,
+    slot: nat,
+    buffer_id: nat,
+) -> RecordingState {
+    RecordingState {
+        bound_vertex_buffers: state.bound_vertex_buffers.insert(slot, buffer_id),
+        ..state
+    }
+}
+
+/// Ghost update: bind an index buffer.
+pub open spec fn bind_index_buffer(
+    state: RecordingState,
+    buffer_id: nat,
+) -> RecordingState {
+    RecordingState {
+        bound_index_buffer: Some(buffer_id),
+        ..state
+    }
+}
+
+/// Ghost update: set the dynamic viewport.
+pub open spec fn set_viewport_recording(state: RecordingState) -> RecordingState {
+    RecordingState {
+        viewport_set: true,
+        ..state
+    }
+}
+
+/// Ghost update: set the dynamic scissor.
+pub open spec fn set_scissor_recording(state: RecordingState) -> RecordingState {
+    RecordingState {
+        scissor_set: true,
+        ..state
+    }
+}
+
+/// Ghost update: set push constants.
+pub open spec fn set_push_constants_recording(state: RecordingState) -> RecordingState {
+    RecordingState {
+        push_constants_set: true,
+        ..state
+    }
+}
+
+/// At least one vertex buffer is bound (for non-indexed draw).
+pub open spec fn has_vertex_buffer_bound(state: RecordingState) -> bool {
+    state.bound_vertex_buffers.dom().len() > 0
+}
+
+/// An index buffer is bound (for indexed draw).
+pub open spec fn has_index_buffer_bound(state: RecordingState) -> bool {
+    state.bound_index_buffer.is_some()
+}
+
+/// Dynamic state required by the pipeline is satisfied.
+/// needs_dynamic_viewport/scissor come from the pipeline's dynamic state flags.
+pub open spec fn dynamic_state_satisfied(
+    state: RecordingState,
+    needs_dynamic_viewport: bool,
+    needs_dynamic_scissor: bool,
+) -> bool {
+    (!needs_dynamic_viewport || state.viewport_set)
+    && (!needs_dynamic_scissor || state.scissor_set)
 }
 
 // ── Lemmas ───────────────────────────────────────────────────────────
@@ -232,10 +329,10 @@ pub proof fn lemma_bind_compute_preserves_render_pass(
 
 /// Binding a descriptor set does not change the render pass state.
 pub proof fn lemma_bind_descriptor_preserves_render_pass(
-    state: RecordingState, set_index: nat, set_id: nat,
+    state: RecordingState, set_index: nat, set_id: nat, layout_id: nat,
 )
     ensures
-        in_render_pass(bind_descriptor_set(state, set_index, set_id)) == in_render_pass(state),
+        in_render_pass(bind_descriptor_set(state, set_index, set_id, layout_id)) == in_render_pass(state),
 {
 }
 
@@ -260,6 +357,8 @@ pub proof fn lemma_bind_graphics_preserves_descriptors(
     ensures
         bind_graphics_pipeline(state, pipeline_id).bound_descriptor_sets
             == state.bound_descriptor_sets,
+        bind_graphics_pipeline(state, pipeline_id).bound_set_layouts
+            == state.bound_set_layouts,
 {
 }
 
@@ -272,6 +371,7 @@ pub proof fn lemma_begin_rp_preserves_bindings(
         new_state.bound_graphics_pipeline == state.bound_graphics_pipeline
         && new_state.bound_compute_pipeline == state.bound_compute_pipeline
         && new_state.bound_descriptor_sets == state.bound_descriptor_sets
+        && new_state.bound_set_layouts == state.bound_set_layouts
     }),
 {
 }
@@ -284,7 +384,44 @@ pub proof fn lemma_next_subpass_preserves_bindings(state: RecordingState)
         new_state.bound_graphics_pipeline == state.bound_graphics_pipeline
         && new_state.bound_compute_pipeline == state.bound_compute_pipeline
         && new_state.bound_descriptor_sets == state.bound_descriptor_sets
+        && new_state.bound_set_layouts == state.bound_set_layouts
     }),
+{
+}
+
+/// Binding a vertex buffer preserves the render pass state.
+pub proof fn lemma_bind_vertex_preserves_render_pass(
+    state: RecordingState, slot: nat, buffer_id: nat,
+)
+    ensures
+        in_render_pass(bind_vertex_buffer(state, slot, buffer_id)) == in_render_pass(state),
+{
+}
+
+/// Binding an index buffer preserves the render pass state.
+pub proof fn lemma_bind_index_preserves_render_pass(
+    state: RecordingState, buffer_id: nat,
+)
+    ensures
+        in_render_pass(bind_index_buffer(state, buffer_id)) == in_render_pass(state),
+{
+}
+
+/// Setting viewport preserves the render pass state.
+pub proof fn lemma_set_viewport_preserves_render_pass(state: RecordingState)
+    ensures in_render_pass(set_viewport_recording(state)) == in_render_pass(state),
+{
+}
+
+/// Setting scissor preserves the render pass state.
+pub proof fn lemma_set_scissor_preserves_render_pass(state: RecordingState)
+    ensures in_render_pass(set_scissor_recording(state)) == in_render_pass(state),
+{
+}
+
+/// Setting push constants preserves the render pass state.
+pub proof fn lemma_set_push_constants_preserves_render_pass(state: RecordingState)
+    ensures in_render_pass(set_push_constants_recording(state)) == in_render_pass(state),
 {
 }
 

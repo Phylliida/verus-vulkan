@@ -1,6 +1,7 @@
 use vstd::prelude::*;
 use crate::resource::*;
 use crate::sync::*;
+use crate::lifetime::*;
 
 verus! {
 
@@ -63,6 +64,17 @@ pub open spec fn destroy_semaphore_ghost(sem: SemaphoreState) -> SemaphoreState 
         alive: false,
         ..sem
     }
+}
+
+/// No pending (uncompleted) submission signals this semaphore.
+pub open spec fn semaphore_not_pending(
+    sem_id: nat,
+    pending_submissions: Seq<SubmissionRecord>,
+) -> bool {
+    forall|i: int| 0 <= i < pending_submissions.len()
+        ==> !pending_submissions[i].completed
+            ==> forall|j: int| 0 <= j < (#[trigger] pending_submissions[i]).signal_semaphores.len()
+                ==> pending_submissions[i].signal_semaphores[j] != sem_id
 }
 
 // ── Lemmas ──────────────────────────────────────────────────────────────
