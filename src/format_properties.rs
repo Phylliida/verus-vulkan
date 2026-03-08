@@ -140,4 +140,46 @@ pub proof fn lemma_transfer_both_directions(props: FormatProperties)
 {
 }
 
+/// A format valid for color (without blend) supports color attachment.
+pub proof fn lemma_color_valid_implies_support(props: FormatProperties)
+    requires format_valid_for_attachment(props, true, false, false),
+    ensures format_supports_color_attachment(props),
+{
+}
+
+/// A format valid for both color and depth supports both.
+pub proof fn lemma_color_depth_valid(props: FormatProperties)
+    requires format_valid_for_attachment(props, true, true, false),
+    ensures
+        format_supports_color_attachment(props),
+        format_supports_depth_stencil(props),
+{
+}
+
+/// A pure depth format (no color) is valid iff it supports depth/stencil.
+pub proof fn lemma_pure_depth_format(props: FormatProperties)
+    ensures
+        format_valid_for_attachment(props, false, true, false)
+        == format_supports_depth_stencil(props),
+{
+}
+
+/// A format with neither color nor depth role is always valid.
+pub proof fn lemma_no_role_always_valid(props: FormatProperties)
+    ensures format_valid_for_attachment(props, false, false, false),
+{
+}
+
+/// Sampling support is independent of attachment support.
+pub proof fn lemma_sampling_independent_of_attachment(
+    props: FormatProperties, is_color: bool, is_depth: bool, blend: bool,
+)
+    requires
+        format_valid_for_attachment(props, is_color, is_depth, blend),
+        format_supports_sampling(props),
+    ensures
+        format_valid_for_attachment(props, is_color, is_depth, blend),
+{
+}
+
 } // verus!

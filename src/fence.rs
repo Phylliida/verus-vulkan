@@ -78,4 +78,36 @@ pub proof fn lemma_reset_then_signal_cycle(fence: FenceState, sub_id: nat)
 {
 }
 
+/// After reset, the fence is not signaled.
+pub proof fn lemma_reset_makes_unsignaled(fence: FenceState)
+    ensures !reset_fence_ghost(fence).signaled,
+{
+}
+
+/// After destroying, the fence is not well-formed.
+pub proof fn lemma_destroy_not_well_formed(fence: FenceState)
+    ensures !fence_well_formed(destroy_fence_ghost(fence)),
+{
+}
+
+/// Signaling preserves alive status.
+pub proof fn lemma_signal_preserves_alive(fence: FenceState, sub_id: nat)
+    requires fence.alive,
+    ensures signal_fence_ghost(fence, sub_id).alive,
+{
+}
+
+/// Reset preserves alive status.
+pub proof fn lemma_reset_preserves_alive(fence: FenceState)
+    requires fence.alive,
+    ensures reset_fence_ghost(fence).alive,
+{
+}
+
+/// A freshly created fence with signaled=false is not signaled.
+pub proof fn lemma_create_unsignaled(id: nat)
+    ensures !create_fence_ghost(id, false).signaled,
+{
+}
+
 } // verus!

@@ -153,4 +153,65 @@ pub open spec fn no_write_hazard(
     writable(log, state, dst_stage, dst_access)
 }
 
+// ── Proofs ──────────────────────────────────────────────────────────────
+
+/// A resource with no write history and no readers is always writable.
+pub proof fn lemma_fresh_resource_writable(
+    log: BarrierLog, state: SyncState, dst_stage: nat, dst_access: nat,
+)
+    requires state.last_write.is_none(), state.last_reads.len() == 0,
+    ensures writable(log, state, dst_stage, dst_access),
+{
+}
+
+/// no_read_hazard is equivalent to readable.
+pub proof fn lemma_no_read_hazard_iff_readable(
+    log: BarrierLog, state: SyncState, dst_stage: nat, dst_access: nat,
+)
+    ensures no_read_hazard(log, state, dst_stage, dst_access) == readable(log, state, dst_stage, dst_access),
+{
+}
+
+/// no_write_hazard is equivalent to writable.
+pub proof fn lemma_no_write_hazard_iff_writable(
+    log: BarrierLog, state: SyncState, dst_stage: nat, dst_access: nat,
+)
+    ensures no_write_hazard(log, state, dst_stage, dst_access) == writable(log, state, dst_stage, dst_access),
+{
+}
+
+/// Writable implies readable (stronger synchronization implies weaker).
+pub proof fn lemma_writable_implies_readable(
+    log: BarrierLog, state: SyncState, dst_stage: nat, dst_access: nat,
+)
+    requires writable(log, state, dst_stage, dst_access),
+    ensures readable(log, state, dst_stage, dst_access),
+{
+    if state.last_write.is_none() && state.last_reads.len() == 0 {
+        // No writes → readable by first disjunct
+    } else {
+        // barrier_covers_write subsumes barrier_covers_read
+        let i: nat = choose|i: nat| barrier_covers_write(log, state, dst_stage, dst_access, i);
+        assert(barrier_covers_read(log, state, dst_stage, dst_access, i));
+    }
+}
+
+/// An empty barrier log with no prior write is always readable.
+pub proof fn lemma_empty_log_fresh_readable(
+    state: SyncState, dst_stage: nat, dst_access: nat,
+)
+    requires state.last_write.is_none(),
+    ensures readable(Seq::<BarrierEntry>::empty(), state, dst_stage, dst_access),
+{
+}
+
+/// barrier_covers_write implies barrier_covers_read at the same index.
+pub proof fn lemma_write_cover_implies_read_cover(
+    log: BarrierLog, state: SyncState, dst_stage: nat, dst_access: nat, i: nat,
+)
+    requires barrier_covers_write(log, state, dst_stage, dst_access, i),
+    ensures barrier_covers_read(log, state, dst_stage, dst_access, i),
+{
+}
+
 } // verus!

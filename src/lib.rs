@@ -209,4 +209,28 @@ pub mod pool_ownership;
 pub mod lock_ordering;
 
 #[cfg(verus_keep_ghost)]
+pub mod composition_proofs;
+
+#[cfg(verus_keep_ghost)]
 pub mod thread_safe_ops;
+
+#[cfg(verus_keep_ghost)]
+pub mod allocator;
+
+#[cfg(verus_keep_ghost)]
+pub mod allocator_proofs;
+
+#[cfg(verus_keep_ghost)]
+pub mod acceleration_structure;
+
+#[cfg(verus_keep_ghost)]
+pub mod ray_tracing_pipeline;
+
+#[cfg(verus_keep_ghost)]
+pub mod render_graph_compile;
+
+#[cfg(verus_keep_ghost)]
+pub mod render_graph_runtime;
+
+#[cfg(verus_keep_ghost)]
+pub mod runtime;

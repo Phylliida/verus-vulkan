@@ -153,4 +153,89 @@ proof fn lemma_all_available_zero_present(states: Seq<SwapchainImageState>, star
     }
 }
 
+/// Acquiring an available image succeeds.
+pub proof fn lemma_acquire_available_succeeds(swapchain: SwapchainState, idx: nat)
+    requires
+        idx < swapchain.image_states.len(),
+        swapchain.image_states[idx as int] == SwapchainImageState::Available,
+    ensures acquire_image(swapchain, idx).is_some(),
+{
+}
+
+/// Acquiring a non-available image fails.
+pub proof fn lemma_acquire_non_available_fails(swapchain: SwapchainState, idx: nat)
+    requires
+        idx < swapchain.image_states.len(),
+        swapchain.image_states[idx as int] != SwapchainImageState::Available,
+    ensures acquire_image(swapchain, idx).is_none(),
+{
+}
+
+/// Presenting a non-acquired image fails.
+pub proof fn lemma_present_non_acquired_fails(swapchain: SwapchainState, idx: nat)
+    requires
+        idx < swapchain.image_states.len(),
+        swapchain.image_states[idx as int] != SwapchainImageState::Acquired,
+    ensures present_image(swapchain, idx).is_none(),
+{
+}
+
+/// Present complete on non-pending image fails.
+pub proof fn lemma_complete_non_pending_fails(swapchain: SwapchainState, idx: nat)
+    requires
+        idx < swapchain.image_states.len(),
+        swapchain.image_states[idx as int] != SwapchainImageState::PresentPending,
+    ensures present_complete(swapchain, idx).is_none(),
+{
+}
+
+/// Acquiring preserves the number of images.
+pub proof fn lemma_acquire_preserves_image_count(swapchain: SwapchainState, idx: nat)
+    requires
+        idx < swapchain.image_states.len(),
+        swapchain.image_states[idx as int] == SwapchainImageState::Available,
+    ensures acquire_image(swapchain, idx).unwrap().image_states.len()
+        == swapchain.image_states.len(),
+{
+}
+
+/// Presenting preserves the number of images.
+pub proof fn lemma_present_preserves_image_count(swapchain: SwapchainState, idx: nat)
+    requires
+        idx < swapchain.image_states.len(),
+        swapchain.image_states[idx as int] == SwapchainImageState::Acquired,
+    ensures present_image(swapchain, idx).unwrap().image_states.len()
+        == swapchain.image_states.len(),
+{
+}
+
+/// Full cycle: acquire → present → complete returns to Available.
+pub proof fn lemma_full_cycle_returns_available(swapchain: SwapchainState, idx: nat)
+    requires
+        idx < swapchain.image_states.len(),
+        swapchain.image_states[idx as int] == SwapchainImageState::Available,
+    ensures ({
+        let s1 = acquire_image(swapchain, idx).unwrap();
+        let s2 = present_image(s1, idx).unwrap();
+        let s3 = present_complete(s2, idx).unwrap();
+        s3.image_states[idx as int] == SwapchainImageState::Available
+    }),
+{
+}
+
+/// Operations on index `idx` don't affect other images.
+pub proof fn lemma_acquire_preserves_other(
+    swapchain: SwapchainState, idx: nat, other: nat,
+)
+    requires
+        idx < swapchain.image_states.len(),
+        other < swapchain.image_states.len(),
+        idx != other,
+        swapchain.image_states[idx as int] == SwapchainImageState::Available,
+    ensures
+        acquire_image(swapchain, idx).unwrap().image_states[other as int]
+            == swapchain.image_states[other as int],
+{
+}
+
 } // verus!

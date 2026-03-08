@@ -191,4 +191,44 @@ pub proof fn lemma_count_draw_buffer_sufficient(
 {
 }
 
+/// draw_indexed_indirect_valid implies draw_call_valid.
+pub proof fn lemma_indexed_indirect_implies_draw_valid(
+    state: RecordingState,
+    pipeline: GraphicsPipelineState,
+    rp: RenderPassState,
+    params: IndirectDrawParams,
+    buffer: BufferState,
+)
+    requires draw_indexed_indirect_valid(state, pipeline, rp, params, buffer),
+    ensures draw_call_valid(state, pipeline, rp),
+{
+}
+
+/// A noop indirect draw (draw_count == 0) needs no specific buffer constraints.
+pub proof fn lemma_noop_indirect_trivial(params: IndirectDrawParams)
+    requires indirect_is_noop(params),
+    ensures params.draw_count == 0,
+{
+}
+
+/// Indirect draw count valid implies both buffers are alive.
+pub proof fn lemma_count_draw_both_alive(
+    state: RecordingState,
+    pipeline: GraphicsPipelineState,
+    rp: RenderPassState,
+    params: IndirectDrawParams,
+    draw_buffer: BufferState,
+    count_buffer: BufferState,
+    count_offset: nat,
+    max_draw_count: nat,
+)
+    requires draw_indirect_count_valid(
+        state, pipeline, rp, params, draw_buffer, count_buffer, count_offset, max_draw_count),
+    ensures
+        draw_buffer.alive,
+        count_buffer.alive,
+        draw_call_valid(state, pipeline, rp),
+{
+}
+
 } // verus!

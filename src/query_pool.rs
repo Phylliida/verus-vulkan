@@ -227,4 +227,40 @@ pub proof fn lemma_single_available_results_valid(
 {
 }
 
+/// After begin_query, the slot is Active.
+pub proof fn lemma_begin_makes_active(pool: QueryPoolState, index: nat)
+    requires
+        pool.slot_states.contains_key(index),
+        index < pool.query_count,
+    ensures query_is_active(begin_query(pool, index), index),
+{
+}
+
+/// After end_query, the slot is Available.
+pub proof fn lemma_end_makes_available(pool: QueryPoolState, index: nat)
+    requires
+        pool.slot_states.contains_key(index),
+        index < pool.query_count,
+    ensures query_is_available(end_query(pool, index), index),
+{
+}
+
+/// End query changes only the targeted slot.
+pub proof fn lemma_end_preserves_others(
+    pool: QueryPoolState, index: nat, other: nat,
+)
+    requires
+        index != other,
+        pool.slot_states.contains_key(other),
+    ensures
+        end_query(pool, index).slot_states[other] == pool.slot_states[other],
+{
+}
+
+/// A fresh pool is alive.
+pub proof fn lemma_fresh_pool_alive(id: nat, count: nat)
+    ensures create_query_pool(id, count).alive,
+{
+}
+
 } // verus!

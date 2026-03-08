@@ -215,4 +215,91 @@ pub proof fn lemma_color_to_shader_read_valid(resource: ResourceId)
     assert(entry.dst_stages.stages.contains(STAGE_FRAGMENT_SHADER()));
 }
 
+/// Shader write access at vertex shader stage is valid.
+pub proof fn lemma_vertex_shader_write_valid()
+    ensures valid_stage_access(STAGE_VERTEX_SHADER(), ACCESS_SHADER_WRITE()),
+{
+}
+
+/// Shader write access at compute shader stage is valid.
+pub proof fn lemma_compute_shader_write_valid()
+    ensures valid_stage_access(STAGE_COMPUTE_SHADER(), ACCESS_SHADER_WRITE()),
+{
+}
+
+/// Depth/stencil attachment access at early fragment tests is valid.
+pub proof fn lemma_early_depth_access_valid()
+    ensures
+        valid_stage_access(STAGE_EARLY_FRAGMENT_TESTS(), ACCESS_DEPTH_STENCIL_ATTACHMENT_READ()),
+        valid_stage_access(STAGE_EARLY_FRAGMENT_TESTS(), ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE()),
+{
+}
+
+/// Color attachment access at color output stage is valid.
+pub proof fn lemma_color_output_access_valid()
+    ensures
+        valid_stage_access(STAGE_COLOR_ATTACHMENT_OUTPUT(), ACCESS_COLOR_ATTACHMENT_READ()),
+        valid_stage_access(STAGE_COLOR_ATTACHMENT_OUTPUT(), ACCESS_COLOR_ATTACHMENT_WRITE()),
+{
+}
+
+/// Host access at host stage is valid.
+pub proof fn lemma_host_access_valid()
+    ensures
+        valid_stage_access(STAGE_HOST(), ACCESS_HOST_READ()),
+        valid_stage_access(STAGE_HOST(), ACCESS_HOST_WRITE()),
+{
+}
+
+/// A sub-log (prefix) of a valid log is valid.
+pub proof fn lemma_prefix_valid(log: Seq<BarrierEntry>, n: nat)
+    requires
+        all_barriers_valid(log),
+        n <= log.len(),
+    ensures
+        all_barriers_valid(log.subrange(0, n as int)),
+{
+    let prefix = log.subrange(0, n as int);
+    assert forall|i: int| 0 <= i < prefix.len()
+    implies barrier_stage_access_valid(prefix[i]) by {
+        assert(prefix[i] == log[i]);
+    }
+}
+
+/// Concatenating two valid barrier logs produces a valid log.
+pub proof fn lemma_concat_valid_logs(
+    log1: Seq<BarrierEntry>,
+    log2: Seq<BarrierEntry>,
+)
+    requires
+        all_barriers_valid(log1),
+        all_barriers_valid(log2),
+    ensures
+        all_barriers_valid(log1.add(log2)),
+{
+    let combined = log1.add(log2);
+    assert forall|i: int| 0 <= i < combined.len()
+    implies barrier_stage_access_valid(combined[i]) by {
+        if i < log1.len() as int {
+            assert(combined[i] == log1[i]);
+        } else {
+            assert(combined[i] == log2[i - log1.len() as int]);
+        }
+    }
+}
+
+/// Indirect command read at draw indirect stage is valid.
+pub proof fn lemma_indirect_command_read_valid()
+    ensures valid_stage_access(STAGE_DRAW_INDIRECT(), ACCESS_INDIRECT_COMMAND_READ()),
+{
+}
+
+/// Index and vertex attribute reads at vertex input stage are valid.
+pub proof fn lemma_vertex_input_reads_valid()
+    ensures
+        valid_stage_access(STAGE_VERTEX_INPUT(), ACCESS_INDEX_READ()),
+        valid_stage_access(STAGE_VERTEX_INPUT(), ACCESS_VERTEX_ATTRIBUTE_READ()),
+{
+}
+
 } // verus!

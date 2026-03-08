@@ -97,4 +97,38 @@ pub proof fn lemma_signal_carries_states(
 {
 }
 
+/// A freshly created semaphore is well-formed.
+pub proof fn lemma_create_semaphore_well_formed(id: nat)
+    ensures semaphore_well_formed(create_semaphore_ghost(id)),
+{
+}
+
+/// Signal → wait roundtrip returns to unsignaled with empty states.
+pub proof fn lemma_signal_wait_roundtrip(
+    sem: SemaphoreState, states: Map<ResourceId, SyncState>,
+)
+    ensures ({
+        let signaled = signal_semaphore_ghost(sem, states);
+        let waited = wait_semaphore_ghost(signaled);
+        !waited.signaled && waited.resource_states == Map::<ResourceId, SyncState>::empty()
+    }),
+{
+}
+
+/// Signaling preserves alive status.
+pub proof fn lemma_signal_preserves_alive(
+    sem: SemaphoreState, states: Map<ResourceId, SyncState>,
+)
+    requires sem.alive,
+    ensures signal_semaphore_ghost(sem, states).alive,
+{
+}
+
+/// Waiting preserves alive status.
+pub proof fn lemma_wait_preserves_alive(sem: SemaphoreState)
+    requires sem.alive,
+    ensures wait_semaphore_ghost(sem).alive,
+{
+}
+
 } // verus!

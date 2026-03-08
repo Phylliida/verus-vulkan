@@ -113,4 +113,22 @@ pub proof fn lemma_well_formed_implies_compatible(
 {
 }
 
+/// A well-formed framebuffer is alive.
+pub proof fn lemma_well_formed_is_alive(
+    fb: FramebufferState, rp: RenderPassState,
+)
+    requires framebuffer_well_formed(fb, rp),
+    ensures fb.alive,
+{
+}
+
+/// Compatible framebuffer matches the render pass ID.
+pub proof fn lemma_compatible_matches_rp_id(
+    fb: FramebufferState, rp: RenderPassState,
+)
+    requires framebuffer_compatible_with_render_pass(fb, rp),
+    ensures fb.render_pass_id == rp.id,
+{
+}
+
 } // verus!

@@ -124,4 +124,48 @@ pub proof fn lemma_descriptor_layout_compatible_reflexive(
 {
 }
 
+/// A well-formed graphics pipeline is alive.
+pub proof fn lemma_graphics_well_formed_is_alive(
+    pipeline: GraphicsPipelineState, rp: RenderPassState,
+)
+    requires graphics_pipeline_well_formed(pipeline, rp),
+    ensures pipeline.alive,
+{
+}
+
+/// A well-formed compute pipeline is alive.
+pub proof fn lemma_compute_well_formed_is_alive(pipeline: ComputePipelineState)
+    requires compute_pipeline_well_formed(pipeline),
+    ensures pipeline.alive,
+{
+}
+
+/// Compatible pipeline implies well-formed.
+pub proof fn lemma_compatible_implies_well_formed(
+    pipeline: GraphicsPipelineState, rp: RenderPassState, s: nat,
+)
+    requires
+        graphics_pipeline_compatible_with_subpass(pipeline, rp, s),
+        pipeline.alive,
+        s < rp.subpasses.len(),
+    ensures graphics_pipeline_well_formed(pipeline, rp),
+{
+}
+
+/// Descriptor layout compatibility is transitive on prefix.
+pub proof fn lemma_descriptor_layout_prefix_transitive(
+    a: Seq<nat>, b: Seq<nat>, c: Seq<nat>,
+)
+    requires
+        pipeline_descriptor_layout_compatible(a, b),
+        pipeline_descriptor_layout_compatible(b, c),
+    ensures
+        pipeline_descriptor_layout_compatible(a, c),
+{
+    assert forall|i: int| 0 <= i < a.len() implies a[i] == c[i] by {
+        assert(a[i] == b[i]);
+        assert(b[i] == c[i]);
+    }
+}
+
 } // verus!
