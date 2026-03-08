@@ -233,4 +233,13 @@ pub mod render_graph_compile;
 pub mod render_graph_runtime;
 
 #[cfg(verus_keep_ghost)]
+pub mod render_graph_multiqueue;
+
+#[cfg(verus_keep_ghost)]
+pub mod transient_memory;
+
+#[cfg(verus_keep_ghost)]
+pub mod ffi;
+
+#[cfg(verus_keep_ghost)]
 pub mod runtime;
