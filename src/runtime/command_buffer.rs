@@ -30,6 +30,8 @@ pub enum CommandBufferStatus {
 pub struct RuntimeCommandBuffer {
     /// Opaque handle (maps to VkCommandBuffer).
     pub handle: u64,
+    /// Ghost logical ID for sync token tracking.
+    pub cb_id: Ghost<nat>,
     /// Current status.
     pub status: Ghost<CommandBufferStatus>,
     /// Recorded barrier log (ghost).
@@ -95,13 +97,14 @@ pub fn begin_recording_exec(
             CommandBufferStatus::Initial => true,
             _ => false,
         },
-        can_access_child(pool@, old(cb).handle as nat, thread@, reg@),
+        can_access_child(pool@, old(cb).cb_id@, thread@, reg@),
     ensures
         is_recording(cb),
         cb.barrier_log@ == Seq::<BarrierEntry>::empty(),
         cb.in_render_pass@ == false,
         cb.recording_state@ == initial_recording_state(),
         cb.recording_thread@ == thread@,
+        cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
     cb.status = Ghost(CommandBufferStatus::Recording);
@@ -123,13 +126,14 @@ pub fn end_recording_exec(
         is_recording(&*old(cb)),
         runtime_cb_wf(&*old(cb)),
         old(cb).in_render_pass@ == false,
-        can_access_child(pool@, old(cb).handle as nat, thread@, reg@),
+        can_access_child(pool@, old(cb).cb_id@, thread@, reg@),
         old(cb).recording_thread@ == thread@,
     ensures
         is_executable(cb),
         cb.recording_state@ == old(cb).recording_state@,
         cb.in_render_pass@ == old(cb).in_render_pass@,
         cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
     cb.status = Ghost(CommandBufferStatus::Executable);
@@ -162,6 +166,7 @@ pub fn cmd_begin_render_pass_exec(
         cb.recording_state@ == begin_render_pass_recording(old(cb).recording_state@, rp@.id, fb@.id),
         cb.barrier_log@ == old(cb).barrier_log@,
         cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
     cb.in_render_pass = Ghost(true);
@@ -190,6 +195,7 @@ pub fn cmd_end_render_pass_exec(
         cb.recording_state@ == end_render_pass_recording(old(cb).recording_state@),
         cb.barrier_log@ == old(cb).barrier_log@,
         cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
         layout_tracker@ == apply_transitions(
             old(layout_tracker)@,
@@ -225,6 +231,7 @@ pub fn cmd_next_subpass_exec(
         cb.recording_state@ == next_subpass_recording(old(cb).recording_state@),
         cb.barrier_log@ == old(cb).barrier_log@,
         cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
     cb.recording_state = Ghost(next_subpass_recording(cb.recording_state@));
@@ -246,6 +253,7 @@ pub fn cmd_pipeline_barrier_exec(
         cb.recording_state@ == old(cb).recording_state@,
         cb.in_render_pass@ == old(cb).in_render_pass@,
         cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
     cb.barrier_log = Ghost(cb.barrier_log@.push(entry@));
@@ -267,6 +275,7 @@ pub fn cmd_bind_graphics_pipeline_exec(
         cb.recording_state@ == bind_graphics_pipeline(old(cb).recording_state@, pipeline_id@),
         cb.in_render_pass@ == old(cb).in_render_pass@,
         cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
     cb.recording_state = Ghost(bind_graphics_pipeline(cb.recording_state@, pipeline_id@));
@@ -288,6 +297,7 @@ pub fn cmd_bind_compute_pipeline_exec(
         cb.recording_state@ == bind_compute_pipeline(old(cb).recording_state@, pipeline_id@),
         cb.in_render_pass@ == old(cb).in_render_pass@,
         cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
     cb.recording_state = Ghost(bind_compute_pipeline(cb.recording_state@, pipeline_id@));
@@ -305,6 +315,7 @@ pub fn cmd_bind_pipeline_exec(cb: &mut RuntimeCommandBuffer, thread: Ghost<Threa
         cb.recording_state@ == bind_graphics_pipeline(old(cb).recording_state@, pipeline_id@),
         cb.in_render_pass@ == old(cb).in_render_pass@,
         cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
     cb.recording_state = Ghost(bind_graphics_pipeline(cb.recording_state@, pipeline_id@));
@@ -329,6 +340,7 @@ pub fn cmd_bind_descriptor_set_exec(
         cb.recording_state@ == bind_descriptor_set(old(cb).recording_state@, set_index@, set_id@, layout_id@),
         cb.in_render_pass@ == old(cb).in_render_pass@,
         cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
     cb.recording_state = Ghost(bind_descriptor_set(cb.recording_state@, set_index@, set_id@, layout_id@));
@@ -351,6 +363,7 @@ pub fn cmd_bind_vertex_buffer_exec(
         cb.recording_state@ == bind_vertex_buffer(old(cb).recording_state@, slot@, buffer_id@),
         cb.in_render_pass@ == old(cb).in_render_pass@,
         cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
     cb.recording_state = Ghost(bind_vertex_buffer(cb.recording_state@, slot@, buffer_id@));
@@ -372,6 +385,7 @@ pub fn cmd_bind_index_buffer_exec(
         cb.recording_state@ == bind_index_buffer(old(cb).recording_state@, buffer_id@),
         cb.in_render_pass@ == old(cb).in_render_pass@,
         cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
     cb.recording_state = Ghost(bind_index_buffer(cb.recording_state@, buffer_id@));
@@ -389,6 +403,7 @@ pub fn cmd_set_viewport_exec(cb: &mut RuntimeCommandBuffer, thread: Ghost<Thread
         cb.recording_state@ == set_viewport_recording(old(cb).recording_state@),
         cb.in_render_pass@ == old(cb).in_render_pass@,
         cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
     cb.recording_state = Ghost(set_viewport_recording(cb.recording_state@));
@@ -406,6 +421,7 @@ pub fn cmd_set_scissor_exec(cb: &mut RuntimeCommandBuffer, thread: Ghost<ThreadI
         cb.recording_state@ == set_scissor_recording(old(cb).recording_state@),
         cb.in_render_pass@ == old(cb).in_render_pass@,
         cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
     cb.recording_state = Ghost(set_scissor_recording(cb.recording_state@));
@@ -423,6 +439,7 @@ pub fn cmd_set_push_constants_exec(cb: &mut RuntimeCommandBuffer, thread: Ghost<
         cb.recording_state@ == set_push_constants_recording(old(cb).recording_state@),
         cb.in_render_pass@ == old(cb).in_render_pass@,
         cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
     cb.recording_state = Ghost(set_push_constants_recording(cb.recording_state@));
@@ -454,6 +471,7 @@ pub fn cmd_draw_exec(
         cb.recording_state@ == old(cb).recording_state@,
         cb.in_render_pass@ == old(cb).in_render_pass@,
         cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
 }
@@ -484,6 +502,7 @@ pub fn cmd_draw_indexed_exec(
         cb.recording_state@ == old(cb).recording_state@,
         cb.in_render_pass@ == old(cb).in_render_pass@,
         cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
 }
@@ -508,6 +527,7 @@ pub fn cmd_dispatch_exec(
         cb.recording_state@ == old(cb).recording_state@,
         cb.in_render_pass@ == old(cb).in_render_pass@,
         cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
 }
@@ -536,6 +556,7 @@ pub fn cmd_copy_buffer_exec(
         cb.recording_state@ == old(cb).recording_state@,
         cb.in_render_pass@ == old(cb).in_render_pass@,
         cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
 }
@@ -570,6 +591,7 @@ pub fn cmd_copy_image_exec(
         cb.recording_state@ == old(cb).recording_state@,
         cb.in_render_pass@ == old(cb).in_render_pass@,
         cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
 }
@@ -604,6 +626,7 @@ pub fn cmd_blit_image_exec(
         cb.recording_state@ == old(cb).recording_state@,
         cb.in_render_pass@ == old(cb).in_render_pass@,
         cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
 }
@@ -636,6 +659,7 @@ pub fn cmd_copy_buffer_to_image_exec(
         cb.recording_state@ == old(cb).recording_state@,
         cb.in_render_pass@ == old(cb).in_render_pass@,
         cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
 }
@@ -668,36 +692,53 @@ pub fn cmd_copy_image_to_buffer_exec(
         cb.recording_state@ == old(cb).recording_state@,
         cb.in_render_pass@ == old(cb).in_render_pass@,
         cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
 }
 
 /// Exec: mark a command buffer as Pending after submission.
 /// Called by the user after submit_exec succeeds.
-pub fn mark_pending_exec(cb: &mut RuntimeCommandBuffer)
+/// Caller must prove access to the CB (typically via pool ownership after submit).
+pub fn mark_pending_exec(
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    pool: Ghost<PoolOwnership>,
+    reg: Ghost<TokenRegistry>,
+)
     requires
         is_executable(&*old(cb)),
+        can_access_child(pool@, old(cb).cb_id@, thread@, reg@),
     ensures
         is_pending(cb),
         cb.barrier_log@ == old(cb).barrier_log@,
         cb.recording_state@ == old(cb).recording_state@,
         cb.in_render_pass@ == old(cb).in_render_pass@,
         cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
 {
     cb.status = Ghost(CommandBufferStatus::Pending);
 }
 
 /// Exec: mark a command buffer as Executable after GPU execution completes.
 /// Called after a fence wait or queue_wait_idle proves the CB is no longer in-flight.
-pub fn complete_execution_exec(cb: &mut RuntimeCommandBuffer)
+/// Caller must prove access to the CB (typically re-acquired after GPU completion).
+pub fn complete_execution_exec(
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    pool: Ghost<PoolOwnership>,
+    reg: Ghost<TokenRegistry>,
+)
     requires
         is_pending(&*old(cb)),
+        can_access_child(pool@, old(cb).cb_id@, thread@, reg@),
     ensures
         is_executable(cb),
         cb.barrier_log@ == old(cb).barrier_log@,
         cb.recording_state@ == old(cb).recording_state@,
         cb.in_render_pass@ == old(cb).in_render_pass@,
         cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
 {
     cb.status = Ghost(CommandBufferStatus::Executable);
 }
@@ -713,12 +754,13 @@ pub fn cmd_reset_exec(
 )
     requires
         is_executable(&*old(cb)) || is_initial(&*old(cb)),
-        can_access_child(pool@, old(cb).handle as nat, thread@, reg@),
+        can_access_child(pool@, old(cb).cb_id@, thread@, reg@),
     ensures
         is_initial(cb),
         cb.barrier_log@ == Seq::<BarrierEntry>::empty(),
         cb.in_render_pass@ == false,
         cb.recording_state@ == initial_recording_state(),
+        cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
     cb.status = Ghost(CommandBufferStatus::Initial);
@@ -753,6 +795,7 @@ pub proof fn lemma_begin_produces_recording(cb: &RuntimeCommandBuffer, thread: T
     ensures ({
         let new_cb = RuntimeCommandBuffer {
             handle: cb.handle,
+            cb_id: cb.cb_id,
             status: Ghost(CommandBufferStatus::Recording),
             barrier_log: Ghost(Seq::empty()),
             in_render_pass: Ghost(false),
@@ -775,6 +818,7 @@ pub proof fn lemma_end_produces_executable(cb: &RuntimeCommandBuffer)
     ensures ({
         let new_cb = RuntimeCommandBuffer {
             handle: cb.handle,
+            cb_id: cb.cb_id,
             status: Ghost(CommandBufferStatus::Executable),
             barrier_log: cb.barrier_log,
             in_render_pass: cb.in_render_pass,
@@ -844,6 +888,7 @@ pub proof fn lemma_full_lifecycle()
     ensures ({
         let cb0 = RuntimeCommandBuffer {
             handle: 0,
+            cb_id: Ghost(0nat),
             status: Ghost(CommandBufferStatus::Initial),
             barrier_log: Ghost(Seq::empty()),
             in_render_pass: Ghost(false),
