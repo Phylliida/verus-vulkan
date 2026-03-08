@@ -47,7 +47,7 @@ pub fn signal_semaphore_exec(
 )
     requires
         runtime_semaphore_wf(&*old(sem)),
-        holds_exclusive(reg@, old(sem).handle as nat, thread@),
+        holds_exclusive(reg@, old(sem)@.id, thread@),
     ensures
         sem@ == signal_semaphore_ghost(old(sem)@, states@),
 {
@@ -64,7 +64,7 @@ pub fn wait_semaphore_exec(
     requires
         runtime_semaphore_wf(&*old(sem)),
         old(sem)@.signaled,
-        holds_exclusive(reg@, old(sem).handle as nat, thread@),
+        holds_exclusive(reg@, old(sem)@.id, thread@),
     ensures
         sem@ == wait_semaphore_ghost(old(sem)@),
 {
@@ -83,7 +83,7 @@ pub fn destroy_semaphore_exec(
         runtime_semaphore_wf(&*old(sem)),
         !old(sem)@.signaled,
         semaphore_not_pending(old(sem)@.id, pending_submissions@),
-        holds_exclusive(reg@, old(sem).handle as nat, thread@),
+        holds_exclusive(reg@, old(sem)@.id, thread@),
     ensures
         sem@ == destroy_semaphore_ghost(old(sem)@),
         !sem@.alive,

@@ -86,7 +86,7 @@ pub fn destroy_graphics_pipeline_exec(
     requires
         runtime_gfx_pipeline_wf(&*old(pipe)),
         !active_pipeline_ids@.contains(old(pipe)@.id),
-        holds_exclusive(reg@, old(pipe).handle as nat, thread@),
+        holds_exclusive(reg@, old(pipe)@.id, thread@),
     ensures
         !pipe@.alive,
         pipe@.id == old(pipe)@.id,
@@ -109,7 +109,7 @@ pub fn destroy_compute_pipeline_exec(
     requires
         runtime_compute_pipeline_wf(&*old(pipe)),
         !active_pipeline_ids@.contains(old(pipe)@.id),
-        holds_exclusive(reg@, old(pipe).handle as nat, thread@),
+        holds_exclusive(reg@, old(pipe)@.id, thread@),
     ensures
         !pipe@.alive,
         pipe@.id == old(pipe)@.id,

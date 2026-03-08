@@ -105,7 +105,7 @@ pub fn destroy_timeline_semaphore_exec(
         runtime_timeline_wf(&*old(sem)),
         old(sem)@.pending_signals == Set::<nat>::empty(),
         old(sem)@.pending_waits == Set::<nat>::empty(),
-        holds_exclusive(reg@, old(sem).handle as nat, thread@),
+        holds_exclusive(reg@, old(sem)@.id, thread@),
     ensures
         !sem@.alive,
         sem@.id == old(sem)@.id,
@@ -127,7 +127,7 @@ pub fn signal_timeline_exec(
     requires
         runtime_timeline_wf(&*old(sem)),
         signal_value_valid(old(sem)@, value as nat),
-        holds_exclusive(reg@, old(sem).handle as nat, thread@),
+        holds_exclusive(reg@, old(sem)@.id, thread@),
     ensures
         sem@ == submit_signal(old(sem)@, value as nat),
 {
@@ -144,7 +144,7 @@ pub fn wait_timeline_exec(
 )
     requires
         runtime_timeline_wf(&*old(sem)),
-        holds_exclusive(reg@, old(sem).handle as nat, thread@),
+        holds_exclusive(reg@, old(sem)@.id, thread@),
     ensures
         sem@ == submit_wait(old(sem)@, value as nat),
 {
@@ -171,7 +171,7 @@ pub fn complete_signal_exec(
         runtime_timeline_wf(&*old(sem)),
         old(sem)@.pending_signals.contains(value as nat),
         signal_value_valid(old(sem)@, value as nat),
-        holds_exclusive(reg@, old(sem).handle as nat, thread@),
+        holds_exclusive(reg@, old(sem)@.id, thread@),
     ensures
         sem@ == complete_signal(old(sem)@, value as nat),
         sem@.counter == value as nat,

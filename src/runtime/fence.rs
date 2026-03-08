@@ -44,7 +44,7 @@ pub fn reset_fence_exec(
 )
     requires
         runtime_fence_wf(&*old(fence)),
-        holds_exclusive(reg@, old(fence).handle as nat, thread@),
+        holds_exclusive(reg@, old(fence)@.id, thread@),
     ensures
         fence@ == reset_fence_ghost(old(fence)@),
 {
@@ -61,7 +61,7 @@ pub fn wait_fence_exec(
 )
     requires
         runtime_fence_wf(&*old(fence)),
-        holds_exclusive(reg@, old(fence).handle as nat, thread@),
+        holds_exclusive(reg@, old(fence)@.id, thread@),
     ensures
         fence@ == signal_fence_ghost(old(fence)@, sub_id@),
         fence@.signaled,
@@ -80,7 +80,7 @@ pub fn destroy_fence_exec(
     requires
         runtime_fence_wf(&*old(fence)),
         fence_not_pending(old(fence)@.id, pending_submissions@),
-        holds_exclusive(reg@, old(fence).handle as nat, thread@),
+        holds_exclusive(reg@, old(fence)@.id, thread@),
     ensures
         fence@ == destroy_fence_ghost(old(fence)@),
         !fence@.alive,

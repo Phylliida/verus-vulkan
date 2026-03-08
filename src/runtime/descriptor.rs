@@ -204,7 +204,7 @@ pub fn update_descriptor_set_exec(
         old(ds)@.layout_id == layout@.id,
         layout_contains_binding(layout@, binding_num@),
         !(new_binding@ === DescriptorBinding::Empty),
-        can_access_child(pool_ownership@, old(ds).handle as nat, thread@, reg@),
+        can_access_child(pool_ownership@, old(ds)@.id, thread@, reg@),
     ensures
         ds@ == update_descriptor_binding(old(ds)@, binding_num@, new_binding@),
 {
@@ -232,15 +232,16 @@ pub fn free_descriptor_set_exec(
 
 /// Exec: destroy a descriptor pool.
 /// Vulkan implicitly frees all allocated sets when the pool is destroyed.
-/// Caller must prove exclusive access to the pool.
+/// Caller must prove pool ownership (not just exclusive — must be the pool owner).
 pub fn destroy_descriptor_pool_exec(
     pool: &mut RuntimeDescriptorPool,
     thread: Ghost<ThreadId>,
+    pool_ownership: Ghost<PoolOwnership>,
     reg: Ghost<TokenRegistry>,
 )
     requires
         runtime_pool_wf(&*old(pool)),
-        holds_exclusive(reg@, old(pool).handle as nat, thread@),
+        can_mutate_pool(pool_ownership@, thread@, reg@),
     ensures
         !pool@.alive,
         pool@.id == old(pool)@.id,
@@ -260,7 +261,7 @@ pub fn destroy_descriptor_set_layout_exec(
 )
     requires
         runtime_dsl_wf(&*old(dsl)),
-        holds_exclusive(reg@, old(dsl).handle as nat, thread@),
+        holds_exclusive(reg@, old(dsl)@.id, thread@),
     ensures
         !dsl@.alive,
         dsl@.id == old(dsl)@.id,
