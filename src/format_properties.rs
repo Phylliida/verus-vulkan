@@ -1,4 +1,5 @@
 use vstd::prelude::*;
+use crate::descriptor::DescriptorType;
 
 verus! {
 
@@ -179,6 +180,113 @@ pub proof fn lemma_sampling_independent_of_attachment(
         format_supports_sampling(props),
     ensures
         format_valid_for_attachment(props, is_color, is_depth, blend),
+{
+}
+
+// ── Tiling-Aware Feature Lookups ─────────────────────────────────────────
+
+/// Returns the feature flags appropriate for the given tiling mode.
+/// tiling == 0 → optimal_tiling; tiling == 1 → linear_tiling.
+pub open spec fn format_features_for_tiling(
+    props: FormatProperties,
+    tiling: nat,
+) -> FormatFeatureFlags {
+    if tiling == 0 { props.optimal_tiling } else { props.linear_tiling }
+}
+
+/// A format supports sampling for the given tiling mode.
+pub open spec fn format_supports_sampling_for_tiling(
+    props: FormatProperties,
+    tiling: nat,
+) -> bool {
+    format_features_for_tiling(props, tiling).sampled_image
+}
+
+/// A format supports color attachment for the given tiling mode.
+pub open spec fn format_supports_color_attachment_for_tiling(
+    props: FormatProperties,
+    tiling: nat,
+) -> bool {
+    format_features_for_tiling(props, tiling).color_attachment
+}
+
+/// A format supports depth/stencil attachment for the given tiling mode.
+pub open spec fn format_supports_depth_stencil_for_tiling(
+    props: FormatProperties,
+    tiling: nat,
+) -> bool {
+    format_features_for_tiling(props, tiling).depth_stencil_attachment
+}
+
+/// A format supports storage image for the given tiling mode.
+pub open spec fn format_supports_storage_for_tiling(
+    props: FormatProperties,
+    tiling: nat,
+) -> bool {
+    format_features_for_tiling(props, tiling).storage_image
+}
+
+/// Optimal tiling (tiling==0) gives the same results as the existing functions.
+pub proof fn lemma_optimal_tiling_matches_existing(props: FormatProperties)
+    ensures
+        format_supports_sampling_for_tiling(props, 0) == format_supports_sampling(props),
+        format_supports_color_attachment_for_tiling(props, 0) == format_supports_color_attachment(props),
+        format_supports_depth_stencil_for_tiling(props, 0) == format_supports_depth_stencil(props),
+        format_supports_storage_for_tiling(props, 0) == props.optimal_tiling.storage_image,
+{
+}
+
+/// Linear tiling (tiling==1) uses the linear_tiling field.
+pub proof fn lemma_linear_tiling_uses_linear_features(props: FormatProperties)
+    ensures
+        format_supports_sampling_for_tiling(props, 1) == props.linear_tiling.sampled_image,
+        format_supports_color_attachment_for_tiling(props, 1) == props.linear_tiling.color_attachment,
+        format_supports_depth_stencil_for_tiling(props, 1) == props.linear_tiling.depth_stencil_attachment,
+        format_supports_storage_for_tiling(props, 1) == props.linear_tiling.storage_image,
+{
+}
+
+// ── Format + Descriptor Type Validation ─────────────────────────────────
+
+/// Whether a format's features are adequate for a given descriptor type.
+/// SampledImage and CombinedImageSampler need sampling support;
+/// StorageImage needs storage support; buffer types pass trivially.
+pub open spec fn format_valid_for_descriptor_type(
+    props: FormatProperties,
+    desc_type: DescriptorType,
+) -> bool {
+    match desc_type {
+        DescriptorType::SampledImage => format_supports_sampling(props),
+        DescriptorType::CombinedImageSampler => format_supports_sampling(props),
+        DescriptorType::StorageImage => props.optimal_tiling.storage_image,
+        DescriptorType::UniformBuffer => true,
+        DescriptorType::StorageBuffer => true,
+        DescriptorType::UniformBufferDynamic => true,
+        DescriptorType::StorageBufferDynamic => true,
+        DescriptorType::InputAttachment => true,
+    }
+}
+
+/// Buffer descriptor types are always format-valid (no image features needed).
+pub proof fn lemma_buffer_type_format_valid(props: FormatProperties)
+    ensures
+        format_valid_for_descriptor_type(props, DescriptorType::UniformBuffer),
+        format_valid_for_descriptor_type(props, DescriptorType::StorageBuffer),
+        format_valid_for_descriptor_type(props, DescriptorType::InputAttachment),
+{
+}
+
+/// A format with sampling support is valid for SampledImage descriptors.
+pub proof fn lemma_sampling_valid_for_sampled(props: FormatProperties)
+    requires format_supports_sampling(props),
+    ensures format_valid_for_descriptor_type(props, DescriptorType::SampledImage),
+{
+}
+
+/// A format with sampling support is valid for CombinedImageSampler descriptors.
+pub proof fn lemma_sampling_valid_for_combined(props: FormatProperties)
+    requires format_supports_sampling(props),
+    ensures format_valid_for_descriptor_type(props, DescriptorType::CombinedImageSampler),
 {
 }
 

@@ -7,6 +7,8 @@ use crate::sync_token::*;
 use crate::pool_ownership::*;
 use crate::pipeline::*;
 use crate::render_pass::*;
+use crate::draw_state::{DrawCallState, dynamic_states_satisfied,
+    vertex_draw_in_bounds, indexed_draw_in_bounds};
 use crate::image_layout::ImageLayout;
 use crate::image_layout_fsm::*;
 use crate::framebuffer::*;
@@ -323,12 +325,14 @@ pub fn cmd_bind_pipeline_exec(cb: &mut RuntimeCommandBuffer, thread: Ghost<Threa
 
 /// Exec: bind a descriptor set at a given set index.
 /// The layout_id must match the descriptor set's actual layout for pipeline compatibility.
+/// Dynamic offsets are stored for later validation against buffer bounds.
 pub fn cmd_bind_descriptor_set_exec(
     cb: &mut RuntimeCommandBuffer,
     thread: Ghost<ThreadId>,
     set_index: Ghost<nat>,
     set_id: Ghost<nat>,
     layout_id: Ghost<nat>,
+    dynamic_offsets: Ghost<Seq<nat>>,
 )
     requires
         is_recording(&*old(cb)),
@@ -337,13 +341,13 @@ pub fn cmd_bind_descriptor_set_exec(
     ensures
         is_recording(cb),
         cb.barrier_log@ == old(cb).barrier_log@,
-        cb.recording_state@ == bind_descriptor_set(old(cb).recording_state@, set_index@, set_id@, layout_id@),
+        cb.recording_state@ == bind_descriptor_set(old(cb).recording_state@, set_index@, set_id@, layout_id@, dynamic_offsets@),
         cb.in_render_pass@ == old(cb).in_render_pass@,
         cb.recording_thread@ == old(cb).recording_thread@,
         cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
-    cb.recording_state = Ghost(bind_descriptor_set(cb.recording_state@, set_index@, set_id@, layout_id@));
+    cb.recording_state = Ghost(bind_descriptor_set(cb.recording_state@, set_index@, set_id@, layout_id@, dynamic_offsets@));
 }
 
 /// Exec: bind a vertex buffer at a given slot.
@@ -447,14 +451,16 @@ pub fn cmd_set_push_constants_exec(cb: &mut RuntimeCommandBuffer, thread: Ghost<
 
 /// Exec: record a draw command.
 /// Caller must prove: pipeline bound, descriptors bound, vertex buffer bound,
-/// and required dynamic state (viewport/scissor) set.
+/// all required dynamic states set, and vertex draw in bounds.
 pub fn cmd_draw_exec(
     cb: &mut RuntimeCommandBuffer,
     thread: Ghost<ThreadId>,
     pipeline: Ghost<GraphicsPipelineState>,
     rp: Ghost<RenderPassState>,
-    needs_dynamic_viewport: Ghost<bool>,
-    needs_dynamic_scissor: Ghost<bool>,
+    draw_state: Ghost<DrawCallState>,
+    required_vertex_slots: Ghost<Set<nat>>,
+    first_vertex: Ghost<nat>,
+    vertex_count: Ghost<nat>,
 )
     requires
         is_recording(&*old(cb)),
@@ -464,7 +470,8 @@ pub fn cmd_draw_exec(
         draw_call_valid(old(cb).recording_state@, pipeline@, rp@),
         descriptor_sets_bound_for_pipeline(old(cb).recording_state@, pipeline@.descriptor_set_layouts),
         has_vertex_buffer_bound(old(cb).recording_state@),
-        dynamic_state_satisfied(old(cb).recording_state@, needs_dynamic_viewport@, needs_dynamic_scissor@),
+        dynamic_states_satisfied(draw_state@, pipeline@.required_dynamic_states),
+        vertex_draw_in_bounds(draw_state@, required_vertex_slots@, first_vertex@, vertex_count@),
     ensures
         is_recording(cb),
         cb.barrier_log@ == old(cb).barrier_log@,
@@ -477,14 +484,18 @@ pub fn cmd_draw_exec(
 }
 
 /// Exec: record an indexed draw command.
-/// Same as cmd_draw_exec but additionally requires an index buffer bound.
+/// Same as cmd_draw_exec but additionally requires index buffer bound + index bounds.
 pub fn cmd_draw_indexed_exec(
     cb: &mut RuntimeCommandBuffer,
     thread: Ghost<ThreadId>,
     pipeline: Ghost<GraphicsPipelineState>,
     rp: Ghost<RenderPassState>,
-    needs_dynamic_viewport: Ghost<bool>,
-    needs_dynamic_scissor: Ghost<bool>,
+    draw_state: Ghost<DrawCallState>,
+    required_vertex_slots: Ghost<Set<nat>>,
+    first_vertex: Ghost<nat>,
+    vertex_count: Ghost<nat>,
+    first_index: Ghost<nat>,
+    index_count: Ghost<nat>,
 )
     requires
         is_recording(&*old(cb)),
@@ -495,7 +506,9 @@ pub fn cmd_draw_indexed_exec(
         descriptor_sets_bound_for_pipeline(old(cb).recording_state@, pipeline@.descriptor_set_layouts),
         has_vertex_buffer_bound(old(cb).recording_state@),
         has_index_buffer_bound(old(cb).recording_state@),
-        dynamic_state_satisfied(old(cb).recording_state@, needs_dynamic_viewport@, needs_dynamic_scissor@),
+        dynamic_states_satisfied(draw_state@, pipeline@.required_dynamic_states),
+        vertex_draw_in_bounds(draw_state@, required_vertex_slots@, first_vertex@, vertex_count@),
+        indexed_draw_in_bounds(draw_state@, first_index@, index_count@),
     ensures
         is_recording(cb),
         cb.barrier_log@ == old(cb).barrier_log@,

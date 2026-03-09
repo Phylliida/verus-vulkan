@@ -33,6 +33,21 @@ pub open spec fn ACCESS_TRANSFER_WRITE() -> nat { 7 }
 pub open spec fn ACCESS_HOST_READ() -> nat { 8 }
 pub open spec fn ACCESS_HOST_WRITE() -> nat { 9 }
 
+// ── Buffer/Image usage flag constants ─────────────────────────────────
+// Each usage flag gets a distinct nat for Set<nat>-based usage tracking.
+
+pub open spec fn USAGE_VERTEX_BUFFER() -> nat { 0 }
+pub open spec fn USAGE_INDEX_BUFFER() -> nat { 1 }
+pub open spec fn USAGE_UNIFORM_BUFFER() -> nat { 2 }
+pub open spec fn USAGE_STORAGE_BUFFER() -> nat { 3 }
+pub open spec fn USAGE_TRANSFER_SRC() -> nat { 4 }
+pub open spec fn USAGE_TRANSFER_DST() -> nat { 5 }
+pub open spec fn USAGE_SAMPLED() -> nat { 6 }
+pub open spec fn USAGE_STORAGE_IMAGE() -> nat { 7 }
+pub open spec fn USAGE_COLOR_ATTACHMENT() -> nat { 8 }
+pub open spec fn USAGE_DEPTH_STENCIL_ATTACHMENT() -> nat { 9 }
+pub open spec fn USAGE_INPUT_ATTACHMENT() -> nat { 10 }
+
 /// A set of access types.
 pub struct AccessFlags {
     pub accesses: Set<nat>,
@@ -168,6 +183,23 @@ pub proof fn lemma_no_stages_minimal(s: PipelineStageFlags)
 {
     assert(s.stages.subset_of(Set::<nat>::empty()));
     assert(s.stages =~= Set::<nat>::empty());
+}
+
+/// All usage flag constants are distinct.
+pub proof fn lemma_usage_constants_distinct()
+    ensures
+        USAGE_VERTEX_BUFFER() != USAGE_INDEX_BUFFER(),
+        USAGE_VERTEX_BUFFER() != USAGE_UNIFORM_BUFFER(),
+        USAGE_UNIFORM_BUFFER() != USAGE_STORAGE_BUFFER(),
+        USAGE_TRANSFER_SRC() != USAGE_TRANSFER_DST(),
+        USAGE_SAMPLED() != USAGE_STORAGE_IMAGE(),
+        USAGE_COLOR_ATTACHMENT() != USAGE_DEPTH_STENCIL_ATTACHMENT(),
+        USAGE_DEPTH_STENCIL_ATTACHMENT() != USAGE_INPUT_ATTACHMENT(),
+        USAGE_TRANSFER_SRC() != USAGE_UNIFORM_BUFFER(),
+        USAGE_TRANSFER_DST() != USAGE_STORAGE_BUFFER(),
+        USAGE_SAMPLED() != USAGE_INPUT_ATTACHMENT(),
+        USAGE_STORAGE_IMAGE() != USAGE_INPUT_ATTACHMENT(),
+{
 }
 
 } // verus!

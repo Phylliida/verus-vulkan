@@ -28,6 +28,9 @@ pub struct SubmitInfo {
     pub fence_id: Option<nat>,
     /// Ghost set of all resources referenced by the command buffers.
     pub referenced_resources: Set<ResourceId>,
+    /// Per-wait-semaphore pipeline stage mask (bitmask).
+    /// Each element is the dst_stage_mask for the corresponding wait semaphore.
+    pub wait_dst_stage_masks: Seq<nat>,
 }
 
 /// A queue is well-formed (placeholder for future constraints).
@@ -35,9 +38,11 @@ pub open spec fn queue_well_formed(q: QueueState) -> bool {
     true
 }
 
-/// A submit info is well-formed if it has at least one command buffer.
+/// A submit info is well-formed if it has at least one command buffer
+/// and the stage mask count matches the wait semaphore count.
 pub open spec fn submit_info_well_formed(info: SubmitInfo) -> bool {
     info.command_buffers.len() > 0
+    && info.wait_dst_stage_masks.len() == info.wait_semaphores.len()
 }
 
 /// All command buffers referenced by the submission are in the map and Executable.
@@ -77,6 +82,13 @@ pub open spec fn fence_available_for_submit(
     }
 }
 
+/// All wait semaphore stage masks are non-zero (Vulkan requires non-zero dst_stage_mask).
+pub open spec fn wait_stage_masks_valid(info: SubmitInfo) -> bool {
+    forall|i: int| #![trigger info.wait_dst_stage_masks[i]]
+        0 <= i < info.wait_dst_stage_masks.len() ==>
+        info.wait_dst_stage_masks[i] > 0
+}
+
 /// A submission is valid if all preconditions are met, including
 /// thread safety: the submitting thread must hold exclusive access
 /// to the queue, and all submitted CBs must not be held by others.
@@ -96,6 +108,7 @@ pub open spec fn submission_valid(
     && all_command_buffers_executable(info, cb_states)
     && all_wait_semaphores_signaled(info, sem_states)
     && fence_available_for_submit(info, fence_states)
+    && wait_stage_masks_valid(info)
     // Thread safety: exclusive queue access
     && holds_exclusive(reg, queue_id, thread)
     // Thread safety: fence access (if specified)
@@ -229,6 +242,39 @@ pub proof fn lemma_valid_submission_holds_queue(
 )
     requires submission_valid(info, cb_states, sem_states, fence_states, queue_id, thread, reg),
     ensures holds_exclusive(reg, queue_id, thread),
+{
+}
+
+/// Empty wait semaphores ⇒ empty masks ⇒ trivially valid.
+pub proof fn lemma_empty_waits_masks_trivial(info: SubmitInfo)
+    requires
+        info.wait_semaphores.len() == 0,
+        info.wait_dst_stage_masks.len() == 0,
+    ensures wait_stage_masks_valid(info),
+{
+}
+
+/// A valid submission has valid stage masks.
+pub proof fn lemma_valid_submission_has_stage_masks(
+    info: SubmitInfo,
+    cb_states: Map<nat, CommandBufferState>,
+    sem_states: Map<nat, SemaphoreState>,
+    fence_states: Map<nat, FenceState>,
+    queue_id: nat,
+    thread: ThreadId,
+    reg: TokenRegistry,
+)
+    requires submission_valid(info, cb_states, sem_states, fence_states, queue_id, thread, reg),
+    ensures wait_stage_masks_valid(info),
+{
+}
+
+/// A single semaphore with a non-zero mask satisfies validity.
+pub proof fn lemma_single_wait_stage_mask(info: SubmitInfo)
+    requires
+        info.wait_dst_stage_masks.len() == 1,
+        info.wait_dst_stage_masks[0] > 0,
+    ensures wait_stage_masks_valid(info),
 {
 }
 

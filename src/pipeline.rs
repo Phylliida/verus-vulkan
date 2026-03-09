@@ -12,6 +12,19 @@ pub enum PipelineBindPoint {
     Compute,
 }
 
+/// Kinds of dynamic state that can be declared by a pipeline.
+pub enum DynamicStateKind {
+    Viewport,
+    Scissor,
+    LineWidth,
+    DepthBias,
+    BlendConstants,
+    DepthBounds,
+    StencilCompareMask,
+    StencilWriteMask,
+    StencilReference,
+}
+
 /// The state of a graphics pipeline object.
 pub struct GraphicsPipelineState {
     pub id: nat,
@@ -27,6 +40,8 @@ pub struct GraphicsPipelineState {
     pub has_depth_attachment: bool,
     /// Whether this pipeline is alive (not destroyed).
     pub alive: bool,
+    /// Which dynamic states the pipeline declared (must be set before draw).
+    pub required_dynamic_states: Set<DynamicStateKind>,
 }
 
 /// The state of a compute pipeline object.

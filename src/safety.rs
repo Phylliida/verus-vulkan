@@ -117,6 +117,13 @@ pub proof fn lemma_fresh_resource_submit_wait_destroy(
             live_images: 0,
             live_pipelines: 0,
             live_descriptor_pools: 0,
+            limits: DeviceLimits {
+                min_uniform_buffer_offset_alignment: 1,
+                min_storage_buffer_offset_alignment: 1,
+                min_texel_buffer_offset_alignment: 1,
+                max_push_constants_size: 0,
+            },
+            format_properties: Map::empty(),
         };
         let (_, record) = submit_ghost(queue, info, thread, reg).unwrap();
         let new_dev = DeviceState {
@@ -138,6 +145,13 @@ pub proof fn lemma_fresh_resource_submit_wait_destroy(
         live_images: 0,
         live_pipelines: 0,
         live_descriptor_pools: 0,
+        limits: DeviceLimits {
+            min_uniform_buffer_offset_alignment: 1,
+            min_storage_buffer_offset_alignment: 1,
+            min_texel_buffer_offset_alignment: 1,
+            max_push_constants_size: 0,
+        },
+        format_properties: Map::empty(),
     };
 
     // Empty submissions → no submission references resource

@@ -1,8 +1,21 @@
 use vstd::prelude::*;
 use crate::resource::*;
 use crate::lifetime::*;
+use crate::format_properties::*;
 
 verus! {
+
+/// Device hardware limits relevant to validation.
+pub struct DeviceLimits {
+    /// Minimum alignment (in bytes) for uniform buffer descriptor offsets.
+    pub min_uniform_buffer_offset_alignment: nat,
+    /// Minimum alignment (in bytes) for storage buffer descriptor offsets.
+    pub min_storage_buffer_offset_alignment: nat,
+    /// Minimum alignment (in bytes) for texel buffer descriptor offsets.
+    pub min_texel_buffer_offset_alignment: nat,
+    /// Maximum total size (in bytes) of push constant ranges.
+    pub max_push_constants_size: nat,
+}
 
 /// Ghost state for the Vulkan logical device.
 ///
@@ -30,6 +43,10 @@ pub struct DeviceState {
     pub live_pipelines: nat,
     /// Count of live descriptor pools.
     pub live_descriptor_pools: nat,
+    /// Hardware limits for alignment and size validation.
+    pub limits: DeviceLimits,
+    /// Per-format feature properties, keyed by format ID.
+    pub format_properties: Map<nat, FormatProperties>,
 }
 
 /// The device state is well-formed if:
@@ -45,6 +62,21 @@ pub open spec fn device_well_formed(dev: DeviceState) -> bool {
         mt < dev.num_memory_types ==>
         dev.memory_type_to_heap.contains_key(mt)
         && dev.memory_type_to_heap[mt] < dev.num_heaps)
+    &&& dev.limits.min_uniform_buffer_offset_alignment > 0
+    &&& dev.limits.min_storage_buffer_offset_alignment > 0
+    &&& dev.limits.min_texel_buffer_offset_alignment > 0
+}
+
+/// Whether the device has format properties registered for a given format ID.
+pub open spec fn device_has_format(dev: DeviceState, format_id: nat) -> bool {
+    dev.format_properties.contains_key(format_id)
+}
+
+/// Get the format properties for a given format ID.
+pub open spec fn device_format_props(dev: DeviceState, format_id: nat) -> FormatProperties
+    recommends dev.format_properties.contains_key(format_id),
+{
+    dev.format_properties[format_id]
 }
 
 /// True iff allocating `size` bytes on `heap_idx` would stay within budget.
@@ -320,6 +352,8 @@ pub proof fn lemma_queue_wait_idle_preserves_well_formed(
     requires device_well_formed(dev),
     ensures device_well_formed(queue_wait_idle_ghost(dev, queue_id)),
 {
+    let new_dev = queue_wait_idle_ghost(dev, queue_id);
+    assert(new_dev.limits == dev.limits);
 }
 
 } // verus!

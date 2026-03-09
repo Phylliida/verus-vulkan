@@ -10,6 +10,8 @@ verus! {
 pub enum DescriptorType {
     UniformBuffer,
     StorageBuffer,
+    UniformBufferDynamic,
+    StorageBufferDynamic,
     SampledImage,
     StorageImage,
     CombinedImageSampler,
@@ -117,7 +119,8 @@ pub open spec fn binding_type_matches(
     match binding {
         DescriptorBinding::Empty => false,
         DescriptorBinding::BoundBuffer { .. } => matches!(desc_type,
-            DescriptorType::UniformBuffer | DescriptorType::StorageBuffer),
+            DescriptorType::UniformBuffer | DescriptorType::StorageBuffer
+            | DescriptorType::UniformBufferDynamic | DescriptorType::StorageBufferDynamic),
         DescriptorBinding::BoundImage { .. } => matches!(desc_type,
             DescriptorType::SampledImage | DescriptorType::StorageImage
             | DescriptorType::CombinedImageSampler | DescriptorType::InputAttachment),
