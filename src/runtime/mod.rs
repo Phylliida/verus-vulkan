@@ -19,3 +19,5 @@ pub mod recording_context;
 pub mod frame_loop;
 pub mod render_graph_executor;
 pub mod validated_descriptor;
+pub mod resource_lifecycle;
+pub mod render_graph;
