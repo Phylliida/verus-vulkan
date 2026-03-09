@@ -41,6 +41,16 @@ pub struct SamplerState {
     pub alive: bool,
 }
 
+// ── Ghost Destroy ──────────────────────────────────────────────────────
+
+/// Ghost update: destroy a sampler.
+pub open spec fn destroy_sampler_ghost(sampler: SamplerState) -> SamplerState {
+    SamplerState {
+        alive: false,
+        ..sampler
+    }
+}
+
 // ── Spec Functions ──────────────────────────────────────────────────────
 
 /// A sampler is well-formed per Vulkan spec constraints.
@@ -175,6 +185,18 @@ pub proof fn lemma_repeat_not_clamp()
 pub proof fn lemma_well_formed_implies_alive(sampler: SamplerState)
     requires sampler_well_formed(sampler),
     ensures sampler.alive,
+{
+}
+
+/// After destroying, a sampler is not alive.
+pub proof fn lemma_destroy_sampler_not_alive(sampler: SamplerState)
+    ensures !destroy_sampler_ghost(sampler).alive,
+{
+}
+
+/// Destroying a sampler preserves its id.
+pub proof fn lemma_destroy_sampler_preserves_id(sampler: SamplerState)
+    ensures destroy_sampler_ghost(sampler).id == sampler.id,
 {
 }
 

@@ -132,6 +132,17 @@ pub open spec fn pool_empty(pool: CommandPoolState) -> bool {
     pool.allocated_cbs == Set::<nat>::empty()
 }
 
+/// Ghost update: destroy a command pool.
+/// Per Vulkan spec: pool must have no allocated CBs outstanding.
+pub open spec fn destroy_command_pool_ghost(
+    pool: CommandPoolState,
+) -> CommandPoolState {
+    CommandPoolState {
+        alive: false,
+        ..pool
+    }
+}
+
 // ── Proofs ──────────────────────────────────────────────────────────────
 
 /// A fresh pool has no allocated CBs.
@@ -245,6 +256,18 @@ pub proof fn lemma_no_access_no_reset(
 )
     requires !holds_exclusive(reg, pool.id, thread),
     ensures reset_pool_cbs(pool, thread, reg).is_none(),
+{
+}
+
+/// After destroying, a command pool is not alive.
+pub proof fn lemma_destroy_command_pool_not_alive(pool: CommandPoolState)
+    ensures !destroy_command_pool_ghost(pool).alive,
+{
+}
+
+/// Destroying a command pool preserves its id.
+pub proof fn lemma_destroy_command_pool_preserves_id(pool: CommandPoolState)
+    ensures destroy_command_pool_ghost(pool).id == pool.id,
 {
 }
 

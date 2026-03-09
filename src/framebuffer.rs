@@ -43,6 +43,28 @@ pub struct FramebufferState {
     pub alive: bool,
 }
 
+// ── Ghost Destroy ───────────────────────────────────────────────────
+
+/// Ghost update: destroy a framebuffer.
+pub open spec fn destroy_framebuffer_ghost(
+    fb: FramebufferState,
+) -> FramebufferState {
+    FramebufferState {
+        alive: false,
+        ..fb
+    }
+}
+
+/// Ghost update: destroy an image view.
+pub open spec fn destroy_image_view_ghost(
+    view: ImageViewState,
+) -> ImageViewState {
+    ImageViewState {
+        alive: false,
+        ..view
+    }
+}
+
 // ── Spec Functions ───────────────────────────────────────────────────
 
 /// The framebuffer's attachment count matches the render pass's attachment count.
@@ -134,6 +156,30 @@ pub proof fn lemma_compatible_matches_rp_id(
 )
     requires framebuffer_compatible_with_render_pass(fb, rp),
     ensures fb.render_pass_id == rp.id,
+{
+}
+
+/// After destroying, a framebuffer is not alive.
+pub proof fn lemma_destroy_framebuffer_not_alive(fb: FramebufferState)
+    ensures !destroy_framebuffer_ghost(fb).alive,
+{
+}
+
+/// After destroying, an image view is not alive.
+pub proof fn lemma_destroy_image_view_not_alive(view: ImageViewState)
+    ensures !destroy_image_view_ghost(view).alive,
+{
+}
+
+/// Destroying a framebuffer preserves its id.
+pub proof fn lemma_destroy_framebuffer_preserves_id(fb: FramebufferState)
+    ensures destroy_framebuffer_ghost(fb).id == fb.id,
+{
+}
+
+/// Destroying an image view preserves its id.
+pub proof fn lemma_destroy_image_view_preserves_id(view: ImageViewState)
+    ensures destroy_image_view_ghost(view).id == view.id,
 {
 }
 

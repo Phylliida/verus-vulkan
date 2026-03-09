@@ -3213,4 +3213,316 @@ pub proof fn lemma_ts_render_taint_enforces_safe(
 {
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// Destroy Wrappers — Pipeline, Framebuffer, Descriptor, Sampler, CommandPool
+// ═══════════════════════════════════════════════════════════════════════
+
+// ── Graphics Pipeline ──────────────────────────────────────────────────
+
+/// Thread-safe vkDestroyPipeline (graphics): requires exclusive pipeline access.
+pub open spec fn ts_destroy_graphics_pipeline(
+    pipeline: GraphicsPipelineState,
+    thread: ThreadId,
+    reg: TokenRegistry,
+) -> Option<GraphicsPipelineState> {
+    if holds_exclusive(reg, pipeline.id, thread) {
+        Some(destroy_graphics_pipeline_ghost(pipeline))
+    } else {
+        None
+    }
+}
+
+/// Thread-safe graphics pipeline destroy requires exclusive access.
+pub proof fn lemma_ts_destroy_graphics_pipeline_requires_exclusive(
+    pipeline: GraphicsPipelineState,
+    thread: ThreadId,
+    reg: TokenRegistry,
+)
+    requires ts_destroy_graphics_pipeline(pipeline, thread, reg).is_some(),
+    ensures holds_exclusive(reg, pipeline.id, thread),
+{
+}
+
+/// After thread-safe destroy, a graphics pipeline is not alive.
+pub proof fn lemma_ts_destroy_graphics_pipeline_not_alive(
+    pipeline: GraphicsPipelineState,
+    thread: ThreadId,
+    reg: TokenRegistry,
+)
+    requires ts_destroy_graphics_pipeline(pipeline, thread, reg).is_some(),
+    ensures !ts_destroy_graphics_pipeline(pipeline, thread, reg).unwrap().alive,
+{
+}
+
+// ── Compute Pipeline ──────────────────────────────────────────────────
+
+/// Thread-safe vkDestroyPipeline (compute): requires exclusive pipeline access.
+pub open spec fn ts_destroy_compute_pipeline(
+    pipeline: ComputePipelineState,
+    thread: ThreadId,
+    reg: TokenRegistry,
+) -> Option<ComputePipelineState> {
+    if holds_exclusive(reg, pipeline.id, thread) {
+        Some(destroy_compute_pipeline_ghost(pipeline))
+    } else {
+        None
+    }
+}
+
+/// Thread-safe compute pipeline destroy requires exclusive access.
+pub proof fn lemma_ts_destroy_compute_pipeline_requires_exclusive(
+    pipeline: ComputePipelineState,
+    thread: ThreadId,
+    reg: TokenRegistry,
+)
+    requires ts_destroy_compute_pipeline(pipeline, thread, reg).is_some(),
+    ensures holds_exclusive(reg, pipeline.id, thread),
+{
+}
+
+/// After thread-safe destroy, a compute pipeline is not alive.
+pub proof fn lemma_ts_destroy_compute_pipeline_not_alive(
+    pipeline: ComputePipelineState,
+    thread: ThreadId,
+    reg: TokenRegistry,
+)
+    requires ts_destroy_compute_pipeline(pipeline, thread, reg).is_some(),
+    ensures !ts_destroy_compute_pipeline(pipeline, thread, reg).unwrap().alive,
+{
+}
+
+// ── Framebuffer ────────────────────────────────────────────────────────
+
+/// Thread-safe vkDestroyFramebuffer: requires exclusive framebuffer access.
+pub open spec fn ts_destroy_framebuffer(
+    fb: FramebufferState,
+    thread: ThreadId,
+    reg: TokenRegistry,
+) -> Option<FramebufferState> {
+    if holds_exclusive(reg, fb.id, thread) {
+        Some(destroy_framebuffer_ghost(fb))
+    } else {
+        None
+    }
+}
+
+/// Thread-safe framebuffer destroy requires exclusive access.
+pub proof fn lemma_ts_destroy_framebuffer_requires_exclusive(
+    fb: FramebufferState,
+    thread: ThreadId,
+    reg: TokenRegistry,
+)
+    requires ts_destroy_framebuffer(fb, thread, reg).is_some(),
+    ensures holds_exclusive(reg, fb.id, thread),
+{
+}
+
+/// After thread-safe destroy, a framebuffer is not alive.
+pub proof fn lemma_ts_destroy_framebuffer_not_alive(
+    fb: FramebufferState,
+    thread: ThreadId,
+    reg: TokenRegistry,
+)
+    requires ts_destroy_framebuffer(fb, thread, reg).is_some(),
+    ensures !ts_destroy_framebuffer(fb, thread, reg).unwrap().alive,
+{
+}
+
+// ── Image View ─────────────────────────────────────────────────────────
+
+/// Thread-safe vkDestroyImageView: requires exclusive image view access.
+pub open spec fn ts_destroy_image_view(
+    view: ImageViewState,
+    thread: ThreadId,
+    reg: TokenRegistry,
+) -> Option<ImageViewState> {
+    if holds_exclusive(reg, view.id, thread) {
+        Some(destroy_image_view_ghost(view))
+    } else {
+        None
+    }
+}
+
+/// Thread-safe image view destroy requires exclusive access.
+pub proof fn lemma_ts_destroy_image_view_requires_exclusive(
+    view: ImageViewState,
+    thread: ThreadId,
+    reg: TokenRegistry,
+)
+    requires ts_destroy_image_view(view, thread, reg).is_some(),
+    ensures holds_exclusive(reg, view.id, thread),
+{
+}
+
+/// After thread-safe destroy, an image view is not alive.
+pub proof fn lemma_ts_destroy_image_view_not_alive(
+    view: ImageViewState,
+    thread: ThreadId,
+    reg: TokenRegistry,
+)
+    requires ts_destroy_image_view(view, thread, reg).is_some(),
+    ensures !ts_destroy_image_view(view, thread, reg).unwrap().alive,
+{
+}
+
+// ── Descriptor Pool ────────────────────────────────────────────────────
+
+/// Thread-safe vkDestroyDescriptorPool: requires exclusive pool access.
+pub open spec fn ts_destroy_descriptor_pool(
+    pool: DescriptorPoolState,
+    thread: ThreadId,
+    reg: TokenRegistry,
+) -> Option<DescriptorPoolState> {
+    if holds_exclusive(reg, pool.id, thread) {
+        Some(destroy_descriptor_pool_ghost(pool))
+    } else {
+        None
+    }
+}
+
+/// Thread-safe descriptor pool destroy requires exclusive access.
+pub proof fn lemma_ts_destroy_descriptor_pool_requires_exclusive(
+    pool: DescriptorPoolState,
+    thread: ThreadId,
+    reg: TokenRegistry,
+)
+    requires ts_destroy_descriptor_pool(pool, thread, reg).is_some(),
+    ensures holds_exclusive(reg, pool.id, thread),
+{
+}
+
+/// After thread-safe destroy, a descriptor pool is not alive.
+pub proof fn lemma_ts_destroy_descriptor_pool_not_alive(
+    pool: DescriptorPoolState,
+    thread: ThreadId,
+    reg: TokenRegistry,
+)
+    requires ts_destroy_descriptor_pool(pool, thread, reg).is_some(),
+    ensures !ts_destroy_descriptor_pool(pool, thread, reg).unwrap().alive,
+{
+}
+
+// ── Descriptor Set Layout ──────────────────────────────────────────────
+
+/// Thread-safe vkDestroyDescriptorSetLayout: requires exclusive layout access.
+pub open spec fn ts_destroy_descriptor_set_layout(
+    layout: DescriptorSetLayoutState,
+    thread: ThreadId,
+    reg: TokenRegistry,
+) -> Option<DescriptorSetLayoutState> {
+    if holds_exclusive(reg, layout.id, thread) {
+        Some(destroy_descriptor_set_layout_ghost(layout))
+    } else {
+        None
+    }
+}
+
+/// Thread-safe descriptor set layout destroy requires exclusive access.
+pub proof fn lemma_ts_destroy_descriptor_set_layout_requires_exclusive(
+    layout: DescriptorSetLayoutState,
+    thread: ThreadId,
+    reg: TokenRegistry,
+)
+    requires ts_destroy_descriptor_set_layout(layout, thread, reg).is_some(),
+    ensures holds_exclusive(reg, layout.id, thread),
+{
+}
+
+/// After thread-safe destroy, a descriptor set layout is not alive.
+pub proof fn lemma_ts_destroy_descriptor_set_layout_not_alive(
+    layout: DescriptorSetLayoutState,
+    thread: ThreadId,
+    reg: TokenRegistry,
+)
+    requires ts_destroy_descriptor_set_layout(layout, thread, reg).is_some(),
+    ensures !ts_destroy_descriptor_set_layout(layout, thread, reg).unwrap().alive,
+{
+}
+
+// ── Sampler ────────────────────────────────────────────────────────────
+
+/// Thread-safe vkDestroySampler: requires exclusive sampler access.
+pub open spec fn ts_destroy_sampler(
+    sampler: SamplerState,
+    thread: ThreadId,
+    reg: TokenRegistry,
+) -> Option<SamplerState> {
+    if holds_exclusive(reg, sampler.id, thread) {
+        Some(destroy_sampler_ghost(sampler))
+    } else {
+        None
+    }
+}
+
+/// Thread-safe sampler destroy requires exclusive access.
+pub proof fn lemma_ts_destroy_sampler_requires_exclusive(
+    sampler: SamplerState,
+    thread: ThreadId,
+    reg: TokenRegistry,
+)
+    requires ts_destroy_sampler(sampler, thread, reg).is_some(),
+    ensures holds_exclusive(reg, sampler.id, thread),
+{
+}
+
+/// After thread-safe destroy, a sampler is not alive.
+pub proof fn lemma_ts_destroy_sampler_not_alive(
+    sampler: SamplerState,
+    thread: ThreadId,
+    reg: TokenRegistry,
+)
+    requires ts_destroy_sampler(sampler, thread, reg).is_some(),
+    ensures !ts_destroy_sampler(sampler, thread, reg).unwrap().alive,
+{
+}
+
+// ── Command Pool ───────────────────────────────────────────────────────
+
+/// Thread-safe vkDestroyCommandPool: requires exclusive pool access AND
+/// the pool must be empty (no allocated CBs).
+pub open spec fn ts_destroy_command_pool(
+    pool: CommandPoolState,
+    thread: ThreadId,
+    reg: TokenRegistry,
+) -> Option<CommandPoolState> {
+    if holds_exclusive(reg, pool.id, thread) && pool_empty(pool) {
+        Some(destroy_command_pool_ghost(pool))
+    } else {
+        None
+    }
+}
+
+/// Thread-safe command pool destroy requires exclusive access.
+pub proof fn lemma_ts_destroy_command_pool_requires_exclusive(
+    pool: CommandPoolState,
+    thread: ThreadId,
+    reg: TokenRegistry,
+)
+    requires ts_destroy_command_pool(pool, thread, reg).is_some(),
+    ensures holds_exclusive(reg, pool.id, thread),
+{
+}
+
+/// Thread-safe command pool destroy requires the pool to be empty.
+pub proof fn lemma_ts_destroy_command_pool_requires_empty(
+    pool: CommandPoolState,
+    thread: ThreadId,
+    reg: TokenRegistry,
+)
+    requires ts_destroy_command_pool(pool, thread, reg).is_some(),
+    ensures pool_empty(pool),
+{
+}
+
+/// After thread-safe destroy, a command pool is not alive.
+pub proof fn lemma_ts_destroy_command_pool_not_alive(
+    pool: CommandPoolState,
+    thread: ThreadId,
+    reg: TokenRegistry,
+)
+    requires ts_destroy_command_pool(pool, thread, reg).is_some(),
+    ensures !ts_destroy_command_pool(pool, thread, reg).unwrap().alive,
+{
+}
+
 } // verus!

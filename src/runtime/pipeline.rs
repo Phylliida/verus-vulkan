@@ -1,5 +1,6 @@
 use vstd::prelude::*;
 use crate::pipeline::*;
+use crate::lifetime::*;
 use crate::sync_token::*;
 
 verus! {
@@ -79,13 +80,15 @@ pub fn create_compute_pipeline_exec(
 /// and holds exclusive access.
 pub fn destroy_graphics_pipeline_exec(
     pipe: &mut RuntimeGraphicsPipeline,
-    active_pipeline_ids: Ghost<Set<nat>>,
+    pending_submissions: Ghost<Seq<SubmissionRecord>>,
     thread: Ghost<ThreadId>,
     reg: Ghost<TokenRegistry>,
 )
     requires
         runtime_gfx_pipeline_wf(&*old(pipe)),
-        !active_pipeline_ids@.contains(old(pipe)@.id),
+        // All pending submissions must be completed (pipeline may be referenced by any CB)
+        forall|i: int| 0 <= i < pending_submissions@.len()
+            ==> (#[trigger] pending_submissions@[i]).completed,
         holds_exclusive(reg@, old(pipe)@.id, thread@),
     ensures
         !pipe@.alive,
@@ -102,13 +105,15 @@ pub fn destroy_graphics_pipeline_exec(
 /// and holds exclusive access.
 pub fn destroy_compute_pipeline_exec(
     pipe: &mut RuntimeComputePipeline,
-    active_pipeline_ids: Ghost<Set<nat>>,
+    pending_submissions: Ghost<Seq<SubmissionRecord>>,
     thread: Ghost<ThreadId>,
     reg: Ghost<TokenRegistry>,
 )
     requires
         runtime_compute_pipeline_wf(&*old(pipe)),
-        !active_pipeline_ids@.contains(old(pipe)@.id),
+        // All pending submissions must be completed (pipeline may be referenced by any CB)
+        forall|i: int| 0 <= i < pending_submissions@.len()
+            ==> (#[trigger] pending_submissions@[i]).completed,
         holds_exclusive(reg@, old(pipe)@.id, thread@),
     ensures
         !pipe@.alive,

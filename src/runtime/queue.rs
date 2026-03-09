@@ -1,8 +1,11 @@
 use vstd::prelude::*;
 use crate::device::*;
+use crate::fence::*;
 use crate::lifetime::*;
 use crate::resource::*;
 use crate::memory_aliasing::*;
+use crate::queue::*;
+use crate::semaphore::*;
 use crate::sync_token::*;
 use super::device::*;
 use super::command_buffer::CommandBufferStatus;
@@ -34,7 +37,10 @@ pub fn submit_exec(
     dev: &mut RuntimeDevice,
     queue: &RuntimeQueue,
     submission: Ghost<SubmissionRecord>,
+    submit_info: Ghost<SubmitInfo>,
     cb_statuses: Ghost<Map<nat, CommandBufferStatus>>,
+    sem_states: Ghost<Map<nat, SemaphoreState>>,
+    fence_states: Ghost<Map<nat, FenceState>>,
     aliasing_tracker: &mut RuntimeAliasingTracker,
     thread: Ghost<ThreadId>,
     reg: Ghost<TokenRegistry>,
@@ -51,6 +57,20 @@ pub fn submit_exec(
         forall|i: int| 0 <= i < submission@.command_buffers.len()
             ==> cb_statuses@.contains_key(#[trigger] submission@.command_buffers[i])
                 && cb_statuses@[submission@.command_buffers[i]] == CommandBufferStatus::Executable,
+        // Wait semaphores must be signaled
+        forall|i: int| 0 <= i < submit_info@.wait_semaphores.len()
+            ==> sem_states@.contains_key(#[trigger] submit_info@.wait_semaphores[i])
+                && sem_states@[submit_info@.wait_semaphores[i]].signaled,
+        // Signal semaphores must be unsignaled
+        forall|i: int| 0 <= i < submit_info@.signal_semaphores.len()
+            ==> sem_states@.contains_key(#[trigger] submit_info@.signal_semaphores[i])
+                && !sem_states@[submit_info@.signal_semaphores[i]].signaled,
+        // Fence (if any) must be unsignaled and not pending
+        submit_info@.fence_id.is_some() ==> (
+            fence_states@.contains_key(submit_info@.fence_id.unwrap())
+            && !fence_states@[submit_info@.fence_id.unwrap()].signaled
+            && fence_not_pending(submit_info@.fence_id.unwrap(), old(dev)@.pending_submissions)
+        ),
         // All referenced resources are bound in the aliasing tracker
         forall|r: ResourceId| submission@.referenced_resources.contains(r)
             ==> old(aliasing_tracker).bindings@.contains_key(r),
