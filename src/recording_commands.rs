@@ -6,6 +6,7 @@ use crate::render_pass::*;
 use crate::flags::*;
 use crate::sync::*;
 use crate::sync_proofs::*;
+use crate::stage_access::*;
 
 verus! {
 
@@ -286,6 +287,66 @@ pub proof fn lemma_barrier_preserves_resources(
 {
     if barriers.len() > 1 {
         lemma_barrier_preserves_resources(ctx, barriers.subrange(0, barriers.len() - 1));
+    }
+}
+
+// ── Stage/Access Validity Tracking ──────────────────────────────────
+
+/// All barriers recorded in a context have valid stage/access combinations.
+pub open spec fn recording_barriers_valid(ctx: RecordingContext) -> bool {
+    all_barriers_valid(ctx.barrier_log)
+}
+
+/// The initial recording context has valid barriers (empty log).
+pub proof fn lemma_initial_context_barriers_valid()
+    ensures recording_barriers_valid(initial_recording_context()),
+{
+    lemma_empty_log_valid();
+}
+
+/// Recording a single valid barrier preserves barrier validity.
+pub proof fn lemma_record_barrier_single_preserves_validity(
+    ctx: RecordingContext,
+    entry: BarrierEntry,
+)
+    requires
+        recording_barriers_valid(ctx),
+        barrier_stage_access_valid(entry),
+    ensures
+        recording_barriers_valid(record_pipeline_barrier_single(ctx, entry)),
+{
+    lemma_append_valid_barrier(ctx.barrier_log, entry);
+}
+
+/// Recording multiple valid barriers preserves barrier validity.
+pub proof fn lemma_record_barrier_multi_preserves_validity(
+    ctx: RecordingContext,
+    barriers: Seq<BarrierEntry>,
+)
+    requires
+        recording_barriers_valid(ctx),
+        forall|i: int| 0 <= i < barriers.len()
+            ==> barrier_stage_access_valid(#[trigger] barriers[i]),
+    ensures
+        recording_barriers_valid(record_pipeline_barrier(ctx, barriers)),
+    decreases barriers.len(),
+{
+    if barriers.len() == 0 {
+        // Empty barrier: command_log changes but barrier_log unchanged
+    } else if barriers.len() == 1 {
+        lemma_record_barrier_single_preserves_validity(ctx, barriers[0]);
+    } else {
+        let prefix = barriers.subrange(0, barriers.len() - 1);
+        // prefix elements are valid
+        assert forall|i: int| 0 <= i < prefix.len()
+        implies barrier_stage_access_valid(#[trigger] prefix[i]) by {
+            assert(prefix[i] == barriers[i]);
+        }
+        lemma_record_barrier_multi_preserves_validity(ctx, prefix);
+        let prev = record_pipeline_barrier(ctx, prefix);
+        // prev has valid barriers, and barriers.last() is valid
+        assert(barrier_stage_access_valid(barriers.last()));
+        lemma_append_valid_barrier(prev.barrier_log, barriers.last());
     }
 }
 

@@ -70,6 +70,28 @@ pub struct DescriptorPoolState {
     pub alive: bool,
 }
 
+// ── Ghost Destroy ────────────────────────────────────────────────────
+
+/// Ghost update: destroy a descriptor pool.
+pub open spec fn destroy_descriptor_pool_ghost(
+    pool: DescriptorPoolState,
+) -> DescriptorPoolState {
+    DescriptorPoolState {
+        alive: false,
+        ..pool
+    }
+}
+
+/// Ghost update: destroy a descriptor set layout.
+pub open spec fn destroy_descriptor_set_layout_ghost(
+    layout: DescriptorSetLayoutState,
+) -> DescriptorSetLayoutState {
+    DescriptorSetLayoutState {
+        alive: false,
+        ..layout
+    }
+}
+
 // ── Spec Functions ────────────────────────────────────────────────────
 
 /// All binding numbers in a layout are distinct.
@@ -270,6 +292,34 @@ pub proof fn lemma_update_makes_bound(
         updated.bindings.contains_key(binding_num)
         && !(updated.bindings[binding_num] === DescriptorBinding::Empty)
     }),
+{
+}
+
+/// After destroying, a descriptor pool is not alive.
+pub proof fn lemma_destroy_descriptor_pool_not_alive(pool: DescriptorPoolState)
+    ensures !destroy_descriptor_pool_ghost(pool).alive,
+{
+}
+
+/// After destroying, a descriptor set layout is not alive.
+pub proof fn lemma_destroy_descriptor_set_layout_not_alive(
+    layout: DescriptorSetLayoutState,
+)
+    ensures !destroy_descriptor_set_layout_ghost(layout).alive,
+{
+}
+
+/// Destroying a descriptor pool preserves its id.
+pub proof fn lemma_destroy_descriptor_pool_preserves_id(pool: DescriptorPoolState)
+    ensures destroy_descriptor_pool_ghost(pool).id == pool.id,
+{
+}
+
+/// Destroying a descriptor set layout preserves its id.
+pub proof fn lemma_destroy_descriptor_set_layout_preserves_id(
+    layout: DescriptorSetLayoutState,
+)
+    ensures destroy_descriptor_set_layout_ghost(layout).id == layout.id,
 {
 }
 

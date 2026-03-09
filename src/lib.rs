@@ -212,6 +212,9 @@ pub mod lock_ordering;
 pub mod composition_proofs;
 
 #[cfg(verus_keep_ghost)]
+pub mod layout_barrier;
+
+#[cfg(verus_keep_ghost)]
 pub mod thread_safe_ops;
 
 #[cfg(verus_keep_ghost)]
@@ -236,10 +239,25 @@ pub mod render_graph_runtime;
 pub mod render_graph_multiqueue;
 
 #[cfg(verus_keep_ghost)]
+pub mod render_graph_soundness;
+
+#[cfg(verus_keep_ghost)]
+pub mod render_graph_recording;
+
+#[cfg(verus_keep_ghost)]
+pub mod frame_lifecycle;
+
+#[cfg(verus_keep_ghost)]
+pub mod multiqueue_soundness;
+
+#[cfg(verus_keep_ghost)]
 pub mod transient_memory;
 
 #[cfg(verus_keep_ghost)]
 pub mod ffi;
+
+#[cfg(verus_keep_ghost)]
+pub mod memory_binding;
 
 #[cfg(verus_keep_ghost)]
 pub mod runtime;

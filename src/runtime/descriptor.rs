@@ -3,6 +3,7 @@ use crate::descriptor::*;
 use crate::descriptor_validation::*;
 use crate::device::*;
 use crate::image_layout::*;
+use crate::lifetime::*;
 use crate::sync_token::*;
 use crate::pool_ownership::*;
 
@@ -203,6 +204,7 @@ pub fn update_descriptor_set_exec(
     thread: Ghost<ThreadId>,
     pool_ownership: Ghost<PoolOwnership>,
     reg: Ghost<TokenRegistry>,
+    pending: Ghost<Seq<SubmissionRecord>>,
 )
     requires
         old(ds)@.layout_id == layout@.id,
@@ -210,6 +212,7 @@ pub fn update_descriptor_set_exec(
         !(new_binding@ === DescriptorBinding::Empty),
         descriptor_binding_aligned(new_binding@, desc_type@, limits@),
         can_access_child(pool_ownership@, old(ds)@.id, thread@, reg@),
+        descriptor_set_not_in_flight(old(ds)@.id, pending@),
     ensures
         ds@ == update_descriptor_binding(old(ds)@, binding_num@, new_binding@),
 {
@@ -221,6 +224,7 @@ pub fn update_descriptor_set_exec(
 pub fn free_descriptor_set_exec(
     pool: &mut RuntimeDescriptorPool,
     _ds: &mut RuntimeDescriptorSet,
+    pending: Ghost<Seq<SubmissionRecord>>,
     thread: Ghost<ThreadId>,
     pool_ownership: Ghost<PoolOwnership>,
     reg: Ghost<TokenRegistry>,
@@ -229,6 +233,7 @@ pub fn free_descriptor_set_exec(
         runtime_pool_wf(&*old(pool)),
         old(pool)@.allocated_sets > 0,
         can_mutate_pool(pool_ownership@, thread@, reg@),
+        descriptor_set_not_in_flight(old(_ds)@.id, pending@),
     ensures
         pool@ == free_to_pool(old(pool)@),
 {
@@ -240,6 +245,7 @@ pub fn free_descriptor_set_exec(
 /// Caller must prove pool ownership (not just exclusive — must be the pool owner).
 pub fn destroy_descriptor_pool_exec(
     pool: &mut RuntimeDescriptorPool,
+    pending: Ghost<Seq<SubmissionRecord>>,
     thread: Ghost<ThreadId>,
     pool_ownership: Ghost<PoolOwnership>,
     reg: Ghost<TokenRegistry>,
@@ -247,6 +253,8 @@ pub fn destroy_descriptor_pool_exec(
     requires
         runtime_pool_wf(&*old(pool)),
         can_mutate_pool(pool_ownership@, thread@, reg@),
+        // All pending submissions must be completed before destroying a pool
+        forall|i: int| 0 <= i < pending@.len() ==> (#[trigger] pending@[i]).completed,
     ensures
         !pool@.alive,
         pool@.id == old(pool)@.id,
@@ -261,12 +269,15 @@ pub fn destroy_descriptor_pool_exec(
 /// Caller must prove exclusive access to the layout.
 pub fn destroy_descriptor_set_layout_exec(
     dsl: &mut RuntimeDescriptorSetLayout,
+    pending: Ghost<Seq<SubmissionRecord>>,
     thread: Ghost<ThreadId>,
     reg: Ghost<TokenRegistry>,
 )
     requires
         runtime_dsl_wf(&*old(dsl)),
         holds_exclusive(reg@, old(dsl)@.id, thread@),
+        // No pending submission may reference descriptor sets using this layout
+        forall|i: int| 0 <= i < pending@.len() ==> (#[trigger] pending@[i]).completed,
     ensures
         !dsl@.alive,
         dsl@.id == old(dsl)@.id,
@@ -281,6 +292,7 @@ pub fn destroy_descriptor_set_layout_exec(
 /// Caller must prove pool-level sync (can mutate the pool).
 pub fn reset_descriptor_pool_exec(
     pool: &mut RuntimeDescriptorPool,
+    pending: Ghost<Seq<SubmissionRecord>>,
     thread: Ghost<ThreadId>,
     pool_ownership: Ghost<PoolOwnership>,
     reg: Ghost<TokenRegistry>,
@@ -288,6 +300,8 @@ pub fn reset_descriptor_pool_exec(
     requires
         runtime_pool_wf(&*old(pool)),
         can_mutate_pool(pool_ownership@, thread@, reg@),
+        // All pending submissions must be completed before resetting a pool
+        forall|i: int| 0 <= i < pending@.len() ==> (#[trigger] pending@[i]).completed,
     ensures
         pool@.alive,
         pool@.id == old(pool)@.id,

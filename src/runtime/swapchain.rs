@@ -1,4 +1,5 @@
 use vstd::prelude::*;
+use crate::semaphore::*;
 use crate::swapchain::*;
 use crate::image_layout::ImageLayout;
 use crate::resource::ResourceId;
@@ -124,6 +125,7 @@ pub fn present_exec(
     idx: u64,
     layout_tracker: &RuntimeImageLayoutTracker,
     image_resource: Ghost<ResourceId>,
+    wait_semaphore: Ghost<SemaphoreState>,
     thread: Ghost<ThreadId>,
     queue_id: Ghost<nat>,
     reg: Ghost<TokenRegistry>,
@@ -133,6 +135,8 @@ pub fn present_exec(
         can_present_image(&*old(sc), idx as nat),
         layout_tracker@.contains_key(image_resource@),
         layout_tracker@[image_resource@] == ImageLayout::PresentSrc,
+        // Rendering-complete semaphore must be signaled before present
+        wait_semaphore@.signaled,
         holds_exclusive(reg@, old(sc)@.id, thread@),
         holds_exclusive(reg@, queue_id@, thread@),
     ensures

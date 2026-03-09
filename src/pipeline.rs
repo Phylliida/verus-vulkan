@@ -100,6 +100,26 @@ pub open spec fn compute_pipeline_well_formed(
     pipeline.alive
 }
 
+/// Ghost update: destroy a graphics pipeline.
+pub open spec fn destroy_graphics_pipeline_ghost(
+    pipeline: GraphicsPipelineState,
+) -> GraphicsPipelineState {
+    GraphicsPipelineState {
+        alive: false,
+        ..pipeline
+    }
+}
+
+/// Ghost update: destroy a compute pipeline.
+pub open spec fn destroy_compute_pipeline_ghost(
+    pipeline: ComputePipelineState,
+) -> ComputePipelineState {
+    ComputePipelineState {
+        alive: false,
+        ..pipeline
+    }
+}
+
 // ── Lemmas ────────────────────────────────────────────────────────────
 
 /// A compatible graphics pipeline has the correct color attachment count.
@@ -181,6 +201,38 @@ pub proof fn lemma_descriptor_layout_prefix_transitive(
         assert(a[i] == b[i]);
         assert(b[i] == c[i]);
     }
+}
+
+/// After destroying, a graphics pipeline is not alive.
+pub proof fn lemma_destroy_graphics_pipeline_not_alive(
+    pipeline: GraphicsPipelineState,
+)
+    ensures !destroy_graphics_pipeline_ghost(pipeline).alive,
+{
+}
+
+/// After destroying, a compute pipeline is not alive.
+pub proof fn lemma_destroy_compute_pipeline_not_alive(
+    pipeline: ComputePipelineState,
+)
+    ensures !destroy_compute_pipeline_ghost(pipeline).alive,
+{
+}
+
+/// Destroying a graphics pipeline preserves its id.
+pub proof fn lemma_destroy_graphics_pipeline_preserves_id(
+    pipeline: GraphicsPipelineState,
+)
+    ensures destroy_graphics_pipeline_ghost(pipeline).id == pipeline.id,
+{
+}
+
+/// Destroying a compute pipeline preserves its id.
+pub proof fn lemma_destroy_compute_pipeline_preserves_id(
+    pipeline: ComputePipelineState,
+)
+    ensures destroy_compute_pipeline_ghost(pipeline).id == pipeline.id,
+{
 }
 
 } // verus!

@@ -39,11 +39,13 @@ pub fn create_fence_exec(id: Ghost<nat>, signaled: bool) -> (out: RuntimeFence)
 /// Caller must prove exclusive access to the fence.
 pub fn reset_fence_exec(
     fence: &mut RuntimeFence,
+    pending_submissions: Ghost<Seq<SubmissionRecord>>,
     thread: Ghost<ThreadId>,
     reg: Ghost<TokenRegistry>,
 )
     requires
         runtime_fence_wf(&*old(fence)),
+        fence_not_pending(old(fence)@.id, pending_submissions@),
         holds_exclusive(reg@, old(fence)@.id, thread@),
     ensures
         fence@ == reset_fence_ghost(old(fence)@),

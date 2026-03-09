@@ -494,4 +494,26 @@ pub proof fn lemma_formats_supported_depth(
     assert(dev.format_properties.contains_key(fmt));
 }
 
+// ── Ghost Destroy ────────────────────────────────────────────────────
+
+/// Ghost update: destroy a render pass.
+pub open spec fn destroy_render_pass_ghost(rp: RenderPassState) -> RenderPassState {
+    RenderPassState {
+        alive: false,
+        ..rp
+    }
+}
+
+/// After destroying, a render pass is not alive.
+pub proof fn lemma_destroy_render_pass_not_alive(rp: RenderPassState)
+    ensures !destroy_render_pass_ghost(rp).alive,
+{
+}
+
+/// Destroying a render pass preserves its id.
+pub proof fn lemma_destroy_render_pass_preserves_id(rp: RenderPassState)
+    ensures destroy_render_pass_ghost(rp).id == rp.id,
+{
+}
+
 } // verus!

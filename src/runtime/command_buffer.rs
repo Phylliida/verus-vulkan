@@ -95,10 +95,7 @@ pub fn begin_recording_exec(
     reg: Ghost<TokenRegistry>,
 )
     requires
-        match old(cb).status@ {
-            CommandBufferStatus::Initial => true,
-            _ => false,
-        },
+        is_initial(&*old(cb)) || is_executable(&*old(cb)),
         can_access_child(pool@, old(cb).cb_id@, thread@, reg@),
     ensures
         is_recording(cb),
@@ -467,6 +464,8 @@ pub fn cmd_draw_exec(
         runtime_cb_wf(&*old(cb)),
         old(cb).in_render_pass@ == true,
         old(cb).recording_thread@ == thread@,
+        pipeline@.alive,
+        rp@.alive,
         draw_call_valid(old(cb).recording_state@, pipeline@, rp@),
         descriptor_sets_bound_for_pipeline(old(cb).recording_state@, pipeline@.descriptor_set_layouts),
         has_vertex_buffer_bound(old(cb).recording_state@),
@@ -502,6 +501,8 @@ pub fn cmd_draw_indexed_exec(
         runtime_cb_wf(&*old(cb)),
         old(cb).in_render_pass@ == true,
         old(cb).recording_thread@ == thread@,
+        pipeline@.alive,
+        rp@.alive,
         draw_call_valid(old(cb).recording_state@, pipeline@, rp@),
         descriptor_sets_bound_for_pipeline(old(cb).recording_state@, pipeline@.descriptor_set_layouts),
         has_vertex_buffer_bound(old(cb).recording_state@),
@@ -532,6 +533,7 @@ pub fn cmd_dispatch_exec(
         runtime_cb_wf(&*old(cb)),
         old(cb).in_render_pass@ == false,
         old(cb).recording_thread@ == thread@,
+        pipeline@.alive,
         dispatch_call_valid(old(cb).recording_state@, pipeline@),
         descriptor_sets_bound_for_pipeline(old(cb).recording_state@, pipeline@.descriptor_set_layouts),
     ensures
@@ -561,6 +563,7 @@ pub fn cmd_copy_buffer_exec(
         runtime_cb_wf(&*old(cb)),
         old(cb).in_render_pass@ == false,
         old(cb).recording_thread@ == thread@,
+        src_buffer@ != dst_buffer@,
         readable(old(cb).barrier_log@, src_sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_READ()),
         writable(old(cb).barrier_log@, dst_sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_WRITE()),
     ensures
@@ -592,6 +595,7 @@ pub fn cmd_copy_image_exec(
         runtime_cb_wf(&*old(cb)),
         old(cb).in_render_pass@ == false,
         old(cb).recording_thread@ == thread@,
+        src_image@ != dst_image@,
         layout_tracker@.contains_key(src_image@),
         layout_tracker@.contains_key(dst_image@),
         valid_transfer_src_layout(layout_tracker@[src_image@]),
@@ -627,6 +631,7 @@ pub fn cmd_blit_image_exec(
         runtime_cb_wf(&*old(cb)),
         old(cb).in_render_pass@ == false,
         old(cb).recording_thread@ == thread@,
+        src_image@ != dst_image@,
         layout_tracker@.contains_key(src_image@),
         layout_tracker@.contains_key(dst_image@),
         valid_transfer_src_layout(layout_tracker@[src_image@]),
