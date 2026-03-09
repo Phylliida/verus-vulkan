@@ -2,6 +2,8 @@ use vstd::prelude::*;
 use crate::command_pool::*;
 use crate::lifetime::*;
 use crate::sync_token::*;
+use super::device::RuntimeDevice;
+use super::command_buffer::cb_no_pending_work;
 
 verus! {
 
@@ -45,7 +47,7 @@ pub fn create_command_pool_exec(
 /// Caller must prove the pool is empty and holds exclusive access.
 pub fn destroy_command_pool_exec(
     pool: &mut RuntimeCommandPool,
-    pending_submissions: Ghost<Seq<SubmissionRecord>>,
+    dev: &RuntimeDevice,
     thread: Ghost<ThreadId>,
     reg: Ghost<TokenRegistry>,
 )
@@ -53,8 +55,8 @@ pub fn destroy_command_pool_exec(
         runtime_command_pool_wf(&*old(pool)),
         pool_empty(old(pool)@),
         // All pending submissions must be completed (CBs from this pool may be in-flight)
-        forall|i: int| 0 <= i < pending_submissions@.len()
-            ==> (#[trigger] pending_submissions@[i]).completed,
+        forall|i: int| 0 <= i < dev@.pending_submissions.len()
+            ==> (#[trigger] dev@.pending_submissions[i]).completed,
         holds_exclusive(reg@, old(pool)@.id, thread@),
     ensures
         pool@ == destroy_command_pool_ghost(old(pool)@),
@@ -67,15 +69,15 @@ pub fn destroy_command_pool_exec(
 /// Returns the set of CBs that were reset.
 pub fn reset_command_pool_exec(
     pool: &RuntimeCommandPool,
-    pending_submissions: Ghost<Seq<SubmissionRecord>>,
+    dev: &RuntimeDevice,
     thread: Ghost<ThreadId>,
     reg: Ghost<TokenRegistry>,
 ) -> (out: Ghost<Set<nat>>)
     requires
         runtime_command_pool_wf(pool),
         // All pending submissions must be completed (CBs from this pool may be in-flight)
-        forall|i: int| 0 <= i < pending_submissions@.len()
-            ==> (#[trigger] pending_submissions@[i]).completed,
+        forall|i: int| 0 <= i < dev@.pending_submissions.len()
+            ==> (#[trigger] dev@.pending_submissions[i]).completed,
         holds_exclusive(reg@, pool@.id, thread@),
     ensures
         out@ == reset_pool_cbs(pool@, thread@, reg@).unwrap(),
@@ -119,6 +121,82 @@ pub proof fn lemma_create_command_pool_empty(
 pub proof fn lemma_destroy_command_pool_preserves_id_rt(pool: &RuntimeCommandPool)
     requires runtime_command_pool_wf(pool),
     ensures destroy_command_pool_ghost(pool@).id == pool@.id,
+{
+}
+
+// ── Allocate / Free CB ──────────────────────────────────────────────
+
+/// Exec: allocate a command buffer from the pool.
+pub fn allocate_cb_exec(
+    pool: &mut RuntimeCommandPool,
+    cb_id: Ghost<nat>,
+    thread: Ghost<ThreadId>,
+    reg: Ghost<TokenRegistry>,
+)
+    requires
+        runtime_command_pool_wf(&*old(pool)),
+        holds_exclusive(reg@, old(pool)@.id, thread@),
+    ensures
+        pool@ == allocate_cb(old(pool)@, cb_id@, thread@, reg@).unwrap(),
+        cb_from_pool(pool@, cb_id@),
+        pool@.alive,
+        pool@.id == old(pool)@.id,
+        pool@.queue_family == old(pool)@.queue_family,
+{
+    proof { lemma_allocate_adds_cb(pool.state@, cb_id@, thread@, reg@); }
+    pool.state = Ghost(allocate_cb(pool.state@, cb_id@, thread@, reg@).unwrap());
+}
+
+/// Exec: free a command buffer back to the pool.
+pub fn free_cb_exec(
+    pool: &mut RuntimeCommandPool,
+    cb_id: Ghost<nat>,
+    dev: &RuntimeDevice,
+    thread: Ghost<ThreadId>,
+    reg: Ghost<TokenRegistry>,
+)
+    requires
+        runtime_command_pool_wf(&*old(pool)),
+        cb_from_pool(old(pool)@, cb_id@),
+        cb_no_pending_work(dev@.pending_submissions, cb_id@),
+        holds_exclusive(reg@, old(pool)@.id, thread@),
+    ensures
+        pool@ == free_cb(old(pool)@, cb_id@, thread@, reg@).unwrap(),
+        !cb_from_pool(pool@, cb_id@),
+        pool@.alive,
+        pool@.id == old(pool)@.id,
+{
+    proof { lemma_free_removes_cb(pool.state@, cb_id@, thread@, reg@); }
+    pool.state = Ghost(free_cb(pool.state@, cb_id@, thread@, reg@).unwrap());
+}
+
+/// Proof: allocating a CB preserves pool well-formedness.
+pub proof fn lemma_allocate_preserves_wf(
+    pool: CommandPoolState,
+    cb_id: nat,
+    thread: ThreadId,
+    reg: TokenRegistry,
+)
+    requires
+        command_pool_well_formed(pool),
+        holds_exclusive(reg, pool.id, thread),
+    ensures
+        command_pool_well_formed(allocate_cb(pool, cb_id, thread, reg).unwrap()),
+{
+}
+
+/// Proof: freeing a CB preserves pool well-formedness.
+pub proof fn lemma_free_preserves_wf(
+    pool: CommandPoolState,
+    cb_id: nat,
+    thread: ThreadId,
+    reg: TokenRegistry,
+)
+    requires
+        command_pool_well_formed(pool),
+        holds_exclusive(reg, pool.id, thread),
+    ensures
+        command_pool_well_formed(free_cb(pool, cb_id, thread, reg).unwrap()),
 {
 }
 

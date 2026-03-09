@@ -324,7 +324,99 @@ pub fn validate_aliasing_exec(
     Ghost(all_aliases_safe(pool.state@, plan@))
 }
 
+/// Exec: destroy a transient memory pool.
+pub fn destroy_transient_pool_exec(
+    pool: &mut RuntimeTransientPool,
+)
+    requires
+        runtime_transient_pool_wf(&*old(pool)),
+        old(pool)@.allocations == Map::<ResourceId, MemoryRange>::empty(),
+    ensures
+        pool@ == destroy_transient_pool_spec(old(pool)@),
+        !pool@.alive,
+{
+    pool.state = Ghost(destroy_transient_pool_spec(pool.state@));
+}
+
+/// Exec: alias two resources in the pool to share the same memory range.
+pub fn alias_resources_exec(
+    pool: &mut RuntimeTransientPool,
+    a: Ghost<ResourceId>,
+    b: Ghost<ResourceId>,
+    range: Ghost<MemoryRange>,
+)
+    requires
+        runtime_transient_pool_wf(&*old(pool)),
+        can_alias_resources(old(pool)@, a@, b@),
+        range@.offset + range@.size <= old(pool)@.pool_size,
+    ensures
+        pool@ == alias_resources_spec(old(pool)@, a@, b@, range@),
+{
+    pool.state = Ghost(alias_resources_spec(pool.state@, a@, b@, range@));
+}
+
+/// Exec: remove aliasing between two resources.
+pub fn unalias_resources_exec(
+    pool: &mut RuntimeTransientPool,
+    a: Ghost<ResourceId>,
+    b: Ghost<ResourceId>,
+)
+    requires
+        runtime_transient_pool_wf(&*old(pool)),
+        old(pool)@.allocations.contains_key(a@),
+        old(pool)@.allocations.contains_key(b@),
+    ensures
+        pool@ == unalias_resources_spec(old(pool)@, a@, b@),
+{
+    pool.state = Ghost(unalias_resources_spec(pool.state@, a@, b@));
+}
+
+/// Exec: check if two formats are compatible for aliasing.
+pub fn format_compatible_check_exec(
+    fmt_a: Ghost<FormatSizeClass>,
+    fmt_b: Ghost<FormatSizeClass>,
+) -> (result: Ghost<bool>)
+    ensures result@ == format_compatible_for_aliasing(fmt_a@, fmt_b@),
+{
+    Ghost(format_compatible_for_aliasing(fmt_a@, fmt_b@))
+}
+
 // ── Proofs ──────────────────────────────────────────────────────────────
+
+/// Destroying an empty, well-formed pool makes it not alive.
+pub proof fn lemma_destroy_pool_requires_empty(
+    pool: TransientMemoryPool,
+)
+    requires
+        transient_pool_well_formed(pool),
+        pool.allocations == Map::<ResourceId, MemoryRange>::empty(),
+    ensures
+        !destroy_transient_pool_spec(pool).alive,
+{
+}
+
+/// Aliasing then unaliasing removes both resources from allocations.
+pub proof fn lemma_alias_unalias_roundtrip(
+    pool: TransientMemoryPool,
+    a: ResourceId,
+    b: ResourceId,
+    range: MemoryRange,
+)
+    requires
+        transient_pool_well_formed(pool),
+        can_alias_resources(pool, a, b),
+        range.offset + range.size <= pool.pool_size,
+        !pool.allocations.contains_key(a),
+        !pool.allocations.contains_key(b),
+    ensures ({
+        let aliased = alias_resources_spec(pool, a, b, range);
+        let unaliased = unalias_resources_spec(aliased, a, b);
+        unaliased.allocations =~= pool.allocations
+        && unaliased.alive == pool.alive
+        && unaliased.pool_size == pool.pool_size
+    }),
+{
+}
 
 /// Non-overlapping lifetimes make aliasing safe: aliased resources
 /// can share memory because they are never both live at the same time.

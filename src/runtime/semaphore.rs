@@ -4,6 +4,7 @@ use crate::resource::*;
 use crate::sync::*;
 use crate::lifetime::*;
 use crate::sync_token::*;
+use super::device::RuntimeDevice;
 
 verus! {
 
@@ -42,12 +43,19 @@ pub fn create_semaphore_exec(id: Ghost<nat>) -> (out: RuntimeSemaphore)
 pub fn signal_semaphore_exec(
     sem: &mut RuntimeSemaphore,
     states: Ghost<Map<ResourceId, SyncState>>,
+    referenced_resources: Ghost<Set<ResourceId>>,
     thread: Ghost<ThreadId>,
     reg: Ghost<TokenRegistry>,
 )
     requires
         runtime_semaphore_wf(&*old(sem)),
         holds_exclusive(reg@, old(sem)@.id, thread@),
+        // States must only cover referenced resources
+        forall|r: ResourceId| states@.contains_key(r)
+            ==> referenced_resources@.contains(r),
+        // Each state must be self-consistent
+        forall|r: ResourceId| states@.contains_key(r)
+            ==> (#[trigger] states@[r]).resource == r,
     ensures
         sem@ == signal_semaphore_ghost(old(sem)@, states@),
 {
@@ -73,16 +81,16 @@ pub fn wait_semaphore_exec(
 
 /// Exec: destroy a semaphore.
 /// Caller must prove no pending submission signals this semaphore and exclusive access.
+/// Note: Vulkan allows destroying signaled semaphores (unlike fences).
 pub fn destroy_semaphore_exec(
     sem: &mut RuntimeSemaphore,
-    pending_submissions: Ghost<Seq<SubmissionRecord>>,
+    dev: &RuntimeDevice,
     thread: Ghost<ThreadId>,
     reg: Ghost<TokenRegistry>,
 )
     requires
         runtime_semaphore_wf(&*old(sem)),
-        !old(sem)@.signaled,
-        semaphore_not_pending(old(sem)@.id, pending_submissions@),
+        semaphore_not_pending(old(sem)@.id, dev@.pending_submissions),
         holds_exclusive(reg@, old(sem)@.id, thread@),
     ensures
         sem@ == destroy_semaphore_ghost(old(sem)@),

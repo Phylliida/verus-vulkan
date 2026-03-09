@@ -2,6 +2,7 @@ use vstd::prelude::*;
 use crate::resource::*;
 use crate::lifetime::*;
 use crate::memory_aliasing::*;
+use super::device::RuntimeDevice;
 
 verus! {
 
@@ -187,10 +188,16 @@ pub fn mark_set_in_flight_exec(
 }
 
 /// Exec: clear a set of resources from in-flight (batch version for completion).
+/// Caller must prove GPU work referencing these resources has completed
+/// (no uncompleted submission references any resource in the set).
 pub fn clear_set_in_flight_exec(
     tracker: &mut RuntimeAliasingTracker,
     resources: Ghost<Set<ResourceId>>,
+    dev: &RuntimeDevice,
 )
+    requires
+        forall|r: ResourceId| resources@.contains(r)
+            ==> no_pending_references(dev@.pending_submissions, r),
     ensures
         tracker.in_flight@ == old(tracker).in_flight@.difference(resources@),
         tracker.bindings@ == old(tracker).bindings@,
@@ -199,10 +206,15 @@ pub fn clear_set_in_flight_exec(
 }
 
 /// Exec: clear a resource from in-flight (GPU work completed).
+/// Caller must prove GPU work referencing this resource has completed
+/// (no uncompleted submission references it).
 pub fn clear_in_flight_exec(
     tracker: &mut RuntimeAliasingTracker,
     resource: Ghost<ResourceId>,
+    dev: &RuntimeDevice,
 )
+    requires
+        no_pending_references(dev@.pending_submissions, resource@),
     ensures
         tracker.in_flight@ == old(tracker).in_flight@.remove(resource@),
         tracker.bindings@ == old(tracker).bindings@,

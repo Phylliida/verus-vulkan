@@ -2,6 +2,7 @@ use vstd::prelude::*;
 use crate::lifetime::*;
 use crate::render_pass::*;
 use crate::sync_token::*;
+use super::device::RuntimeDevice;
 
 verus! {
 
@@ -42,15 +43,15 @@ pub fn create_render_pass_exec(
 /// Caller must prove exclusive access.
 pub fn destroy_render_pass_exec(
     rp: &mut RuntimeRenderPass,
-    pending_submissions: Ghost<Seq<SubmissionRecord>>,
+    dev: &RuntimeDevice,
     thread: Ghost<ThreadId>,
     reg: Ghost<TokenRegistry>,
 )
     requires
         runtime_render_pass_wf(&*old(rp)),
         // All pending submissions must be completed
-        forall|i: int| 0 <= i < pending_submissions@.len()
-            ==> (#[trigger] pending_submissions@[i]).completed,
+        forall|i: int| 0 <= i < dev@.pending_submissions.len()
+            ==> (#[trigger] dev@.pending_submissions[i]).completed,
         holds_exclusive(reg@, old(rp)@.id, thread@),
     ensures
         rp@ == destroy_render_pass_ghost(old(rp)@),

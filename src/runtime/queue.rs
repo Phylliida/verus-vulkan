@@ -38,9 +38,10 @@ pub fn submit_exec(
     queue: &RuntimeQueue,
     submission: Ghost<SubmissionRecord>,
     submit_info: Ghost<SubmitInfo>,
-    cb_statuses: Ghost<Map<nat, CommandBufferStatus>>,
-    sem_states: Ghost<Map<nat, SemaphoreState>>,
-    fence_states: Ghost<Map<nat, FenceState>>,
+    cb_views: Ghost<Seq<CommandBufferStatus>>,
+    wait_sem_views: Ghost<Seq<SemaphoreState>>,
+    signal_sem_views: Ghost<Seq<SemaphoreState>>,
+    fence_view: Ghost<Option<FenceState>>,
     aliasing_tracker: &mut RuntimeAliasingTracker,
     thread: Ghost<ThreadId>,
     reg: Ghost<TokenRegistry>,
@@ -54,23 +55,33 @@ pub fn submit_exec(
         // Thread safety: CBs not held by other threads
         forall|i: int| 0 <= i < submission@.command_buffers.len()
             ==> not_held_by_other(reg@, #[trigger] submission@.command_buffers[i], thread@),
-        forall|i: int| 0 <= i < submission@.command_buffers.len()
-            ==> cb_statuses@.contains_key(#[trigger] submission@.command_buffers[i])
-                && cb_statuses@[submission@.command_buffers[i]] == CommandBufferStatus::Executable,
-        // Wait semaphores must be signaled
-        forall|i: int| 0 <= i < submit_info@.wait_semaphores.len()
-            ==> sem_states@.contains_key(#[trigger] submit_info@.wait_semaphores[i])
-                && sem_states@[submit_info@.wait_semaphores[i]].signaled,
-        // Signal semaphores must be unsignaled
-        forall|i: int| 0 <= i < submit_info@.signal_semaphores.len()
-            ==> sem_states@.contains_key(#[trigger] submit_info@.signal_semaphores[i])
-                && !sem_states@[submit_info@.signal_semaphores[i]].signaled,
+        // CB views: parallel sequence, all must be Executable
+        cb_views@.len() == submission@.command_buffers.len(),
+        forall|i: int| 0 <= i < cb_views@.len()
+            ==> #[trigger] cb_views@[i] == CommandBufferStatus::Executable,
+        // Wait semaphores must be signaled (parallel sequence)
+        wait_sem_views@.len() == submit_info@.wait_semaphores.len(),
+        forall|i: int| 0 <= i < wait_sem_views@.len()
+            ==> (#[trigger] wait_sem_views@[i]).id == submit_info@.wait_semaphores[i]
+                && wait_sem_views@[i].signaled,
+        // Signal semaphores must be unsignaled (parallel sequence)
+        signal_sem_views@.len() == submit_info@.signal_semaphores.len(),
+        forall|i: int| 0 <= i < signal_sem_views@.len()
+            ==> (#[trigger] signal_sem_views@[i]).id == submit_info@.signal_semaphores[i]
+                && !signal_sem_views@[i].signaled,
         // Fence (if any) must be unsignaled and not pending
-        submit_info@.fence_id.is_some() ==> (
-            fence_states@.contains_key(submit_info@.fence_id.unwrap())
-            && !fence_states@[submit_info@.fence_id.unwrap()].signaled
+        fence_view@.is_some() == submit_info@.fence_id.is_some(),
+        fence_view@.is_some() ==> (
+            fence_view@.unwrap().id == submit_info@.fence_id.unwrap()
+            && !fence_view@.unwrap().signaled
             && fence_not_pending(submit_info@.fence_id.unwrap(), old(dev)@.pending_submissions)
         ),
+        // Submission record must be consistent with the submit info
+        submission@.command_buffers =~= submit_info@.command_buffers,
+        submission@.signal_semaphores =~= submit_info@.signal_semaphores,
+        submission@.fence_id == submit_info@.fence_id,
+        submission@.referenced_resources =~= submit_info@.referenced_resources,
+        !submission@.completed,
         // All referenced resources are bound in the aliasing tracker
         forall|r: ResourceId| submission@.referenced_resources.contains(r)
             ==> old(aliasing_tracker).bindings@.contains_key(r),

@@ -3,6 +3,7 @@ use crate::framebuffer::*;
 use crate::lifetime::*;
 use crate::render_pass::*;
 use crate::sync_token::*;
+use super::device::RuntimeDevice;
 
 verus! {
 
@@ -45,15 +46,15 @@ pub fn create_image_view_exec(
 /// Caller must prove exclusive access.
 pub fn destroy_image_view_exec(
     view: &mut RuntimeImageView,
-    pending_submissions: Ghost<Seq<SubmissionRecord>>,
+    dev: &RuntimeDevice,
     thread: Ghost<ThreadId>,
     reg: Ghost<TokenRegistry>,
 )
     requires
         runtime_image_view_wf(&*old(view)),
         // All pending submissions must be completed
-        forall|i: int| 0 <= i < pending_submissions@.len()
-            ==> (#[trigger] pending_submissions@[i]).completed,
+        forall|i: int| 0 <= i < dev@.pending_submissions.len()
+            ==> (#[trigger] dev@.pending_submissions[i]).completed,
         holds_exclusive(reg@, old(view)@.id, thread@),
     ensures
         view@ == destroy_image_view_ghost(old(view)@),
@@ -101,15 +102,15 @@ pub fn create_framebuffer_exec(
 /// Caller must prove exclusive access.
 pub fn destroy_framebuffer_exec(
     fb: &mut RuntimeFramebuffer,
-    pending_submissions: Ghost<Seq<SubmissionRecord>>,
+    dev: &RuntimeDevice,
     thread: Ghost<ThreadId>,
     reg: Ghost<TokenRegistry>,
 )
     requires
         runtime_framebuffer_wf(&*old(fb)),
         // All pending submissions must be completed
-        forall|i: int| 0 <= i < pending_submissions@.len()
-            ==> (#[trigger] pending_submissions@[i]).completed,
+        forall|i: int| 0 <= i < dev@.pending_submissions.len()
+            ==> (#[trigger] dev@.pending_submissions[i]).completed,
         holds_exclusive(reg@, old(fb)@.id, thread@),
     ensures
         fb@ == destroy_framebuffer_ghost(old(fb)@),
