@@ -1,6 +1,8 @@
 use vstd::prelude::*;
 use crate::flags::*;
 use crate::image_layout::*;
+use crate::format_properties::*;
+use crate::device::*;
 
 verus! {
 
@@ -422,6 +424,74 @@ pub proof fn lemma_preserve_not_used(
     by {
         // From subpass_well_formed's preserve constraint
     }
+}
+
+// ── Format Validation ────────────────────────────────────────────────────
+
+/// Whether attachment `att_idx` is used as a color attachment in any subpass.
+pub open spec fn attachment_used_as_color(rp: RenderPassState, att_idx: nat) -> bool {
+    exists|s: int, i: int|
+        0 <= s < rp.subpasses.len()
+        && 0 <= i < rp.subpasses[s].color_attachments.len()
+        && rp.subpasses[s].color_attachments[i].attachment_index == att_idx
+}
+
+/// Whether attachment `att_idx` is used as a depth attachment in any subpass.
+pub open spec fn attachment_used_as_depth(rp: RenderPassState, att_idx: nat) -> bool {
+    exists|s: int|
+        0 <= s < rp.subpasses.len()
+        && rp.subpasses[s].depth_attachment.is_some()
+        && rp.subpasses[s].depth_attachment.unwrap().attachment_index == att_idx
+}
+
+/// All attachments in the render pass have adequate format features for their roles.
+pub open spec fn render_pass_formats_supported(
+    rp: RenderPassState,
+    dev: DeviceState,
+) -> bool {
+    forall|att_idx: nat| #![trigger dev.format_properties.contains_key(rp.attachments[att_idx as int].format)]
+        att_idx < rp.attachments.len() ==> {
+            let fmt = rp.attachments[att_idx as int].format;
+            dev.format_properties.contains_key(fmt)
+            && (attachment_used_as_color(rp, att_idx)
+                ==> format_supports_color_attachment(dev.format_properties[fmt]))
+            && (attachment_used_as_depth(rp, att_idx)
+                ==> format_supports_depth_stencil(dev.format_properties[fmt]))
+        }
+}
+
+/// If formats are supported and attachment is used as color, its format supports color.
+pub proof fn lemma_formats_supported_color(
+    rp: RenderPassState, dev: DeviceState, att_idx: nat,
+)
+    requires
+        render_pass_formats_supported(rp, dev),
+        att_idx < rp.attachments.len(),
+        attachment_used_as_color(rp, att_idx),
+    ensures
+        dev.format_properties.contains_key(rp.attachments[att_idx as int].format),
+        format_supports_color_attachment(
+            dev.format_properties[rp.attachments[att_idx as int].format]),
+{
+    let fmt = rp.attachments[att_idx as int].format;
+    assert(dev.format_properties.contains_key(fmt));
+}
+
+/// If formats are supported and attachment is used as depth, its format supports depth.
+pub proof fn lemma_formats_supported_depth(
+    rp: RenderPassState, dev: DeviceState, att_idx: nat,
+)
+    requires
+        render_pass_formats_supported(rp, dev),
+        att_idx < rp.attachments.len(),
+        attachment_used_as_depth(rp, att_idx),
+    ensures
+        dev.format_properties.contains_key(rp.attachments[att_idx as int].format),
+        format_supports_depth_stencil(
+            dev.format_properties[rp.attachments[att_idx as int].format]),
+{
+    let fmt = rp.attachments[att_idx as int].format;
+    assert(dev.format_properties.contains_key(fmt));
 }
 
 } // verus!

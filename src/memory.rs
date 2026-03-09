@@ -71,6 +71,8 @@ pub struct ImageState {
     pub sync: SyncState,
     /// False after vkDestroyImage.
     pub alive: bool,
+    /// Image tiling mode: 0 = Optimal, 1 = Linear.
+    pub tiling: nat,
 }
 
 /// True iff a subresource index is valid for the given image dimensions.

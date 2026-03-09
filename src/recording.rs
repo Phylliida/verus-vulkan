@@ -43,6 +43,8 @@ pub struct RecordingState {
     pub scissor_set: bool,
     /// Whether push constants have been set.
     pub push_constants_set: bool,
+    /// Dynamic offsets for each descriptor set index: maps set_index → dynamic offsets seq.
+    pub bound_dynamic_offsets: Map<nat, Seq<nat>>,
 }
 
 // ── Spec Functions ───────────────────────────────────────────────────
@@ -60,6 +62,7 @@ pub open spec fn initial_recording_state() -> RecordingState {
         viewport_set: false,
         scissor_set: false,
         push_constants_set: false,
+        bound_dynamic_offsets: Map::empty(),
     }
 }
 
@@ -87,15 +90,18 @@ pub open spec fn bind_compute_pipeline(
 
 /// Ghost update: bind a descriptor set at a given set index.
 /// Tracks both the set id and the set's layout id for pipeline compatibility checking.
+/// Dynamic offsets are stored for later validation against buffer bounds.
 pub open spec fn bind_descriptor_set(
     state: RecordingState,
     set_index: nat,
     set_id: nat,
     layout_id: nat,
+    dynamic_offsets: Seq<nat>,
 ) -> RecordingState {
     RecordingState {
         bound_descriptor_sets: state.bound_descriptor_sets.insert(set_index, set_id),
         bound_set_layouts: state.bound_set_layouts.insert(set_index, layout_id),
+        bound_dynamic_offsets: state.bound_dynamic_offsets.insert(set_index, dynamic_offsets),
         ..state
     }
 }
@@ -329,10 +335,10 @@ pub proof fn lemma_bind_compute_preserves_render_pass(
 
 /// Binding a descriptor set does not change the render pass state.
 pub proof fn lemma_bind_descriptor_preserves_render_pass(
-    state: RecordingState, set_index: nat, set_id: nat, layout_id: nat,
+    state: RecordingState, set_index: nat, set_id: nat, layout_id: nat, dynamic_offsets: Seq<nat>,
 )
     ensures
-        in_render_pass(bind_descriptor_set(state, set_index, set_id, layout_id)) == in_render_pass(state),
+        in_render_pass(bind_descriptor_set(state, set_index, set_id, layout_id, dynamic_offsets)) == in_render_pass(state),
 {
 }
 

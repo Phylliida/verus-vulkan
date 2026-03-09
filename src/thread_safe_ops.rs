@@ -2253,7 +2253,8 @@ pub proof fn lemma_ts_begin_render_pass_requires_layouts(
 // - Barrier stage/access validity
 // ═══════════════════════════════════════════════════════════════════════
 
-/// Complete draw call: recording + draw state + descriptor + barrier validation.
+/// Complete draw call: recording + draw state + descriptor + barrier + bounds validation.
+/// Dynamic state requirements are derived from pipeline.required_dynamic_states.
 pub open spec fn ts_record_draw_complete(
     ctx: RecordingContext,
     draw: DrawCallState,
@@ -2262,10 +2263,11 @@ pub open spec fn ts_record_draw_complete(
     pipeline: GraphicsPipelineState,
     rp: RenderPassState,
     required_vertex_slots: Set<nat>,
-    required_dynamic_states: Set<DynamicStateKind>,
     push_constant_ranges: Seq<PushConstantRange>,
     dsets: Map<nat, DescriptorSetState>,
     layouts: Map<nat, DescriptorSetLayoutState>,
+    first_vertex: nat,
+    vertex_count: nat,
     cb_id: nat,
     pool: PoolOwnership,
     thread: ThreadId,
@@ -2273,7 +2275,8 @@ pub open spec fn ts_record_draw_complete(
 ) -> Option<RecordingContext> {
     if can_access_child(pool, cb_id, thread, reg)
        && full_draw_valid(ctx.state, draw, pipeline, rp,
-            required_vertex_slots, required_dynamic_states, push_constant_ranges)
+            required_vertex_slots, push_constant_ranges,
+            first_vertex, vertex_count)
        && all_descriptor_sets_valid(ctx.state, pipeline, dsets, layouts)
        && all_resources_synchronized(ctx.barrier_log, sync_requirements)
        && all_barriers_valid(ctx.barrier_log)
@@ -2282,7 +2285,8 @@ pub open spec fn ts_record_draw_complete(
     } else { None }
 }
 
-/// Complete draw-indexed call: same as draw + index buffer bound.
+/// Complete draw-indexed call: same as draw + index buffer bound + index bounds.
+/// Dynamic state requirements are derived from pipeline.required_dynamic_states.
 pub open spec fn ts_record_draw_indexed_complete(
     ctx: RecordingContext,
     draw: DrawCallState,
@@ -2291,10 +2295,13 @@ pub open spec fn ts_record_draw_indexed_complete(
     pipeline: GraphicsPipelineState,
     rp: RenderPassState,
     required_vertex_slots: Set<nat>,
-    required_dynamic_states: Set<DynamicStateKind>,
     push_constant_ranges: Seq<PushConstantRange>,
     dsets: Map<nat, DescriptorSetState>,
     layouts: Map<nat, DescriptorSetLayoutState>,
+    first_vertex: nat,
+    vertex_count: nat,
+    first_index: nat,
+    index_count: nat,
     cb_id: nat,
     pool: PoolOwnership,
     thread: ThreadId,
@@ -2302,7 +2309,8 @@ pub open spec fn ts_record_draw_indexed_complete(
 ) -> Option<RecordingContext> {
     if can_access_child(pool, cb_id, thread, reg)
        && full_draw_indexed_valid(ctx.state, draw, pipeline, rp,
-            required_vertex_slots, required_dynamic_states, push_constant_ranges)
+            required_vertex_slots, push_constant_ranges,
+            first_vertex, vertex_count, first_index, index_count)
        && all_descriptor_sets_valid(ctx.state, pipeline, dsets, layouts)
        && all_resources_synchronized(ctx.barrier_log, sync_requirements)
        && all_barriers_valid(ctx.barrier_log)
@@ -2359,17 +2367,20 @@ pub proof fn lemma_ts_draw_complete_enforces_draw_valid(
     ctx: RecordingContext, draw: DrawCallState, resources: Set<ResourceId>,
     sync_requirements: Seq<ResourceSyncRequirement>,
     pipeline: GraphicsPipelineState, rp: RenderPassState,
-    required_vertex_slots: Set<nat>, required_dynamic_states: Set<DynamicStateKind>,
+    required_vertex_slots: Set<nat>,
     push_constant_ranges: Seq<PushConstantRange>,
     dsets: Map<nat, DescriptorSetState>, layouts: Map<nat, DescriptorSetLayoutState>,
+    first_vertex: nat, vertex_count: nat,
     cb_id: nat, pool: PoolOwnership, thread: ThreadId, reg: TokenRegistry,
 )
     requires ts_record_draw_complete(ctx, draw, resources, sync_requirements, pipeline, rp,
-        required_vertex_slots, required_dynamic_states, push_constant_ranges,
-        dsets, layouts, cb_id, pool, thread, reg).is_some(),
+        required_vertex_slots, push_constant_ranges,
+        dsets, layouts, first_vertex, vertex_count,
+        cb_id, pool, thread, reg).is_some(),
     ensures
         full_draw_valid(ctx.state, draw, pipeline, rp,
-            required_vertex_slots, required_dynamic_states, push_constant_ranges)
+            required_vertex_slots, push_constant_ranges,
+            first_vertex, vertex_count)
         && all_descriptor_sets_valid(ctx.state, pipeline, dsets, layouts)
         && all_barriers_valid(ctx.barrier_log),
 {
@@ -2380,14 +2391,16 @@ pub proof fn lemma_ts_draw_complete_enforces_sync(
     ctx: RecordingContext, draw: DrawCallState, resources: Set<ResourceId>,
     sync_requirements: Seq<ResourceSyncRequirement>,
     pipeline: GraphicsPipelineState, rp: RenderPassState,
-    required_vertex_slots: Set<nat>, required_dynamic_states: Set<DynamicStateKind>,
+    required_vertex_slots: Set<nat>,
     push_constant_ranges: Seq<PushConstantRange>,
     dsets: Map<nat, DescriptorSetState>, layouts: Map<nat, DescriptorSetLayoutState>,
+    first_vertex: nat, vertex_count: nat,
     cb_id: nat, pool: PoolOwnership, thread: ThreadId, reg: TokenRegistry,
 )
     requires ts_record_draw_complete(ctx, draw, resources, sync_requirements, pipeline, rp,
-        required_vertex_slots, required_dynamic_states, push_constant_ranges,
-        dsets, layouts, cb_id, pool, thread, reg).is_some(),
+        required_vertex_slots, push_constant_ranges,
+        dsets, layouts, first_vertex, vertex_count,
+        cb_id, pool, thread, reg).is_some(),
     ensures all_resources_synchronized(ctx.barrier_log, sync_requirements),
 {
 }

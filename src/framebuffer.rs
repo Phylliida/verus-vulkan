@@ -15,6 +15,12 @@ pub struct ImageViewState {
     pub format: nat,
     /// Whether this image view is alive (not destroyed).
     pub alive: bool,
+    /// Width of the viewed image (in pixels).
+    pub width: nat,
+    /// Height of the viewed image (in pixels).
+    pub height: nat,
+    /// Number of samples (1 = no MSAA, 2/4/8/16/32/64 for MSAA).
+    pub samples: nat,
 }
 
 // ── Framebuffer ──────────────────────────────────────────────────────
@@ -129,6 +135,163 @@ pub proof fn lemma_compatible_matches_rp_id(
     requires framebuffer_compatible_with_render_pass(fb, rp),
     ensures fb.render_pass_id == rp.id,
 {
+}
+
+// ── Attachment Dimension/Sample Validation ───────────────────────────
+
+/// Every framebuffer attachment's image view dimensions are at least as large
+/// as the framebuffer dimensions.
+pub open spec fn framebuffer_attachments_dimensions_match(
+    fb: FramebufferState,
+    views: Map<nat, ImageViewState>,
+) -> bool {
+    forall|i: int| #![trigger fb.attachments[i]]
+        0 <= i < fb.attachments.len() ==>
+        views.contains_key(fb.attachments[i])
+        && views[fb.attachments[i]].width >= fb.width
+        && views[fb.attachments[i]].height >= fb.height
+}
+
+/// Every framebuffer attachment's image view sample count matches
+/// the render pass attachment description's sample count.
+pub open spec fn framebuffer_attachments_samples_consistent(
+    fb: FramebufferState,
+    views: Map<nat, ImageViewState>,
+    rp: RenderPassState,
+) -> bool {
+    forall|i: int| #![trigger fb.attachments[i]]
+        0 <= i < fb.attachments.len() ==>
+        views.contains_key(fb.attachments[i])
+        && i < rp.attachments.len()
+        && views[fb.attachments[i]].samples == rp.attachments[i].samples
+}
+
+/// Every framebuffer attachment's image view format matches the render pass
+/// attachment description's format.
+pub open spec fn framebuffer_attachment_formats_match(
+    fb: FramebufferState,
+    views: Map<nat, ImageViewState>,
+    rp: RenderPassState,
+) -> bool {
+    forall|i: int| #![trigger fb.attachments[i]]
+        0 <= i < fb.attachments.len() ==>
+        views.contains_key(fb.attachments[i])
+        && i < rp.attachments.len()
+        && views[fb.attachments[i]].format == rp.attachments[i].format
+}
+
+/// A framebuffer is fully validated: well-formed + dimensions match + samples consistent + formats match.
+pub open spec fn framebuffer_fully_validated(
+    fb: FramebufferState,
+    rp: RenderPassState,
+    views: Map<nat, ImageViewState>,
+) -> bool {
+    framebuffer_well_formed(fb, rp)
+    && framebuffer_attachments_dimensions_match(fb, views)
+    && framebuffer_attachments_samples_consistent(fb, views, rp)
+    && framebuffer_attachment_formats_match(fb, views, rp)
+}
+
+/// A fully validated framebuffer is well-formed.
+pub proof fn lemma_fully_validated_implies_well_formed(
+    fb: FramebufferState,
+    rp: RenderPassState,
+    views: Map<nat, ImageViewState>,
+)
+    requires framebuffer_fully_validated(fb, rp, views),
+    ensures framebuffer_well_formed(fb, rp),
+{
+}
+
+/// A fully validated framebuffer has matching dimensions.
+pub proof fn lemma_fully_validated_dimensions_match(
+    fb: FramebufferState,
+    rp: RenderPassState,
+    views: Map<nat, ImageViewState>,
+)
+    requires framebuffer_fully_validated(fb, rp, views),
+    ensures framebuffer_attachments_dimensions_match(fb, views),
+{
+}
+
+/// A fully validated framebuffer has consistent sample counts.
+pub proof fn lemma_fully_validated_samples_consistent(
+    fb: FramebufferState,
+    rp: RenderPassState,
+    views: Map<nat, ImageViewState>,
+)
+    requires framebuffer_fully_validated(fb, rp, views),
+    ensures framebuffer_attachments_samples_consistent(fb, views, rp),
+{
+}
+
+/// A fully validated framebuffer has matching attachment formats.
+pub proof fn lemma_fully_validated_formats_match(
+    fb: FramebufferState,
+    rp: RenderPassState,
+    views: Map<nat, ImageViewState>,
+)
+    requires framebuffer_fully_validated(fb, rp, views),
+    ensures framebuffer_attachment_formats_match(fb, views, rp),
+{
+}
+
+/// If all views have the same format as all render pass attachments, formats match.
+pub proof fn lemma_same_format_trivial(
+    fb: FramebufferState,
+    rp: RenderPassState,
+    views: Map<nat, ImageViewState>,
+    fmt: nat,
+)
+    requires
+        framebuffer_well_formed(fb, rp),
+        forall|i: int| #![trigger fb.attachments[i]]
+            0 <= i < fb.attachments.len() ==>
+            views.contains_key(fb.attachments[i])
+            && views[fb.attachments[i]].format == fmt,
+        forall|i: int| 0 <= i < rp.attachments.len() ==>
+            rp.attachments[i].format == fmt,
+    ensures
+        framebuffer_attachment_formats_match(fb, views, rp),
+{
+    assert forall|i: int| #![trigger fb.attachments[i]]
+        0 <= i < fb.attachments.len()
+    implies
+        views.contains_key(fb.attachments[i])
+        && i < rp.attachments.len()
+        && views[fb.attachments[i]].format == rp.attachments[i].format
+    by {
+        // fb.attachments.len() == rp.attachments.len() from framebuffer_well_formed
+    }
+}
+
+/// If all views have samples==1 and all render pass attachments have samples==1,
+/// then samples are trivially consistent.
+pub proof fn lemma_single_sample_trivial(
+    fb: FramebufferState,
+    rp: RenderPassState,
+    views: Map<nat, ImageViewState>,
+)
+    requires
+        framebuffer_well_formed(fb, rp),
+        forall|i: int| #![trigger fb.attachments[i]]
+            0 <= i < fb.attachments.len() ==>
+            views.contains_key(fb.attachments[i])
+            && views[fb.attachments[i]].samples == 1,
+        forall|i: int| 0 <= i < rp.attachments.len() ==>
+            rp.attachments[i].samples == 1,
+    ensures
+        framebuffer_attachments_samples_consistent(fb, views, rp),
+{
+    assert forall|i: int| #![trigger fb.attachments[i]]
+        0 <= i < fb.attachments.len()
+    implies
+        views.contains_key(fb.attachments[i])
+        && i < rp.attachments.len()
+        && views[fb.attachments[i]].samples == rp.attachments[i].samples
+    by {
+        // fb.attachments.len() == rp.attachments.len() from framebuffer_well_formed
+    }
 }
 
 } // verus!

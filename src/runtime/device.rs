@@ -1,5 +1,6 @@
 use vstd::prelude::*;
 use crate::device::*;
+use crate::format_properties::*;
 use crate::memory::*;
 use crate::lifetime::*;
 use crate::sync_token::*;
@@ -32,6 +33,8 @@ pub open spec fn create_device_spec(
     heap_caps: Map<nat, nat>,
     num_memory_types: nat,
     mt_to_heap: Map<nat, nat>,
+    limits: DeviceLimits,
+    format_properties: Map<nat, FormatProperties>,
 ) -> DeviceState {
     DeviceState {
         heap_usage: Map::new(
@@ -47,6 +50,8 @@ pub open spec fn create_device_spec(
         live_images: 0,
         live_pipelines: 0,
         live_descriptor_pools: 0,
+        limits: limits,
+        format_properties: format_properties,
     }
 }
 

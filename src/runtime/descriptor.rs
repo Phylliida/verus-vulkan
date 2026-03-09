@@ -1,5 +1,7 @@
 use vstd::prelude::*;
 use crate::descriptor::*;
+use crate::descriptor_validation::*;
+use crate::device::*;
 use crate::image_layout::*;
 use crate::sync_token::*;
 use crate::pool_ownership::*;
@@ -190,12 +192,14 @@ pub fn allocate_descriptor_set_exec(
 
 /// Exec: update a descriptor binding in a set.
 /// Caller must prove the binding exists in the set's layout, the binding is non-Empty,
-/// and has access to the descriptor set via pool ownership or direct token.
+/// the buffer offset is aligned for the descriptor type, and has access via pool ownership.
 pub fn update_descriptor_set_exec(
     ds: &mut RuntimeDescriptorSet,
     layout: Ghost<DescriptorSetLayoutState>,
     binding_num: Ghost<nat>,
     new_binding: Ghost<DescriptorBinding>,
+    desc_type: Ghost<DescriptorType>,
+    limits: Ghost<DeviceLimits>,
     thread: Ghost<ThreadId>,
     pool_ownership: Ghost<PoolOwnership>,
     reg: Ghost<TokenRegistry>,
@@ -204,6 +208,7 @@ pub fn update_descriptor_set_exec(
         old(ds)@.layout_id == layout@.id,
         layout_contains_binding(layout@, binding_num@),
         !(new_binding@ === DescriptorBinding::Empty),
+        descriptor_binding_aligned(new_binding@, desc_type@, limits@),
         can_access_child(pool_ownership@, old(ds)@.id, thread@, reg@),
     ensures
         ds@ == update_descriptor_binding(old(ds)@, binding_num@, new_binding@),
