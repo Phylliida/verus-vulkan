@@ -13,6 +13,7 @@ use crate::recording::*;
 use crate::lifetime::*;
 use crate::device::*;
 use crate::runtime::descriptor::*;
+use super::device::RuntimeDevice;
 
 // ─── Spec functions ────────────────────────────────────────────
 
@@ -86,7 +87,7 @@ pub fn validated_buffer_descriptor_update_exec(
     thread: Ghost<ThreadId>,
     pool_ownership: Ghost<PoolOwnership>,
     reg: Ghost<TokenRegistry>,
-    pending: Ghost<Seq<SubmissionRecord>>,
+    dev: &RuntimeDevice,
     buffers: Ghost<Map<nat, BufferState>>,
     images: Ghost<Map<nat, ImageState>>,
 )
@@ -100,13 +101,13 @@ pub fn validated_buffer_descriptor_update_exec(
         // Validation extras
         descriptor_binding_resource_alive(new_binding@, buffers@, images@),
         descriptor_binding_usage_valid(new_binding@, desc_type@, buffers@, images@),
-        update_descriptor_safe(old(ds)@.id, thread@, reg@, pending@),
+        update_descriptor_safe(old(ds)@.id, thread@, reg@, dev@.pending_submissions),
     ensures
         ds@ == update_descriptor_binding(old(ds)@, binding_num@, new_binding@),
         descriptor_binding_resource_alive(new_binding@, buffers@, images@),
         descriptor_binding_usage_valid(new_binding@, desc_type@, buffers@, images@),
 {
-    update_descriptor_set_exec(ds, layout, binding_num, new_binding, desc_type, limits, thread, pool_ownership, reg, pending);
+    update_descriptor_set_exec(ds, layout, binding_num, new_binding, desc_type, limits, thread, pool_ownership, reg, dev);
 }
 
 /// Exec: perform a validated image descriptor update.
@@ -120,7 +121,7 @@ pub fn validated_image_descriptor_update_exec(
     thread: Ghost<ThreadId>,
     pool_ownership: Ghost<PoolOwnership>,
     reg: Ghost<TokenRegistry>,
-    pending: Ghost<Seq<SubmissionRecord>>,
+    dev: &RuntimeDevice,
     buffers: Ghost<Map<nat, BufferState>>,
     images: Ghost<Map<nat, ImageState>>,
 )
@@ -132,13 +133,13 @@ pub fn validated_image_descriptor_update_exec(
         can_access_child(pool_ownership@, old(ds)@.id, thread@, reg@),
         descriptor_binding_resource_alive(new_binding@, buffers@, images@),
         descriptor_binding_usage_valid(new_binding@, desc_type@, buffers@, images@),
-        update_descriptor_safe(old(ds)@.id, thread@, reg@, pending@),
+        update_descriptor_safe(old(ds)@.id, thread@, reg@, dev@.pending_submissions),
     ensures
         ds@ == update_descriptor_binding(old(ds)@, binding_num@, new_binding@),
         descriptor_binding_resource_alive(new_binding@, buffers@, images@),
         descriptor_binding_usage_valid(new_binding@, desc_type@, buffers@, images@),
 {
-    update_descriptor_set_exec(ds, layout, binding_num, new_binding, desc_type, limits, thread, pool_ownership, reg, pending);
+    update_descriptor_set_exec(ds, layout, binding_num, new_binding, desc_type, limits, thread, pool_ownership, reg, dev);
 }
 
 /// Exec: ghost-level check that all pipeline descriptors are valid and alive.

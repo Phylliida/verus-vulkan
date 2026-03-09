@@ -172,14 +172,18 @@ pub fn record_copy_buffer_ctx_exec(
 }
 
 /// Bind a graphics pipeline through the recording context.
+/// Caller must prove the pipeline is alive and the id matches.
 pub fn record_bind_graphics_pipeline_ctx_exec(
     rctx: &mut RuntimeRecordingContext,
     thread: Ghost<ThreadId>,
     pipeline_id: Ghost<nat>,
+    pipeline: Ghost<GraphicsPipelineState>,
 )
     requires
         recording_context_wf(&*old(rctx)),
         old(rctx).cb.recording_thread@ == thread@,
+        pipeline@.alive,
+        pipeline@.id == pipeline_id@,
     ensures
         recording_context_wf(rctx),
         rctx.ctx@.state == bind_graphics_pipeline(old(rctx).ctx@.state, pipeline_id@),
@@ -188,7 +192,7 @@ pub fn record_bind_graphics_pipeline_ctx_exec(
         rctx.cb.cb_id@ == old(rctx).cb.cb_id@,
         rctx.cb.recording_thread@ == old(rctx).cb.recording_thread@,
 {
-    cmd_bind_pipeline_exec(&mut rctx.cb, thread, pipeline_id);
+    cmd_bind_pipeline_exec(&mut rctx.cb, thread, pipeline_id, pipeline);
     // cmd_bind_pipeline_exec: recording_state = bind_graphics_pipeline(old, id), barrier_log unchanged
     let ghost new_ctx = RecordingContext {
         state: bind_graphics_pipeline(old(rctx).ctx@.state, pipeline_id@),

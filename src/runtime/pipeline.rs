@@ -1,7 +1,9 @@
 use vstd::prelude::*;
 use crate::pipeline::*;
+use crate::pipeline_layout::*;
 use crate::lifetime::*;
 use crate::sync_token::*;
+use super::device::RuntimeDevice;
 
 verus! {
 
@@ -80,15 +82,15 @@ pub fn create_compute_pipeline_exec(
 /// and holds exclusive access.
 pub fn destroy_graphics_pipeline_exec(
     pipe: &mut RuntimeGraphicsPipeline,
-    pending_submissions: Ghost<Seq<SubmissionRecord>>,
+    dev: &RuntimeDevice,
     thread: Ghost<ThreadId>,
     reg: Ghost<TokenRegistry>,
 )
     requires
         runtime_gfx_pipeline_wf(&*old(pipe)),
         // All pending submissions must be completed (pipeline may be referenced by any CB)
-        forall|i: int| 0 <= i < pending_submissions@.len()
-            ==> (#[trigger] pending_submissions@[i]).completed,
+        forall|i: int| 0 <= i < dev@.pending_submissions.len()
+            ==> (#[trigger] dev@.pending_submissions[i]).completed,
         holds_exclusive(reg@, old(pipe)@.id, thread@),
     ensures
         !pipe@.alive,
@@ -105,15 +107,15 @@ pub fn destroy_graphics_pipeline_exec(
 /// and holds exclusive access.
 pub fn destroy_compute_pipeline_exec(
     pipe: &mut RuntimeComputePipeline,
-    pending_submissions: Ghost<Seq<SubmissionRecord>>,
+    dev: &RuntimeDevice,
     thread: Ghost<ThreadId>,
     reg: Ghost<TokenRegistry>,
 )
     requires
         runtime_compute_pipeline_wf(&*old(pipe)),
         // All pending submissions must be completed (pipeline may be referenced by any CB)
-        forall|i: int| 0 <= i < pending_submissions@.len()
-            ==> (#[trigger] pending_submissions@[i]).completed,
+        forall|i: int| 0 <= i < dev@.pending_submissions.len()
+            ==> (#[trigger] dev@.pending_submissions[i]).completed,
         holds_exclusive(reg@, old(pipe)@.id, thread@),
     ensures
         !pipe@.alive,
@@ -183,6 +185,92 @@ pub proof fn lemma_destroy_compute_preserves_id(pipe: &RuntimeComputePipeline)
     ensures ({
         let destroyed = ComputePipelineState { alive: false, ..pipe@ };
         destroyed.id == pipe@.id
+    }),
+{
+}
+
+// ── Pipeline Layout Runtime ─────────────────────────────────────────
+
+/// Runtime wrapper for a Vulkan pipeline layout.
+pub struct RuntimePipelineLayout {
+    /// Opaque handle (maps to VkPipelineLayout).
+    pub handle: u64,
+    /// Ghost model of the pipeline layout state.
+    pub state: Ghost<PipelineLayoutState>,
+}
+
+impl View for RuntimePipelineLayout {
+    type V = PipelineLayoutState;
+    open spec fn view(&self) -> PipelineLayoutState { self.state@ }
+}
+
+/// Well-formedness of the runtime pipeline layout.
+pub open spec fn runtime_pipeline_layout_wf(
+    layout: &RuntimePipelineLayout,
+) -> bool {
+    pipeline_layout_well_formed(layout@)
+}
+
+/// Exec: create a pipeline layout.
+pub fn create_pipeline_layout_exec(
+    pls: Ghost<PipelineLayoutState>,
+) -> (out: RuntimePipelineLayout)
+    requires pipeline_layout_well_formed(pls@),
+    ensures
+        out@ == pls@,
+        runtime_pipeline_layout_wf(&out),
+{
+    RuntimePipelineLayout {
+        handle: 0,
+        state: pls,
+    }
+}
+
+/// Exec: destroy a pipeline layout.
+pub fn destroy_pipeline_layout_exec(
+    layout: &mut RuntimePipelineLayout,
+    dev: &RuntimeDevice,
+    thread: Ghost<ThreadId>,
+    reg: Ghost<TokenRegistry>,
+)
+    requires
+        runtime_pipeline_layout_wf(&*old(layout)),
+        forall|i: int| 0 <= i < dev@.pending_submissions.len()
+            ==> (#[trigger] dev@.pending_submissions[i]).completed,
+        holds_exclusive(reg@, old(layout)@.id, thread@),
+    ensures
+        !layout@.alive,
+        layout@.id == old(layout)@.id,
+{
+    layout.state = Ghost(PipelineLayoutState {
+        alive: false,
+        ..layout.state@
+    });
+}
+
+/// Exec: check if two pipeline layouts are fully compatible.
+pub fn check_layout_compatible_exec(
+    layout_a: &RuntimePipelineLayout,
+    layout_b: &RuntimePipelineLayout,
+) -> (result: Ghost<bool>)
+    ensures result@ == layouts_fully_compatible(layout_a@, layout_b@),
+{
+    Ghost(layouts_fully_compatible(layout_a.state@, layout_b.state@))
+}
+
+/// Proof: a well-formed pipeline layout is alive.
+pub proof fn lemma_create_pipeline_layout_alive(pls: PipelineLayoutState)
+    requires pipeline_layout_well_formed(pls),
+    ensures pls.alive,
+{
+}
+
+/// Proof: destroying a pipeline layout preserves its ID.
+pub proof fn lemma_destroy_pipeline_layout_preserves_id(layout: PipelineLayoutState)
+    requires pipeline_layout_well_formed(layout),
+    ensures ({
+        let destroyed = PipelineLayoutState { alive: false, ..layout };
+        destroyed.id == layout.id
     }),
 {
 }

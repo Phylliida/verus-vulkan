@@ -12,7 +12,10 @@ use crate::draw_state::{DrawCallState, dynamic_states_satisfied,
 use crate::image_layout::ImageLayout;
 use crate::image_layout_fsm::*;
 use crate::framebuffer::*;
+use crate::memory::*;
+use crate::lifetime::*;
 use super::image_layout::RuntimeImageLayoutTracker;
+use super::device::RuntimeDevice;
 
 verus! {
 
@@ -259,15 +262,19 @@ pub fn cmd_pipeline_barrier_exec(
 }
 
 /// Exec: bind a graphics pipeline (updates recording state).
+/// Caller must prove the pipeline is alive and the id matches.
 pub fn cmd_bind_graphics_pipeline_exec(
     cb: &mut RuntimeCommandBuffer,
     thread: Ghost<ThreadId>,
     pipeline_id: Ghost<nat>,
+    pipeline: Ghost<GraphicsPipelineState>,
 )
     requires
         is_recording(&*old(cb)),
         runtime_cb_wf(&*old(cb)),
         old(cb).recording_thread@ == thread@,
+        pipeline@.alive,
+        pipeline@.id == pipeline_id@,
     ensures
         is_recording(cb),
         cb.barrier_log@ == old(cb).barrier_log@,
@@ -281,15 +288,19 @@ pub fn cmd_bind_graphics_pipeline_exec(
 }
 
 /// Exec: bind a compute pipeline (updates recording state).
+/// Caller must prove the pipeline is alive and the id matches.
 pub fn cmd_bind_compute_pipeline_exec(
     cb: &mut RuntimeCommandBuffer,
     thread: Ghost<ThreadId>,
     pipeline_id: Ghost<nat>,
+    pipeline: Ghost<ComputePipelineState>,
 )
     requires
         is_recording(&*old(cb)),
         runtime_cb_wf(&*old(cb)),
         old(cb).recording_thread@ == thread@,
+        pipeline@.alive,
+        pipeline@.id == pipeline_id@,
     ensures
         is_recording(cb),
         cb.barrier_log@ == old(cb).barrier_log@,
@@ -303,11 +314,19 @@ pub fn cmd_bind_compute_pipeline_exec(
 }
 
 /// Exec: bind a pipeline (backward compat, delegates to graphics variant).
-pub fn cmd_bind_pipeline_exec(cb: &mut RuntimeCommandBuffer, thread: Ghost<ThreadId>, pipeline_id: Ghost<nat>)
+/// Caller must prove the pipeline is alive and the id matches.
+pub fn cmd_bind_pipeline_exec(
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    pipeline_id: Ghost<nat>,
+    pipeline: Ghost<GraphicsPipelineState>,
+)
     requires
         is_recording(&*old(cb)),
         runtime_cb_wf(&*old(cb)),
         old(cb).recording_thread@ == thread@,
+        pipeline@.alive,
+        pipeline@.id == pipeline_id@,
     ensures
         is_recording(cb),
         cb.barrier_log@ == old(cb).barrier_log@,
@@ -348,16 +367,20 @@ pub fn cmd_bind_descriptor_set_exec(
 }
 
 /// Exec: bind a vertex buffer at a given slot.
+/// Caller must prove the buffer is alive and the id matches.
 pub fn cmd_bind_vertex_buffer_exec(
     cb: &mut RuntimeCommandBuffer,
     thread: Ghost<ThreadId>,
     slot: Ghost<nat>,
     buffer_id: Ghost<nat>,
+    buffer: Ghost<BufferState>,
 )
     requires
         is_recording(&*old(cb)),
         runtime_cb_wf(&*old(cb)),
         old(cb).recording_thread@ == thread@,
+        buffer@.alive,
+        buffer@.id == buffer_id@,
     ensures
         is_recording(cb),
         cb.barrier_log@ == old(cb).barrier_log@,
@@ -371,15 +394,19 @@ pub fn cmd_bind_vertex_buffer_exec(
 }
 
 /// Exec: bind an index buffer.
+/// Caller must prove the buffer is alive and the id matches.
 pub fn cmd_bind_index_buffer_exec(
     cb: &mut RuntimeCommandBuffer,
     thread: Ghost<ThreadId>,
     buffer_id: Ghost<nat>,
+    buffer: Ghost<BufferState>,
 )
     requires
         is_recording(&*old(cb)),
         runtime_cb_wf(&*old(cb)),
         old(cb).recording_thread@ == thread@,
+        buffer@.alive,
+        buffer@.id == buffer_id@,
     ensures
         is_recording(cb),
         cb.barrier_log@ == old(cb).barrier_log@,
@@ -715,11 +742,27 @@ pub fn cmd_copy_image_to_buffer_exec(
 {
 }
 
+/// Whether any uncompleted submission references this command buffer.
+pub open spec fn cb_has_pending_work(pending: Seq<SubmissionRecord>, cb_id: nat) -> bool {
+    exists|i: int| 0 <= i < pending.len()
+        && !pending[i].completed
+        && pending[i].command_buffers.contains(cb_id)
+}
+
+/// Whether no uncompleted submission references this command buffer.
+pub open spec fn cb_no_pending_work(pending: Seq<SubmissionRecord>, cb_id: nat) -> bool {
+    forall|i: int| #![trigger pending[i]]
+        0 <= i < pending.len()
+        ==> pending[i].completed
+            || !pending[i].command_buffers.contains(cb_id)
+}
+
 /// Exec: mark a command buffer as Pending after submission.
 /// Called by the user after submit_exec succeeds.
 /// Caller must prove access to the CB (typically via pool ownership after submit).
 pub fn mark_pending_exec(
     cb: &mut RuntimeCommandBuffer,
+    dev: &RuntimeDevice,
     thread: Ghost<ThreadId>,
     pool: Ghost<PoolOwnership>,
     reg: Ghost<TokenRegistry>,
@@ -727,6 +770,7 @@ pub fn mark_pending_exec(
     requires
         is_executable(&*old(cb)),
         can_access_child(pool@, old(cb).cb_id@, thread@, reg@),
+        cb_has_pending_work(dev@.pending_submissions, old(cb).cb_id@),
     ensures
         is_pending(cb),
         cb.barrier_log@ == old(cb).barrier_log@,
@@ -743,6 +787,7 @@ pub fn mark_pending_exec(
 /// Caller must prove access to the CB (typically re-acquired after GPU completion).
 pub fn complete_execution_exec(
     cb: &mut RuntimeCommandBuffer,
+    dev: &RuntimeDevice,
     thread: Ghost<ThreadId>,
     pool: Ghost<PoolOwnership>,
     reg: Ghost<TokenRegistry>,
@@ -750,6 +795,7 @@ pub fn complete_execution_exec(
     requires
         is_pending(&*old(cb)),
         can_access_child(pool@, old(cb).cb_id@, thread@, reg@),
+        cb_no_pending_work(dev@.pending_submissions, old(cb).cb_id@),
     ensures
         is_executable(cb),
         cb.barrier_log@ == old(cb).barrier_log@,

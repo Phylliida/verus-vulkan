@@ -2,6 +2,7 @@ use vstd::prelude::*;
 use crate::fence::*;
 use crate::lifetime::*;
 use crate::sync_token::*;
+use super::device::RuntimeDevice;
 
 verus! {
 
@@ -39,13 +40,13 @@ pub fn create_fence_exec(id: Ghost<nat>, signaled: bool) -> (out: RuntimeFence)
 /// Caller must prove exclusive access to the fence.
 pub fn reset_fence_exec(
     fence: &mut RuntimeFence,
-    pending_submissions: Ghost<Seq<SubmissionRecord>>,
+    dev: &RuntimeDevice,
     thread: Ghost<ThreadId>,
     reg: Ghost<TokenRegistry>,
 )
     requires
         runtime_fence_wf(&*old(fence)),
-        fence_not_pending(old(fence)@.id, pending_submissions@),
+        fence_not_pending(old(fence)@.id, dev@.pending_submissions),
         holds_exclusive(reg@, old(fence)@.id, thread@),
     ensures
         fence@ == reset_fence_ghost(old(fence)@),
@@ -75,13 +76,13 @@ pub fn wait_fence_exec(
 /// Caller must prove no pending submission references this fence and exclusive access.
 pub fn destroy_fence_exec(
     fence: &mut RuntimeFence,
-    pending_submissions: Ghost<Seq<SubmissionRecord>>,
+    dev: &RuntimeDevice,
     thread: Ghost<ThreadId>,
     reg: Ghost<TokenRegistry>,
 )
     requires
         runtime_fence_wf(&*old(fence)),
-        fence_not_pending(old(fence)@.id, pending_submissions@),
+        fence_not_pending(old(fence)@.id, dev@.pending_submissions),
         holds_exclusive(reg@, old(fence)@.id, thread@),
     ensures
         fence@ == destroy_fence_ghost(old(fence)@),

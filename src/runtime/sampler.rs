@@ -2,6 +2,7 @@ use vstd::prelude::*;
 use crate::lifetime::*;
 use crate::sampler::*;
 use crate::sync_token::*;
+use super::device::RuntimeDevice;
 
 verus! {
 
@@ -55,15 +56,15 @@ pub fn create_sampler_exec(
 /// Caller must prove exclusive access.
 pub fn destroy_sampler_exec(
     s: &mut RuntimeSampler,
-    pending_submissions: Ghost<Seq<SubmissionRecord>>,
+    dev: &RuntimeDevice,
     thread: Ghost<ThreadId>,
     reg: Ghost<TokenRegistry>,
 )
     requires
         runtime_sampler_wf(&*old(s)),
         // All pending submissions must be completed
-        forall|i: int| 0 <= i < pending_submissions@.len()
-            ==> (#[trigger] pending_submissions@[i]).completed,
+        forall|i: int| 0 <= i < dev@.pending_submissions.len()
+            ==> (#[trigger] dev@.pending_submissions[i]).completed,
         holds_exclusive(reg@, old(s)@.id, thread@),
     ensures
         s@ == destroy_sampler_ghost(old(s)@),

@@ -146,6 +146,13 @@ pub fn batch_transition_exec(
 )
     requires
         all_transitions_valid(transitions@),
+        // Each transition's resource must be tracked (in the state after prior transitions)
+        // and old_layout must match (or be Undefined for "don't care")
+        forall|i: int| #![trigger transitions@[i]]
+            0 <= i < transitions@.len() ==>
+                apply_transitions(old(tracker)@, transitions@.subrange(0, i)).contains_key(transitions@[i].resource)
+                && (transitions@[i].old_layout == ImageLayout::Undefined
+                    || transitions@[i].old_layout == apply_transitions(old(tracker)@, transitions@.subrange(0, i))[transitions@[i].resource]),
     ensures
         tracker@ == apply_transitions(old(tracker)@, transitions@),
 {

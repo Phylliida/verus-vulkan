@@ -179,26 +179,6 @@ pub fn complete_signal_exec(
     sem.state = Ghost(complete_signal(sem.state@, value as nat));
 }
 
-/// Exec: wait for multiple timeline semaphores (ghost-level batch wait).
-/// Caller must prove all semaphores are well-formed.
-pub fn wait_multiple_exec(
-    sems: Ghost<Seq<TimelineSemaphoreState>>,
-    values: Ghost<Seq<nat>>,
-) -> (result: Ghost<bool>)
-    requires
-        sems@.len() == values@.len(),
-        forall|i: int| 0 <= i < sems@.len()
-            ==> timeline_well_formed(#[trigger] sems@[i]),
-    ensures
-        result@ ==> forall|i: int| 0 <= i < sems@.len()
-            ==> wait_satisfied(#[trigger] sems@[i], values@[i]),
-{
-    Ghost(
-        forall|i: int| 0 <= i < sems@.len()
-            ==> wait_satisfied(#[trigger] sems@[i], values@[i])
-    )
-}
-
 // ── Proofs ──────────────────────────────────────────────────────────────
 
 /// Created timeline semaphore is well-formed.
