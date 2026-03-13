@@ -669,6 +669,207 @@ fn raw_cmd_push_constants(ctx: &VulkanContext, cb: u64, layout: u64, stages: u32
     }
 }
 
+// ── Dynamic state helpers ────────────────────────────────────────────────
+
+fn raw_cmd_set_line_width(ctx: &VulkanContext, cb: u64, line_width: f32) {
+    unsafe { ctx.device.cmd_set_line_width(vk::CommandBuffer::from_raw(cb), line_width) }
+}
+
+fn raw_cmd_set_depth_bias(ctx: &VulkanContext, cb: u64, constant_factor: f32, clamp: f32, slope_factor: f32) {
+    unsafe { ctx.device.cmd_set_depth_bias(vk::CommandBuffer::from_raw(cb), constant_factor, clamp, slope_factor) }
+}
+
+fn raw_cmd_set_blend_constants(ctx: &VulkanContext, cb: u64, constants: [f32; 4]) {
+    unsafe { ctx.device.cmd_set_blend_constants(vk::CommandBuffer::from_raw(cb), &constants) }
+}
+
+fn raw_cmd_set_depth_bounds(ctx: &VulkanContext, cb: u64, min: f32, max: f32) {
+    unsafe { ctx.device.cmd_set_depth_bounds(vk::CommandBuffer::from_raw(cb), min, max) }
+}
+
+fn raw_cmd_set_stencil_compare_mask(ctx: &VulkanContext, cb: u64, face_mask: u32, compare_mask: u32) {
+    unsafe {
+        ctx.device.cmd_set_stencil_compare_mask(
+            vk::CommandBuffer::from_raw(cb),
+            vk::StencilFaceFlags::from_raw(face_mask),
+            compare_mask,
+        );
+    }
+}
+
+fn raw_cmd_set_stencil_write_mask(ctx: &VulkanContext, cb: u64, face_mask: u32, write_mask: u32) {
+    unsafe {
+        ctx.device.cmd_set_stencil_write_mask(
+            vk::CommandBuffer::from_raw(cb),
+            vk::StencilFaceFlags::from_raw(face_mask),
+            write_mask,
+        );
+    }
+}
+
+fn raw_cmd_set_stencil_reference(ctx: &VulkanContext, cb: u64, face_mask: u32, reference: u32) {
+    unsafe {
+        ctx.device.cmd_set_stencil_reference(
+            vk::CommandBuffer::from_raw(cb),
+            vk::StencilFaceFlags::from_raw(face_mask),
+            reference,
+        );
+    }
+}
+
+// ── Buffer operations helpers ───────────────────────────────────────────
+
+fn raw_cmd_fill_buffer(ctx: &VulkanContext, cb: u64, buffer: u64, offset: u64, size: u64, data: u32) {
+    unsafe {
+        ctx.device.cmd_fill_buffer(
+            vk::CommandBuffer::from_raw(cb),
+            vk::Buffer::from_raw(buffer),
+            offset,
+            size,
+            data,
+        );
+    }
+}
+
+fn raw_cmd_update_buffer(ctx: &VulkanContext, cb: u64, buffer: u64, offset: u64, data: &[u8]) {
+    unsafe {
+        ctx.device.cmd_update_buffer(
+            vk::CommandBuffer::from_raw(cb),
+            vk::Buffer::from_raw(buffer),
+            offset,
+            data,
+        );
+    }
+}
+
+// ── Image clear & resolve helpers ───────────────────────────────────────
+
+fn raw_cmd_clear_color_image(ctx: &VulkanContext, cb: u64, image: u64, layout: u32) {
+    let clear = vk::ClearColorValue { float32: [0.0, 0.0, 0.0, 0.0] };
+    let range = vk::ImageSubresourceRange {
+        aspect_mask: vk::ImageAspectFlags::COLOR,
+        base_mip_level: 0,
+        level_count: vk::REMAINING_MIP_LEVELS,
+        base_array_layer: 0,
+        layer_count: vk::REMAINING_ARRAY_LAYERS,
+    };
+    unsafe {
+        ctx.device.cmd_clear_color_image(
+            vk::CommandBuffer::from_raw(cb),
+            vk::Image::from_raw(image),
+            vk::ImageLayout::from_raw(layout as i32),
+            &clear,
+            &[range],
+        );
+    }
+}
+
+fn raw_cmd_clear_depth_stencil_image(ctx: &VulkanContext, cb: u64, image: u64, layout: u32) {
+    let clear = vk::ClearDepthStencilValue { depth: 1.0, stencil: 0 };
+    let range = vk::ImageSubresourceRange {
+        aspect_mask: vk::ImageAspectFlags::DEPTH | vk::ImageAspectFlags::STENCIL,
+        base_mip_level: 0,
+        level_count: vk::REMAINING_MIP_LEVELS,
+        base_array_layer: 0,
+        layer_count: vk::REMAINING_ARRAY_LAYERS,
+    };
+    unsafe {
+        ctx.device.cmd_clear_depth_stencil_image(
+            vk::CommandBuffer::from_raw(cb),
+            vk::Image::from_raw(image),
+            vk::ImageLayout::from_raw(layout as i32),
+            &clear,
+            &[range],
+        );
+    }
+}
+
+fn raw_cmd_clear_attachments(ctx: &VulkanContext, cb: u64) {
+    // Ghost-only: caller specifies attachments externally.
+    // Minimal stub — real usage would take attachment/rect params.
+    let attachment = vk::ClearAttachment {
+        aspect_mask: vk::ImageAspectFlags::COLOR,
+        color_attachment: 0,
+        clear_value: vk::ClearValue {
+            color: vk::ClearColorValue { float32: [0.0, 0.0, 0.0, 0.0] },
+        },
+    };
+    let rect = vk::ClearRect {
+        rect: vk::Rect2D { offset: vk::Offset2D { x: 0, y: 0 }, extent: vk::Extent2D { width: 1, height: 1 } },
+        base_array_layer: 0,
+        layer_count: 1,
+    };
+    unsafe { ctx.device.cmd_clear_attachments(vk::CommandBuffer::from_raw(cb), &[attachment], &[rect]) }
+}
+
+fn raw_cmd_resolve_image(ctx: &VulkanContext, cb: u64, src: u64, dst: u64, width: u32, height: u32) {
+    let region = vk::ImageResolve {
+        src_subresource: vk::ImageSubresourceLayers {
+            aspect_mask: vk::ImageAspectFlags::COLOR,
+            mip_level: 0, base_array_layer: 0, layer_count: 1,
+        },
+        src_offset: vk::Offset3D { x: 0, y: 0, z: 0 },
+        dst_subresource: vk::ImageSubresourceLayers {
+            aspect_mask: vk::ImageAspectFlags::COLOR,
+            mip_level: 0, base_array_layer: 0, layer_count: 1,
+        },
+        dst_offset: vk::Offset3D { x: 0, y: 0, z: 0 },
+        extent: vk::Extent3D { width, height, depth: 1 },
+    };
+    unsafe {
+        ctx.device.cmd_resolve_image(
+            vk::CommandBuffer::from_raw(cb),
+            vk::Image::from_raw(src), vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
+            vk::Image::from_raw(dst), vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+            &[region],
+        );
+    }
+}
+
+// ── Query command helpers ───────────────────────────────────────────────
+
+fn raw_cmd_write_timestamp(ctx: &VulkanContext, cb: u64, stage: u32, pool: u64, query: u32) {
+    unsafe {
+        ctx.device.cmd_write_timestamp(
+            vk::CommandBuffer::from_raw(cb),
+            vk::PipelineStageFlags::from_raw(stage),
+            vk::QueryPool::from_raw(pool),
+            query,
+        );
+    }
+}
+
+fn raw_cmd_copy_query_pool_results(ctx: &VulkanContext, cb: u64, pool: u64, first: u32, count: u32, dst: u64, offset: u64, stride: u64, flags: u32) {
+    unsafe {
+        ctx.device.cmd_copy_query_pool_results(
+            vk::CommandBuffer::from_raw(cb),
+            vk::QueryPool::from_raw(pool),
+            first,
+            count,
+            vk::Buffer::from_raw(dst),
+            offset,
+            stride,
+            vk::QueryResultFlags::from_raw(flags),
+        );
+    }
+}
+
+// ── Sync helpers ────────────────────────────────────────────────────────
+
+fn raw_cmd_wait_events(ctx: &VulkanContext, cb: u64, event: u64, src_stage: u32, dst_stage: u32) {
+    unsafe {
+        ctx.device.cmd_wait_events(
+            vk::CommandBuffer::from_raw(cb),
+            &[vk::Event::from_raw(event)],
+            vk::PipelineStageFlags::from_raw(src_stage),
+            vk::PipelineStageFlags::from_raw(dst_stage),
+            &[],
+            &[],
+            &[],
+        );
+    }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Verified FFI layer — inside verus!
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1826,6 +2027,175 @@ pub(crate) fn ffi_cmd_build_acceleration_structure(ctx: &VulkanContext, cb_handl
 #[verifier::external_body]
 pub(crate) fn ffi_cmd_compact_acceleration_structure(ctx: &VulkanContext, cb_handle: u64) {
     // No raw_* exists — ghost-only stub.
+}
+
+// ── Dynamic state command bridges ───────────────────────────────────
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_set_line_width(ctx: &VulkanContext, cb_handle: u64, line_width: f32) {
+    raw_cmd_set_line_width(ctx, cb_handle, line_width);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_set_depth_bias(ctx: &VulkanContext, cb_handle: u64, constant_factor: f32, clamp: f32, slope_factor: f32) {
+    raw_cmd_set_depth_bias(ctx, cb_handle, constant_factor, clamp, slope_factor);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_set_blend_constants(ctx: &VulkanContext, cb_handle: u64, c0: f32, c1: f32, c2: f32, c3: f32) {
+    raw_cmd_set_blend_constants(ctx, cb_handle, [c0, c1, c2, c3]);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_set_depth_bounds(ctx: &VulkanContext, cb_handle: u64, min: f32, max: f32) {
+    raw_cmd_set_depth_bounds(ctx, cb_handle, min, max);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_set_stencil_compare_mask(ctx: &VulkanContext, cb_handle: u64, face_mask: u32, compare_mask: u32) {
+    raw_cmd_set_stencil_compare_mask(ctx, cb_handle, face_mask, compare_mask);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_set_stencil_write_mask(ctx: &VulkanContext, cb_handle: u64, face_mask: u32, write_mask: u32) {
+    raw_cmd_set_stencil_write_mask(ctx, cb_handle, face_mask, write_mask);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_set_stencil_reference(ctx: &VulkanContext, cb_handle: u64, face_mask: u32, reference: u32) {
+    raw_cmd_set_stencil_reference(ctx, cb_handle, face_mask, reference);
+}
+
+// ── Buffer operation command bridges ────────────────────────────────
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_fill_buffer(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64, size: u64, data: u32) {
+    raw_cmd_fill_buffer(ctx, cb_handle, buffer, offset, size, data);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_update_buffer(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64, data: &[u8]) {
+    raw_cmd_update_buffer(ctx, cb_handle, buffer, offset, data);
+}
+
+// ── Image clear & resolve command bridges ───────────────────────────
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_clear_color_image(ctx: &VulkanContext, cb_handle: u64, image: u64, layout: u32) {
+    raw_cmd_clear_color_image(ctx, cb_handle, image, layout);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_clear_depth_stencil_image(ctx: &VulkanContext, cb_handle: u64, image: u64, layout: u32) {
+    raw_cmd_clear_depth_stencil_image(ctx, cb_handle, image, layout);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_clear_attachments(ctx: &VulkanContext, cb_handle: u64) {
+    raw_cmd_clear_attachments(ctx, cb_handle);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_resolve_image(ctx: &VulkanContext, cb_handle: u64, src: u64, dst: u64, width: u32, height: u32) {
+    raw_cmd_resolve_image(ctx, cb_handle, src, dst, width, height);
+}
+
+// ── Query command bridges ───────────────────────────────────────────
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_write_timestamp(ctx: &VulkanContext, cb_handle: u64, stage: u32, pool_handle: u64, query: u32) {
+    raw_cmd_write_timestamp(ctx, cb_handle, stage, pool_handle, query);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_copy_query_pool_results(ctx: &VulkanContext, cb_handle: u64, pool_handle: u64, first: u32, count: u32, dst: u64, offset: u64, stride: u64, flags: u32) {
+    raw_cmd_copy_query_pool_results(ctx, cb_handle, pool_handle, first, count, dst, offset, stride, flags);
+}
+
+// ── Sync command bridges ────────────────────────────────────────────
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_wait_events(ctx: &VulkanContext, cb_handle: u64, event_handle: u64, src_stage: u32, dst_stage: u32) {
+    raw_cmd_wait_events(ctx, cb_handle, event_handle, src_stage, dst_stage);
+}
+
+// ── Indirect count command bridges (ghost stubs — needs VK 1.2) ─────
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_draw_indirect_count(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64, count_buffer: u64, count_offset: u64, max_draw_count: u32, stride: u32) {
+    // Ghost stub — VulkanContext lacks khr::draw_indirect_count::Device.
+    // The verified wrapper enforces all preconditions at the spec level.
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_draw_indexed_indirect_count(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64, count_buffer: u64, count_offset: u64, max_draw_count: u32, stride: u32) {
+    // Ghost stub.
+}
+
+// ── Ray tracing command bridges (ghost stubs) ───────────────────────
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_trace_rays(ctx: &VulkanContext, cb_handle: u64) {
+    // Ghost stub — VulkanContext lacks khr::ray_tracing_pipeline::Device.
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_trace_rays_indirect(ctx: &VulkanContext, cb_handle: u64, buffer: u64) {
+    // Ghost stub.
+}
+
+// ── Debug utils command bridges (ghost stubs) ───────────────────────
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_begin_debug_utils_label(ctx: &VulkanContext, cb_handle: u64) {
+    // Ghost stub — needs ext::debug_utils::Instance.
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_end_debug_utils_label(ctx: &VulkanContext, cb_handle: u64) {
+    // Ghost stub.
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_insert_debug_utils_label(ctx: &VulkanContext, cb_handle: u64) {
+    // Ghost stub.
+}
+
+// ── Extension command bridges (ghost stubs) ─────────────────────────
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_dispatch_base(ctx: &VulkanContext, cb_handle: u64, bx: u32, by: u32, bz: u32, gx: u32, gy: u32, gz: u32) {
+    // Ghost stub — Vulkan 1.1.
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_draw_mesh_tasks(ctx: &VulkanContext, cb_handle: u64, gx: u32, gy: u32, gz: u32) {
+    // Ghost stub — VK_EXT_mesh_shader.
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_draw_mesh_tasks_indirect(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64, draw_count: u32, stride: u32) {
+    // Ghost stub.
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_draw_mesh_tasks_indirect_count(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64, count_buffer: u64, count_offset: u64, max_draw_count: u32, stride: u32) {
+    // Ghost stub.
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_begin_transform_feedback(ctx: &VulkanContext, cb_handle: u64) {
+    // Ghost stub — VK_EXT_transform_feedback.
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_end_transform_feedback(ctx: &VulkanContext, cb_handle: u64) {
+    // Ghost stub.
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_pipeline_barrier2(ctx: &VulkanContext, cb_handle: u64) {
+    // Ghost stub — Vulkan 1.3 vkCmdPipelineBarrier2.
 }
 
 } // verus!
