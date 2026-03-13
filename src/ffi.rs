@@ -209,6 +209,116 @@ fn raw_cmd_bind_descriptor_sets(ctx: &VulkanContext, cb: u64, bp: u32, layout: u
     }
 }
 
+fn raw_cmd_draw_indexed(ctx: &VulkanContext, cb: u64, ic: u32, inst_c: u32, fi: u32, vo: i32, f_inst: u32) {
+    unsafe { ctx.device.cmd_draw_indexed(vk::CommandBuffer::from_raw(cb), ic, inst_c, fi, vo, f_inst) }
+}
+
+fn raw_cmd_next_subpass(ctx: &VulkanContext, cb: u64) {
+    unsafe { ctx.device.cmd_next_subpass(vk::CommandBuffer::from_raw(cb), vk::SubpassContents::INLINE) }
+}
+
+fn raw_cmd_copy_buffer(ctx: &VulkanContext, cb: u64, src: u64, dst: u64, size: u64) {
+    let region = vk::BufferCopy { src_offset: 0, dst_offset: 0, size };
+    unsafe {
+        ctx.device.cmd_copy_buffer(
+            vk::CommandBuffer::from_raw(cb),
+            vk::Buffer::from_raw(src), vk::Buffer::from_raw(dst), &[region],
+        );
+    }
+}
+
+fn raw_cmd_copy_image(ctx: &VulkanContext, cb: u64, src: u64, dst: u64, width: u32, height: u32) {
+    let region = vk::ImageCopy {
+        src_subresource: vk::ImageSubresourceLayers { aspect_mask: vk::ImageAspectFlags::COLOR, mip_level: 0, base_array_layer: 0, layer_count: 1 },
+        src_offset: vk::Offset3D { x: 0, y: 0, z: 0 },
+        dst_subresource: vk::ImageSubresourceLayers { aspect_mask: vk::ImageAspectFlags::COLOR, mip_level: 0, base_array_layer: 0, layer_count: 1 },
+        dst_offset: vk::Offset3D { x: 0, y: 0, z: 0 },
+        extent: vk::Extent3D { width, height, depth: 1 },
+    };
+    unsafe {
+        ctx.device.cmd_copy_image(
+            vk::CommandBuffer::from_raw(cb),
+            vk::Image::from_raw(src), vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
+            vk::Image::from_raw(dst), vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+            &[region],
+        );
+    }
+}
+
+fn raw_cmd_blit_image(ctx: &VulkanContext, cb: u64, src: u64, dst: u64, width: u32, height: u32) {
+    let region = vk::ImageBlit {
+        src_subresource: vk::ImageSubresourceLayers { aspect_mask: vk::ImageAspectFlags::COLOR, mip_level: 0, base_array_layer: 0, layer_count: 1 },
+        src_offsets: [
+            vk::Offset3D { x: 0, y: 0, z: 0 },
+            vk::Offset3D { x: width as i32, y: height as i32, z: 1 },
+        ],
+        dst_subresource: vk::ImageSubresourceLayers { aspect_mask: vk::ImageAspectFlags::COLOR, mip_level: 0, base_array_layer: 0, layer_count: 1 },
+        dst_offsets: [
+            vk::Offset3D { x: 0, y: 0, z: 0 },
+            vk::Offset3D { x: width as i32, y: height as i32, z: 1 },
+        ],
+    };
+    unsafe {
+        ctx.device.cmd_blit_image(
+            vk::CommandBuffer::from_raw(cb),
+            vk::Image::from_raw(src), vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
+            vk::Image::from_raw(dst), vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+            &[region], vk::Filter::NEAREST,
+        );
+    }
+}
+
+fn raw_cmd_copy_buffer_to_image(ctx: &VulkanContext, cb: u64, src_buf: u64, dst_img: u64, width: u32, height: u32) {
+    let region = vk::BufferImageCopy {
+        buffer_offset: 0, buffer_row_length: 0, buffer_image_height: 0,
+        image_subresource: vk::ImageSubresourceLayers { aspect_mask: vk::ImageAspectFlags::COLOR, mip_level: 0, base_array_layer: 0, layer_count: 1 },
+        image_offset: vk::Offset3D { x: 0, y: 0, z: 0 },
+        image_extent: vk::Extent3D { width, height, depth: 1 },
+    };
+    unsafe {
+        ctx.device.cmd_copy_buffer_to_image(
+            vk::CommandBuffer::from_raw(cb),
+            vk::Buffer::from_raw(src_buf), vk::Image::from_raw(dst_img),
+            vk::ImageLayout::TRANSFER_DST_OPTIMAL, &[region],
+        );
+    }
+}
+
+fn raw_cmd_copy_image_to_buffer(ctx: &VulkanContext, cb: u64, src_img: u64, dst_buf: u64, width: u32, height: u32) {
+    let region = vk::BufferImageCopy {
+        buffer_offset: 0, buffer_row_length: 0, buffer_image_height: 0,
+        image_subresource: vk::ImageSubresourceLayers { aspect_mask: vk::ImageAspectFlags::COLOR, mip_level: 0, base_array_layer: 0, layer_count: 1 },
+        image_offset: vk::Offset3D { x: 0, y: 0, z: 0 },
+        image_extent: vk::Extent3D { width, height, depth: 1 },
+    };
+    unsafe {
+        ctx.device.cmd_copy_image_to_buffer(
+            vk::CommandBuffer::from_raw(cb),
+            vk::Image::from_raw(src_img), vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
+            vk::Buffer::from_raw(dst_buf), &[region],
+        );
+    }
+}
+
+fn raw_cmd_bind_vertex_buffers(ctx: &VulkanContext, cb: u64, first_binding: u32, buffer: u64, offset: u64) {
+    unsafe {
+        ctx.device.cmd_bind_vertex_buffers(
+            vk::CommandBuffer::from_raw(cb), first_binding,
+            &[vk::Buffer::from_raw(buffer)], &[offset],
+        );
+    }
+}
+
+fn raw_cmd_bind_index_buffer(ctx: &VulkanContext, cb: u64, buffer: u64, offset: u64, index_type: u32) {
+    let it = if index_type == 0 { vk::IndexType::UINT16 } else { vk::IndexType::UINT32 };
+    unsafe {
+        ctx.device.cmd_bind_index_buffer(
+            vk::CommandBuffer::from_raw(cb),
+            vk::Buffer::from_raw(buffer), offset, it,
+        );
+    }
+}
+
 // ── Sync helpers ────────────────────────────────────────────────────────
 
 fn raw_create_fence(ctx: &VulkanContext, signaled: bool) -> u64 {
@@ -468,6 +578,66 @@ fn raw_cmd_reset_event(ctx: &VulkanContext, cb: u64, event: u64, stages: u32) {
             vk::CommandBuffer::from_raw(cb),
             vk::Event::from_raw(event),
             vk::PipelineStageFlags::from_raw(stages),
+        );
+    }
+}
+
+// ── Indirect + Dynamic Rendering helpers ────────────────────────────────
+
+fn raw_cmd_draw_indirect(ctx: &VulkanContext, cb: u64, buffer: u64, offset: u64, draw_count: u32, stride: u32) {
+    unsafe {
+        ctx.device.cmd_draw_indirect(
+            vk::CommandBuffer::from_raw(cb),
+            vk::Buffer::from_raw(buffer),
+            offset,
+            draw_count,
+            stride,
+        );
+    }
+}
+
+fn raw_cmd_draw_indexed_indirect(ctx: &VulkanContext, cb: u64, buffer: u64, offset: u64, draw_count: u32, stride: u32) {
+    unsafe {
+        ctx.device.cmd_draw_indexed_indirect(
+            vk::CommandBuffer::from_raw(cb),
+            vk::Buffer::from_raw(buffer),
+            offset,
+            draw_count,
+            stride,
+        );
+    }
+}
+
+fn raw_cmd_dispatch_indirect(ctx: &VulkanContext, cb: u64, buffer: u64, offset: u64) {
+    unsafe {
+        ctx.device.cmd_dispatch_indirect(
+            vk::CommandBuffer::from_raw(cb),
+            vk::Buffer::from_raw(buffer),
+            offset,
+        );
+    }
+}
+
+fn raw_cmd_begin_rendering(ctx: &VulkanContext, cb: u64, width: u32, height: u32, layer_count: u32) {
+    // Uses VK_KHR_dynamic_rendering (core in Vulkan 1.3)
+    let rendering_info = vk::RenderingInfo::default()
+        .render_area(vk::Rect2D {
+            offset: vk::Offset2D { x: 0, y: 0 },
+            extent: vk::Extent2D { width, height },
+        })
+        .layer_count(layer_count);
+    unsafe {
+        ctx.device.cmd_begin_rendering(
+            vk::CommandBuffer::from_raw(cb),
+            &rendering_info,
+        );
+    }
+}
+
+fn raw_cmd_end_rendering(ctx: &VulkanContext, cb: u64) {
+    unsafe {
+        ctx.device.cmd_end_rendering(
+            vk::CommandBuffer::from_raw(cb),
         );
     }
 }
@@ -1374,6 +1544,200 @@ pub fn vk_destroy_ray_tracing_pipeline(
     // Reuses raw_destroy_pipeline since VkPipeline is the same handle type
     raw_destroy_pipeline(ctx, pipe.handle);
     pipe.state = Ghost(destroy_rt_pipeline_ghost(pipe.state@));
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Indirect + Dynamic Rendering
+// ═══════════════════════════════════════════════════════════════════════
+
+/// FFI: indirect draw.
+#[verifier::external_body]
+pub fn vk_cmd_draw_indirect(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    buffer_handle: u64,
+    offset: u64,
+    draw_count: u32,
+    stride: u32,
+)
+    requires old(cb).in_render_pass@,
+{
+    raw_cmd_draw_indirect(ctx, cb.handle, buffer_handle, offset, draw_count, stride);
+}
+
+/// FFI: indirect indexed draw.
+#[verifier::external_body]
+pub fn vk_cmd_draw_indexed_indirect(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    buffer_handle: u64,
+    offset: u64,
+    draw_count: u32,
+    stride: u32,
+)
+    requires old(cb).in_render_pass@,
+{
+    raw_cmd_draw_indexed_indirect(ctx, cb.handle, buffer_handle, offset, draw_count, stride);
+}
+
+/// FFI: indirect dispatch.
+#[verifier::external_body]
+pub fn vk_cmd_dispatch_indirect(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    buffer_handle: u64,
+    offset: u64,
+)
+    requires !old(cb).in_render_pass@,
+{
+    raw_cmd_dispatch_indirect(ctx, cb.handle, buffer_handle, offset);
+}
+
+/// FFI: begin dynamic rendering (VK_KHR_dynamic_rendering / Vulkan 1.3).
+#[verifier::external_body]
+pub fn vk_cmd_begin_rendering(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    width: u32,
+    height: u32,
+    layer_count: u32,
+)
+    requires !old(cb).in_render_pass@,
+    ensures cb.in_render_pass@ == true,
+{
+    raw_cmd_begin_rendering(ctx, cb.handle, width, height, layer_count);
+}
+
+/// FFI: end dynamic rendering.
+#[verifier::external_body]
+pub fn vk_cmd_end_rendering(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+)
+    requires old(cb).in_render_pass@,
+    ensures cb.in_render_pass@ == false,
+{
+    raw_cmd_end_rendering(ctx, cb.handle);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Minimal FFI bridges — u64 handles only, no ghost state
+// Called by the verified exec layer in command_buffer.rs
+// ═══════════════════════════════════════════════════════════════════════
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_draw(ctx: &VulkanContext, cb_handle: u64, vc: u32, ic: u32, fv: u32, fi: u32) {
+    raw_cmd_draw(ctx, cb_handle, vc, ic, fv, fi);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_draw_indexed(ctx: &VulkanContext, cb_handle: u64, ic: u32, inst_c: u32, fi: u32, vo: i32, f_inst: u32) {
+    raw_cmd_draw_indexed(ctx, cb_handle, ic, inst_c, fi, vo, f_inst);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_dispatch(ctx: &VulkanContext, cb_handle: u64, gx: u32, gy: u32, gz: u32) {
+    raw_cmd_dispatch(ctx, cb_handle, gx, gy, gz);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_pipeline_barrier(ctx: &VulkanContext, cb_handle: u64, src: u32, dst: u32) {
+    raw_cmd_pipeline_barrier(ctx, cb_handle, src, dst);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_bind_pipeline(ctx: &VulkanContext, cb_handle: u64, bp: u32, pipe: u64) {
+    raw_cmd_bind_pipeline(ctx, cb_handle, bp, pipe);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_begin_render_pass(ctx: &VulkanContext, cb_handle: u64, rp: u64, fb: u64, w: u32, h: u32) {
+    raw_cmd_begin_render_pass(ctx, cb_handle, rp, fb, w, h);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_end_render_pass(ctx: &VulkanContext, cb_handle: u64) {
+    raw_cmd_end_render_pass(ctx, cb_handle);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_next_subpass(ctx: &VulkanContext, cb_handle: u64) {
+    raw_cmd_next_subpass(ctx, cb_handle);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_copy_buffer(ctx: &VulkanContext, cb_handle: u64, src: u64, dst: u64, size: u64) {
+    raw_cmd_copy_buffer(ctx, cb_handle, src, dst, size);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_copy_image(ctx: &VulkanContext, cb_handle: u64, src: u64, dst: u64, width: u32, height: u32) {
+    raw_cmd_copy_image(ctx, cb_handle, src, dst, width, height);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_blit_image(ctx: &VulkanContext, cb_handle: u64, src: u64, dst: u64, width: u32, height: u32) {
+    raw_cmd_blit_image(ctx, cb_handle, src, dst, width, height);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_copy_buffer_to_image(ctx: &VulkanContext, cb_handle: u64, src_buf: u64, dst_img: u64, width: u32, height: u32) {
+    raw_cmd_copy_buffer_to_image(ctx, cb_handle, src_buf, dst_img, width, height);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_copy_image_to_buffer(ctx: &VulkanContext, cb_handle: u64, src_img: u64, dst_buf: u64, width: u32, height: u32) {
+    raw_cmd_copy_image_to_buffer(ctx, cb_handle, src_img, dst_buf, width, height);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_draw_indirect(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64, draw_count: u32, stride: u32) {
+    raw_cmd_draw_indirect(ctx, cb_handle, buffer, offset, draw_count, stride);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_draw_indexed_indirect(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64, draw_count: u32, stride: u32) {
+    raw_cmd_draw_indexed_indirect(ctx, cb_handle, buffer, offset, draw_count, stride);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_dispatch_indirect(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64) {
+    raw_cmd_dispatch_indirect(ctx, cb_handle, buffer, offset);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_begin_rendering(ctx: &VulkanContext, cb_handle: u64, width: u32, height: u32, layer_count: u32) {
+    raw_cmd_begin_rendering(ctx, cb_handle, width, height, layer_count);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_end_rendering(ctx: &VulkanContext, cb_handle: u64) {
+    raw_cmd_end_rendering(ctx, cb_handle);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_bind_vertex_buffers(ctx: &VulkanContext, cb_handle: u64, first_binding: u32, buffer: u64, offset: u64) {
+    raw_cmd_bind_vertex_buffers(ctx, cb_handle, first_binding, buffer, offset);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_bind_index_buffer(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64, index_type: u32) {
+    raw_cmd_bind_index_buffer(ctx, cb_handle, buffer, offset, index_type);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_begin_command_buffer(ctx: &VulkanContext, cb_handle: u64) {
+    raw_begin_command_buffer(ctx, cb_handle);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_end_command_buffer(ctx: &VulkanContext, cb_handle: u64) {
+    raw_end_command_buffer(ctx, cb_handle);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_bind_descriptor_sets(ctx: &VulkanContext, cb_handle: u64, bp: u32, layout: u64, first: u32, sets: &[u64]) {
+    raw_cmd_bind_descriptor_sets(ctx, cb_handle, bp, layout, first, sets);
 }
 
 } // verus!

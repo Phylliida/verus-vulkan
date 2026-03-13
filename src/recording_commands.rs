@@ -7,6 +7,7 @@ use crate::flags::*;
 use crate::sync::*;
 use crate::sync_proofs::*;
 use crate::stage_access::*;
+use crate::dynamic_rendering::*;
 
 verus! {
 
@@ -18,6 +19,15 @@ pub enum RecordedCommand {
     DrawIndexed,
     Dispatch { group_count_x: nat, group_count_y: nat, group_count_z: nat },
     CopyBuffer { src_buffer: nat, dst_buffer: nat },
+    CopyImage { src_image: nat, dst_image: nat },
+    BlitImage { src_image: nat, dst_image: nat },
+    CopyBufferToImage { src_buffer: nat, dst_image: nat },
+    CopyImageToBuffer { src_image: nat, dst_buffer: nat },
+    DrawIndirect { buffer: nat, offset: nat, draw_count: nat },
+    DrawIndexedIndirect { buffer: nat, offset: nat, draw_count: nat },
+    DispatchIndirect { buffer: nat, offset: nat },
+    BeginRendering { info: DynamicRenderingInfo },
+    EndRendering,
     BindGraphicsPipeline { pipeline_id: nat },
     BindComputePipeline { pipeline_id: nat },
     BindDescriptorSet { set_index: nat, set_id: nat },
@@ -103,6 +113,142 @@ pub open spec fn record_copy_buffer(
     }
 }
 
+/// Record a copy-image command: append to the log and add both resource ids.
+pub open spec fn record_copy_image(
+    ctx: RecordingContext,
+    src: nat,
+    dst: nat,
+    src_res: ResourceId,
+    dst_res: ResourceId,
+) -> RecordingContext {
+    RecordingContext {
+        state: ctx.state,
+        referenced_resources: ctx.referenced_resources.insert(src_res).insert(dst_res),
+        command_log: ctx.command_log.push(RecordedCommand::CopyImage { src_image: src, dst_image: dst }),
+        barrier_log: ctx.barrier_log,
+    }
+}
+
+/// Record a blit-image command: append to the log and add both resource ids.
+pub open spec fn record_blit_image(
+    ctx: RecordingContext,
+    src: nat,
+    dst: nat,
+    src_res: ResourceId,
+    dst_res: ResourceId,
+) -> RecordingContext {
+    RecordingContext {
+        state: ctx.state,
+        referenced_resources: ctx.referenced_resources.insert(src_res).insert(dst_res),
+        command_log: ctx.command_log.push(RecordedCommand::BlitImage { src_image: src, dst_image: dst }),
+        barrier_log: ctx.barrier_log,
+    }
+}
+
+/// Record a buffer-to-image copy: append to the log and add both resource ids.
+pub open spec fn record_copy_buffer_to_image(
+    ctx: RecordingContext,
+    src_buffer: nat,
+    dst_image: nat,
+    src_res: ResourceId,
+    dst_res: ResourceId,
+) -> RecordingContext {
+    RecordingContext {
+        state: ctx.state,
+        referenced_resources: ctx.referenced_resources.insert(src_res).insert(dst_res),
+        command_log: ctx.command_log.push(RecordedCommand::CopyBufferToImage { src_buffer, dst_image }),
+        barrier_log: ctx.barrier_log,
+    }
+}
+
+/// Record an image-to-buffer copy: append to the log and add both resource ids.
+pub open spec fn record_copy_image_to_buffer(
+    ctx: RecordingContext,
+    src_image: nat,
+    dst_buffer: nat,
+    src_res: ResourceId,
+    dst_res: ResourceId,
+) -> RecordingContext {
+    RecordingContext {
+        state: ctx.state,
+        referenced_resources: ctx.referenced_resources.insert(src_res).insert(dst_res),
+        command_log: ctx.command_log.push(RecordedCommand::CopyImageToBuffer { src_image, dst_buffer }),
+        barrier_log: ctx.barrier_log,
+    }
+}
+
+/// Record an indirect draw command: append to the log and accumulate resources.
+pub open spec fn record_draw_indirect(
+    ctx: RecordingContext,
+    buffer: nat,
+    offset: nat,
+    draw_count: nat,
+    resources: Set<ResourceId>,
+) -> RecordingContext {
+    RecordingContext {
+        state: ctx.state,
+        referenced_resources: ctx.referenced_resources.union(resources),
+        command_log: ctx.command_log.push(RecordedCommand::DrawIndirect { buffer, offset, draw_count }),
+        barrier_log: ctx.barrier_log,
+    }
+}
+
+/// Record an indirect indexed draw command: append to the log and accumulate resources.
+pub open spec fn record_draw_indexed_indirect(
+    ctx: RecordingContext,
+    buffer: nat,
+    offset: nat,
+    draw_count: nat,
+    resources: Set<ResourceId>,
+) -> RecordingContext {
+    RecordingContext {
+        state: ctx.state,
+        referenced_resources: ctx.referenced_resources.union(resources),
+        command_log: ctx.command_log.push(RecordedCommand::DrawIndexedIndirect { buffer, offset, draw_count }),
+        barrier_log: ctx.barrier_log,
+    }
+}
+
+/// Record an indirect dispatch command: append to the log and accumulate resources.
+pub open spec fn record_dispatch_indirect(
+    ctx: RecordingContext,
+    buffer: nat,
+    offset: nat,
+    resources: Set<ResourceId>,
+) -> RecordingContext {
+    RecordingContext {
+        state: ctx.state,
+        referenced_resources: ctx.referenced_resources.union(resources),
+        command_log: ctx.command_log.push(RecordedCommand::DispatchIndirect { buffer, offset }),
+        barrier_log: ctx.barrier_log,
+    }
+}
+
+/// Record begin dynamic rendering: append to the log.
+pub open spec fn record_begin_rendering(
+    ctx: RecordingContext,
+    info: DynamicRenderingInfo,
+) -> RecordingContext {
+    RecordingContext {
+        state: ctx.state,
+        referenced_resources: ctx.referenced_resources,
+        command_log: ctx.command_log.push(RecordedCommand::BeginRendering { info }),
+        barrier_log: ctx.barrier_log,
+    }
+}
+
+/// Record end dynamic rendering: append to the log.
+pub open spec fn record_end_rendering(
+    ctx: RecordingContext,
+) -> RecordingContext {
+    RecordingContext {
+        state: ctx.state,
+        referenced_resources: ctx.referenced_resources,
+        command_log: ctx.command_log.push(RecordedCommand::EndRendering),
+        barrier_log: ctx.barrier_log,
+    }
+}
+
 /// Record a pipeline barrier with a single entry: appends the entry to the barrier log.
 pub open spec fn record_pipeline_barrier_single(
     ctx: RecordingContext,
@@ -184,6 +330,83 @@ pub proof fn lemma_record_accumulates_resources(
         forall|r: ResourceId|
             resources.contains(r)
             ==> record_draw(ctx, resources).referenced_resources.contains(r),
+{
+}
+
+// ── Transfer / Indirect / Dynamic Rendering Record Proofs ───────────────
+
+/// Recording a copy-image preserves state and barrier_log.
+pub proof fn lemma_record_copy_image_preserves(
+    ctx: RecordingContext, src: nat, dst: nat,
+    src_res: ResourceId, dst_res: ResourceId,
+)
+    ensures
+        record_copy_image(ctx, src, dst, src_res, dst_res).state == ctx.state,
+        record_copy_image(ctx, src, dst, src_res, dst_res).barrier_log == ctx.barrier_log,
+{
+}
+
+/// Recording a blit-image preserves state and barrier_log.
+pub proof fn lemma_record_blit_image_preserves(
+    ctx: RecordingContext, src: nat, dst: nat,
+    src_res: ResourceId, dst_res: ResourceId,
+)
+    ensures
+        record_blit_image(ctx, src, dst, src_res, dst_res).state == ctx.state,
+        record_blit_image(ctx, src, dst, src_res, dst_res).barrier_log == ctx.barrier_log,
+{
+}
+
+/// Recording an indirect draw preserves state and barrier_log.
+pub proof fn lemma_record_draw_indirect_preserves(
+    ctx: RecordingContext, buffer: nat, offset: nat,
+    draw_count: nat, resources: Set<ResourceId>,
+)
+    ensures
+        record_draw_indirect(ctx, buffer, offset, draw_count, resources).state == ctx.state,
+        record_draw_indirect(ctx, buffer, offset, draw_count, resources).barrier_log == ctx.barrier_log,
+{
+}
+
+/// Recording an indirect indexed draw preserves state and barrier_log.
+pub proof fn lemma_record_draw_indexed_indirect_preserves(
+    ctx: RecordingContext, buffer: nat, offset: nat,
+    draw_count: nat, resources: Set<ResourceId>,
+)
+    ensures
+        record_draw_indexed_indirect(ctx, buffer, offset, draw_count, resources).state == ctx.state,
+        record_draw_indexed_indirect(ctx, buffer, offset, draw_count, resources).barrier_log == ctx.barrier_log,
+{
+}
+
+/// Recording an indirect dispatch preserves state and barrier_log.
+pub proof fn lemma_record_dispatch_indirect_preserves(
+    ctx: RecordingContext, buffer: nat, offset: nat,
+    resources: Set<ResourceId>,
+)
+    ensures
+        record_dispatch_indirect(ctx, buffer, offset, resources).state == ctx.state,
+        record_dispatch_indirect(ctx, buffer, offset, resources).barrier_log == ctx.barrier_log,
+{
+}
+
+/// Recording begin rendering preserves state and barrier_log.
+pub proof fn lemma_record_begin_rendering_preserves(
+    ctx: RecordingContext, info: DynamicRenderingInfo,
+)
+    ensures
+        record_begin_rendering(ctx, info).state == ctx.state,
+        record_begin_rendering(ctx, info).barrier_log == ctx.barrier_log,
+{
+}
+
+/// Recording end rendering preserves state and barrier_log.
+pub proof fn lemma_record_end_rendering_preserves(
+    ctx: RecordingContext,
+)
+    ensures
+        record_end_rendering(ctx).state == ctx.state,
+        record_end_rendering(ctx).barrier_log == ctx.barrier_log,
 {
 }
 

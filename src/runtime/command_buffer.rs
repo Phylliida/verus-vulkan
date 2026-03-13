@@ -14,8 +14,11 @@ use crate::image_layout_fsm::*;
 use crate::framebuffer::*;
 use crate::memory::*;
 use crate::lifetime::*;
+use crate::indirect::*;
+use crate::dynamic_rendering::*;
 use super::image_layout::RuntimeImageLayoutTracker;
 use super::device::RuntimeDevice;
+use crate::vk_context::VulkanContext;
 
 verus! {
 
@@ -740,6 +743,139 @@ pub fn cmd_copy_image_to_buffer_exec(
         cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
+}
+
+/// Exec: record an indirect draw command.
+/// Caller must prove: pipeline bound, in render pass, indirect buffer sufficient.
+pub fn cmd_draw_indirect_exec(
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    pipeline: Ghost<GraphicsPipelineState>,
+    rp: Ghost<RenderPassState>,
+    draw_state: Ghost<DrawCallState>,
+    indirect_params: Ghost<IndirectDrawParams>,
+    buffer: Ghost<BufferState>,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).in_render_pass@ == true,
+        old(cb).recording_thread@ == thread@,
+        pipeline@.alive,
+        rp@.alive,
+        draw_indirect_valid(old(cb).recording_state@, pipeline@, rp@, indirect_params@, buffer@),
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+}
+
+/// Exec: record an indirect indexed draw command.
+/// Caller must prove: pipeline bound, in render pass, indirect buffer sufficient.
+pub fn cmd_draw_indexed_indirect_exec(
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    pipeline: Ghost<GraphicsPipelineState>,
+    rp: Ghost<RenderPassState>,
+    draw_state: Ghost<DrawCallState>,
+    indirect_params: Ghost<IndirectDrawParams>,
+    buffer: Ghost<BufferState>,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).in_render_pass@ == true,
+        old(cb).recording_thread@ == thread@,
+        pipeline@.alive,
+        rp@.alive,
+        draw_indexed_indirect_valid(old(cb).recording_state@, pipeline@, rp@, indirect_params@, buffer@),
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+}
+
+/// Exec: record an indirect dispatch command.
+/// Caller must prove: compute pipeline bound, not in render pass, buffer sufficient.
+pub fn cmd_dispatch_indirect_exec(
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    pipeline: Ghost<ComputePipelineState>,
+    buffer_id: Ghost<nat>,
+    offset: Ghost<nat>,
+    buffer: Ghost<BufferState>,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).in_render_pass@ == false,
+        old(cb).recording_thread@ == thread@,
+        pipeline@.alive,
+        dispatch_indirect_valid(old(cb).recording_state@, pipeline@, buffer_id@, offset@, buffer@),
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+}
+
+/// Exec: begin dynamic rendering (VK_KHR_dynamic_rendering).
+/// Sets the in_render_pass flag. Caller must prove rendering info is well-formed.
+pub fn cmd_begin_dynamic_rendering_exec(
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    info: Ghost<DynamicRenderingInfo>,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).in_render_pass@ == false,
+        old(cb).recording_thread@ == thread@,
+        dynamic_rendering_well_formed(info@),
+    ensures
+        is_recording(cb),
+        cb.in_render_pass@ == true,
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+{
+    cb.in_render_pass = Ghost(true);
+}
+
+/// Exec: end dynamic rendering (VK_KHR_dynamic_rendering).
+/// Clears the in_render_pass flag.
+pub fn cmd_end_dynamic_rendering_exec(
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+)
+    requires
+        is_recording(&*old(cb)),
+        old(cb).in_render_pass@ == true,
+        old(cb).recording_thread@ == thread@,
+    ensures
+        is_recording(cb),
+        cb.in_render_pass@ == false,
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+{
+    cb.in_render_pass = Ghost(false);
 }
 
 /// Whether any uncompleted submission references this command buffer.
