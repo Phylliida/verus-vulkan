@@ -80,6 +80,7 @@ pub open spec fn dispatch_indirect_valid(
 ) -> bool {
     dispatch_call_valid(state, pipeline)
     && buffer.alive
+    && offset % 4 == 0
     && offset + DISPATCH_INDIRECT_COMMAND_SIZE() <= buffer.size
 }
 

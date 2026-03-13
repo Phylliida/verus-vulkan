@@ -21,7 +21,7 @@ impl View for RuntimeQueryPool {
 
 /// Well-formedness of the runtime query pool.
 pub open spec fn runtime_query_pool_wf(pool: &RuntimeQueryPool) -> bool {
-    pool@.alive
+    pool@.alive && pool@.query_count > 0
 }
 
 /// Exec: create a query pool.
@@ -29,6 +29,7 @@ pub fn create_query_pool_exec(
     id: Ghost<nat>,
     count: Ghost<nat>,
 ) -> (out: RuntimeQueryPool)
+    requires count@ > 0,
     ensures
         out@ == create_query_pool(id@, count@),
         runtime_query_pool_wf(&out),

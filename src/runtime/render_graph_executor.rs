@@ -65,6 +65,7 @@ pub fn execute_graph_step_exec(
     requires
         is_recording(&*old(cb)),
         runtime_cb_wf(&*old(cb)),
+        old(cb).in_render_pass@ == false,
         old(cb).recording_thread@ == thread@,
         step@ < cg@.barrier_plans.len(),
         num_barriers as nat == cg@.barrier_plans[step@ as int].pre_barriers.len(),
@@ -101,6 +102,7 @@ pub fn execute_graph_step_exec(
             plan == cg@.barrier_plans[step@ as int],
             is_recording(cb),
             runtime_cb_wf(cb),
+            cb.in_render_pass@ == false,
             cb.recording_thread@ == thread@,
             cb.cb_id@ == old(cb).cb_id@,
             cb.recording_state@ == old(cb).recording_state@,
@@ -164,6 +166,7 @@ pub fn execute_compiled_graph_exec(
     requires
         is_recording(&*old(cb)),
         runtime_cb_wf(&*old(cb)),
+        old(cb).in_render_pass@ == false,
         old(cb).recording_thread@ == thread@,
         old(cb).barrier_log@ == Seq::<BarrierEntry>::empty(),
         old(cb).recording_state@ == initial_recording_state(),
@@ -211,6 +214,7 @@ pub fn execute_compiled_graph_exec(
             }),
             is_recording(cb),
             runtime_cb_wf(cb),
+            cb.in_render_pass@ == false,
             cb.recording_thread@ == thread@,
             cb.cb_id@ == old(cb).cb_id@,
             cb.recording_state@ == old(cb).recording_state@,
