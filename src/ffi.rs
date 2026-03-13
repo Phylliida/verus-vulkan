@@ -642,6 +642,33 @@ fn raw_cmd_end_rendering(ctx: &VulkanContext, cb: u64) {
     }
 }
 
+// ── Viewport / Scissor / Push Constants helpers ─────────────────────────
+
+fn raw_cmd_set_viewport(ctx: &VulkanContext, cb: u64, x: f32, y: f32, w: f32, h: f32, min_d: f32, max_d: f32) {
+    let viewport = vk::Viewport { x, y, width: w, height: h, min_depth: min_d, max_depth: max_d };
+    unsafe { ctx.device.cmd_set_viewport(vk::CommandBuffer::from_raw(cb), 0, &[viewport]) }
+}
+
+fn raw_cmd_set_scissor(ctx: &VulkanContext, cb: u64, x: i32, y: i32, w: u32, h: u32) {
+    let scissor = vk::Rect2D {
+        offset: vk::Offset2D { x, y },
+        extent: vk::Extent2D { width: w, height: h },
+    };
+    unsafe { ctx.device.cmd_set_scissor(vk::CommandBuffer::from_raw(cb), 0, &[scissor]) }
+}
+
+fn raw_cmd_push_constants(ctx: &VulkanContext, cb: u64, layout: u64, stages: u32, offset: u32, data: &[u8]) {
+    unsafe {
+        ctx.device.cmd_push_constants(
+            vk::CommandBuffer::from_raw(cb),
+            vk::PipelineLayout::from_raw(layout),
+            vk::ShaderStageFlags::from_raw(stages),
+            offset,
+            data,
+        );
+    }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Verified FFI layer — inside verus!
 // ═══════════════════════════════════════════════════════════════════════════
@@ -865,7 +892,7 @@ pub fn vk_allocate_command_buffer(
 
 /// FFI: begin recording a command buffer.
 #[verifier::external_body]
-pub fn vk_begin_command_buffer(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer)
+pub(crate) fn vk_begin_command_buffer(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer)
     requires !old(cb).in_render_pass@,
 {
     raw_begin_command_buffer(ctx, cb.handle);
@@ -873,7 +900,7 @@ pub fn vk_begin_command_buffer(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffe
 
 /// FFI: end recording a command buffer.
 #[verifier::external_body]
-pub fn vk_end_command_buffer(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer)
+pub(crate) fn vk_end_command_buffer(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer)
     requires !old(cb).in_render_pass@,
 {
     raw_end_command_buffer(ctx, cb.handle);
@@ -881,7 +908,7 @@ pub fn vk_end_command_buffer(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer)
 
 /// FFI: begin a render pass.
 #[verifier::external_body]
-pub fn vk_cmd_begin_render_pass(
+pub(crate) fn vk_cmd_begin_render_pass(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     render_pass_handle: u64,
@@ -897,7 +924,7 @@ pub fn vk_cmd_begin_render_pass(
 
 /// FFI: end a render pass.
 #[verifier::external_body]
-pub fn vk_cmd_end_render_pass(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer)
+pub(crate) fn vk_cmd_end_render_pass(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer)
     requires old(cb).in_render_pass@,
     ensures cb.in_render_pass@ == false,
 {
@@ -906,7 +933,7 @@ pub fn vk_cmd_end_render_pass(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer
 
 /// FFI: draw.
 #[verifier::external_body]
-pub fn vk_cmd_draw(
+pub(crate) fn vk_cmd_draw(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     vertex_count: u32,
@@ -921,7 +948,7 @@ pub fn vk_cmd_draw(
 
 /// FFI: dispatch compute.
 #[verifier::external_body]
-pub fn vk_cmd_dispatch(
+pub(crate) fn vk_cmd_dispatch(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     group_count_x: u32,
@@ -935,7 +962,7 @@ pub fn vk_cmd_dispatch(
 
 /// FFI: pipeline barrier.
 #[verifier::external_body]
-pub fn vk_cmd_pipeline_barrier(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer, src_stage: u32, dst_stage: u32)
+pub(crate) fn vk_cmd_pipeline_barrier(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer, src_stage: u32, dst_stage: u32)
     requires !old(cb).in_render_pass@,
 {
     raw_cmd_pipeline_barrier(ctx, cb.handle, src_stage, dst_stage);
@@ -943,14 +970,14 @@ pub fn vk_cmd_pipeline_barrier(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffe
 
 /// FFI: bind a pipeline.
 #[verifier::external_body]
-pub fn vk_cmd_bind_pipeline(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer, bind_point: u32, pipeline_handle: u64)
+pub(crate) fn vk_cmd_bind_pipeline(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer, bind_point: u32, pipeline_handle: u64)
 {
     raw_cmd_bind_pipeline(ctx, cb.handle, bind_point, pipeline_handle);
 }
 
 /// FFI: bind descriptor sets.
 #[verifier::external_body]
-pub fn vk_cmd_bind_descriptor_sets(
+pub(crate) fn vk_cmd_bind_descriptor_sets(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     _sets: Ghost<Seq<DescriptorSetState>>,
@@ -1552,7 +1579,7 @@ pub fn vk_destroy_ray_tracing_pipeline(
 
 /// FFI: indirect draw.
 #[verifier::external_body]
-pub fn vk_cmd_draw_indirect(
+pub(crate) fn vk_cmd_draw_indirect(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     buffer_handle: u64,
@@ -1567,7 +1594,7 @@ pub fn vk_cmd_draw_indirect(
 
 /// FFI: indirect indexed draw.
 #[verifier::external_body]
-pub fn vk_cmd_draw_indexed_indirect(
+pub(crate) fn vk_cmd_draw_indexed_indirect(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     buffer_handle: u64,
@@ -1582,7 +1609,7 @@ pub fn vk_cmd_draw_indexed_indirect(
 
 /// FFI: indirect dispatch.
 #[verifier::external_body]
-pub fn vk_cmd_dispatch_indirect(
+pub(crate) fn vk_cmd_dispatch_indirect(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     buffer_handle: u64,
@@ -1595,7 +1622,7 @@ pub fn vk_cmd_dispatch_indirect(
 
 /// FFI: begin dynamic rendering (VK_KHR_dynamic_rendering / Vulkan 1.3).
 #[verifier::external_body]
-pub fn vk_cmd_begin_rendering(
+pub(crate) fn vk_cmd_begin_rendering(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     width: u32,
@@ -1610,7 +1637,7 @@ pub fn vk_cmd_begin_rendering(
 
 /// FFI: end dynamic rendering.
 #[verifier::external_body]
-pub fn vk_cmd_end_rendering(
+pub(crate) fn vk_cmd_end_rendering(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
 )
@@ -1738,6 +1765,21 @@ pub(crate) fn ffi_end_command_buffer(ctx: &VulkanContext, cb_handle: u64) {
 #[verifier::external_body]
 pub(crate) fn ffi_cmd_bind_descriptor_sets(ctx: &VulkanContext, cb_handle: u64, bp: u32, layout: u64, first: u32, sets: &[u64]) {
     raw_cmd_bind_descriptor_sets(ctx, cb_handle, bp, layout, first, sets);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_set_viewport(ctx: &VulkanContext, cb_handle: u64, x: f32, y: f32, w: f32, h: f32, min_d: f32, max_d: f32) {
+    raw_cmd_set_viewport(ctx, cb_handle, x, y, w, h, min_d, max_d);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_set_scissor(ctx: &VulkanContext, cb_handle: u64, x: i32, y: i32, w: u32, h: u32) {
+    raw_cmd_set_scissor(ctx, cb_handle, x, y, w, h);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_push_constants(ctx: &VulkanContext, cb_handle: u64, layout: u64, stages: u32, offset: u32, data: &[u8]) {
+    raw_cmd_push_constants(ctx, cb_handle, layout, stages, offset, data);
 }
 
 } // verus!

@@ -185,6 +185,66 @@ pub proof fn lemma_no_stages_minimal(s: PipelineStageFlags)
     assert(s.stages =~= Set::<nat>::empty());
 }
 
+// ── Pipeline stage enum ────────────────────────────────────────────────
+// Typed enum for pipeline stages, used in bitmask conversion for FFI coupling.
+
+pub enum PipelineStage {
+    TopOfPipe,
+    VertexShader,
+    FragmentShader,
+    ComputeShader,
+    Transfer,
+    BottomOfPipe,
+    ColorAttachmentOutput,
+    EarlyFragmentTests,
+    LateFragmentTests,
+}
+
+/// Map a PipelineStage enum variant to its abstract stage ID (nat).
+pub open spec fn stage_to_id(stage: PipelineStage) -> nat {
+    match stage {
+        PipelineStage::TopOfPipe => STAGE_TOP_OF_PIPE(),
+        PipelineStage::VertexShader => STAGE_VERTEX_SHADER(),
+        PipelineStage::FragmentShader => STAGE_FRAGMENT_SHADER(),
+        PipelineStage::ComputeShader => STAGE_COMPUTE_SHADER(),
+        PipelineStage::Transfer => STAGE_TRANSFER(),
+        PipelineStage::BottomOfPipe => STAGE_BOTTOM_OF_PIPE(),
+        PipelineStage::ColorAttachmentOutput => STAGE_COLOR_ATTACHMENT_OUTPUT(),
+        PipelineStage::EarlyFragmentTests => STAGE_EARLY_FRAGMENT_TESTS(),
+        PipelineStage::LateFragmentTests => STAGE_LATE_FRAGMENT_TESTS(),
+    }
+}
+
+/// Map a PipelineStage enum variant to its Vulkan VkPipelineStageFlagBits value.
+pub open spec fn stage_vk_bit(stage: PipelineStage) -> u32 {
+    match stage {
+        PipelineStage::TopOfPipe => 0x00000001u32,
+        PipelineStage::VertexShader => 0x00000008u32,
+        PipelineStage::FragmentShader => 0x00000080u32,
+        PipelineStage::ComputeShader => 0x00000800u32,
+        PipelineStage::Transfer => 0x00001000u32,
+        PipelineStage::BottomOfPipe => 0x00002000u32,
+        PipelineStage::ColorAttachmentOutput => 0x00000400u32,
+        PipelineStage::EarlyFragmentTests => 0x00000100u32,
+        PipelineStage::LateFragmentTests => 0x00000200u32,
+    }
+}
+
+/// Compute the Vulkan u32 bitmask for a set of abstract stages.
+/// Since all bits are distinct powers of 2, sum == bitwise OR.
+pub open spec fn stages_to_vk_bitmask(flags: PipelineStageFlags) -> u32 {
+    (  if flags.stages.contains(stage_to_id(PipelineStage::TopOfPipe))             { stage_vk_bit(PipelineStage::TopOfPipe) } else { 0u32 }
+     + if flags.stages.contains(stage_to_id(PipelineStage::VertexShader))           { stage_vk_bit(PipelineStage::VertexShader) } else { 0u32 }
+     + if flags.stages.contains(stage_to_id(PipelineStage::FragmentShader))         { stage_vk_bit(PipelineStage::FragmentShader) } else { 0u32 }
+     + if flags.stages.contains(stage_to_id(PipelineStage::ComputeShader))          { stage_vk_bit(PipelineStage::ComputeShader) } else { 0u32 }
+     + if flags.stages.contains(stage_to_id(PipelineStage::Transfer))               { stage_vk_bit(PipelineStage::Transfer) } else { 0u32 }
+     + if flags.stages.contains(stage_to_id(PipelineStage::BottomOfPipe))           { stage_vk_bit(PipelineStage::BottomOfPipe) } else { 0u32 }
+     + if flags.stages.contains(stage_to_id(PipelineStage::ColorAttachmentOutput))  { stage_vk_bit(PipelineStage::ColorAttachmentOutput) } else { 0u32 }
+     + if flags.stages.contains(stage_to_id(PipelineStage::EarlyFragmentTests))     { stage_vk_bit(PipelineStage::EarlyFragmentTests) } else { 0u32 }
+     + if flags.stages.contains(stage_to_id(PipelineStage::LateFragmentTests))      { stage_vk_bit(PipelineStage::LateFragmentTests) } else { 0u32 }
+    ) as u32
+}
+
 /// All usage flag constants are distinct.
 pub proof fn lemma_usage_constants_distinct()
     ensures
