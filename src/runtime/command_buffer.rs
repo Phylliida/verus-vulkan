@@ -25,6 +25,8 @@ use super::acceleration_structure::*;
 use crate::query_pool::*;
 use crate::event::*;
 use crate::acceleration_structure::*;
+use crate::recording_commands::*;
+use crate::ray_tracing_pipeline::*;
 use crate::vk_context::VulkanContext;
 
 verus! {
@@ -1312,6 +1314,888 @@ pub fn cmd_compact_acceleration_structure_exec(
     crate::ffi::ffi_cmd_compact_acceleration_structure(ctx, cb.handle);
     as_obj.state = Ghost(compact_as_ghost(as_obj.state@));
 }
+
+// ── Phase 1: Dynamic State Commands ──────────────────────────────────
+
+/// Exec: set the dynamic line width.
+pub fn cmd_set_line_width_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    line_width: f32,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).recording_thread@ == thread@,
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_set_line_width(ctx, cb.handle, line_width);
+}
+
+/// Exec: set the dynamic depth bias.
+pub fn cmd_set_depth_bias_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    constant_factor: f32,
+    clamp: f32,
+    slope_factor: f32,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).recording_thread@ == thread@,
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_set_depth_bias(ctx, cb.handle, constant_factor, clamp, slope_factor);
+}
+
+/// Exec: set the dynamic blend constants.
+pub fn cmd_set_blend_constants_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    c0: f32,
+    c1: f32,
+    c2: f32,
+    c3: f32,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).recording_thread@ == thread@,
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_set_blend_constants(ctx, cb.handle, c0, c1, c2, c3);
+}
+
+/// Exec: set the dynamic depth bounds.
+pub fn cmd_set_depth_bounds_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    min_depth: f32,
+    max_depth: f32,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).recording_thread@ == thread@,
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_set_depth_bounds(ctx, cb.handle, min_depth, max_depth);
+}
+
+/// Exec: set the dynamic stencil compare mask.
+pub fn cmd_set_stencil_compare_mask_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    face_mask: u32,
+    compare_mask: u32,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).recording_thread@ == thread@,
+        face_mask != 0,
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_set_stencil_compare_mask(ctx, cb.handle, face_mask, compare_mask);
+}
+
+/// Exec: set the dynamic stencil write mask.
+pub fn cmd_set_stencil_write_mask_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    face_mask: u32,
+    write_mask: u32,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).recording_thread@ == thread@,
+        face_mask != 0,
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_set_stencil_write_mask(ctx, cb.handle, face_mask, write_mask);
+}
+
+/// Exec: set the dynamic stencil reference.
+pub fn cmd_set_stencil_reference_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    face_mask: u32,
+    reference: u32,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).recording_thread@ == thread@,
+        face_mask != 0,
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_set_stencil_reference(ctx, cb.handle, face_mask, reference);
+}
+
+// ── Phase 2: Buffer Operations ──────────────────────────────────────
+
+/// Exec: fill a buffer with a fixed 32-bit value.
+pub fn cmd_fill_buffer_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    buffer_handle: u64,
+    offset: u64,
+    size: u64,
+    data: u32,
+    buffer_state: Ghost<BufferState>,
+    sync: Ghost<SyncState>,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).in_render_pass@ == false,
+        old(cb).recording_thread@ == thread@,
+        buffer_state@.alive,
+        buffer_state@.usage.contains(USAGE_TRANSFER_DST()),
+        offset % 4 == 0,
+        size % 4 == 0,
+        size > 0,
+        offset as nat + size as nat <= buffer_state@.size,
+        writable(old(cb).barrier_log@, sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_WRITE()),
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_fill_buffer(ctx, cb.handle, buffer_handle, offset, size, data);
+}
+
+/// Exec: update a buffer with inline data (max 65536 bytes).
+pub fn cmd_update_buffer_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    buffer_handle: u64,
+    offset: u64,
+    data: &[u8],
+    buffer_state: Ghost<BufferState>,
+    sync: Ghost<SyncState>,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).in_render_pass@ == false,
+        old(cb).recording_thread@ == thread@,
+        buffer_state@.alive,
+        buffer_state@.usage.contains(USAGE_TRANSFER_DST()),
+        offset % 4 == 0,
+        data@.len() % 4 == 0,
+        data@.len() > 0,
+        data@.len() <= 65536,
+        offset as nat + data@.len() <= buffer_state@.size,
+        writable(old(cb).barrier_log@, sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_WRITE()),
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_update_buffer(ctx, cb.handle, buffer_handle, offset, data);
+}
+
+// ── Phase 3: Image Clear & Resolve ──────────────────────────────────
+
+/// Exec: clear a color image.
+pub fn cmd_clear_color_image_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    image_handle: u64,
+    layout: u32,
+    image_state: Ghost<ImageState>,
+    sync: Ghost<SyncState>,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).in_render_pass@ == false,
+        old(cb).recording_thread@ == thread@,
+        image_state@.alive,
+        image_state@.usage.contains(USAGE_TRANSFER_DST()),
+        writable(old(cb).barrier_log@, sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_WRITE()),
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_clear_color_image(ctx, cb.handle, image_handle, layout);
+}
+
+/// Exec: clear a depth/stencil image.
+pub fn cmd_clear_depth_stencil_image_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    image_handle: u64,
+    layout: u32,
+    image_state: Ghost<ImageState>,
+    sync: Ghost<SyncState>,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).in_render_pass@ == false,
+        old(cb).recording_thread@ == thread@,
+        image_state@.alive,
+        image_state@.usage.contains(USAGE_TRANSFER_DST()),
+        writable(old(cb).barrier_log@, sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_WRITE()),
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_clear_depth_stencil_image(ctx, cb.handle, image_handle, layout);
+}
+
+/// Exec: clear attachments (inside a render pass).
+pub fn cmd_clear_attachments_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).in_render_pass@ == true,
+        old(cb).recording_thread@ == thread@,
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_clear_attachments(ctx, cb.handle);
+}
+
+/// Exec: resolve a multisampled image to a single-sampled image.
+pub fn cmd_resolve_image_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    src_handle: u64,
+    dst_handle: u64,
+    width: u32,
+    height: u32,
+    src_image: Ghost<nat>,
+    dst_image: Ghost<nat>,
+    src_state: Ghost<ImageState>,
+    dst_state: Ghost<ImageState>,
+    src_sync: Ghost<SyncState>,
+    dst_sync: Ghost<SyncState>,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).in_render_pass@ == false,
+        old(cb).recording_thread@ == thread@,
+        src_image@ != dst_image@,
+        width > 0,
+        height > 0,
+        src_state@.alive,
+        dst_state@.alive,
+        src_state@.usage.contains(USAGE_TRANSFER_SRC()),
+        dst_state@.usage.contains(USAGE_TRANSFER_DST()),
+        readable(old(cb).barrier_log@, src_sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_READ()),
+        writable(old(cb).barrier_log@, dst_sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_WRITE()),
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_resolve_image(ctx, cb.handle, src_handle, dst_handle, width, height);
+}
+
+// ── Phase 4: Query Commands ─────────────────────────────────────────
+
+/// Exec: write a timestamp query.
+pub fn cmd_write_timestamp_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    pool: &mut RuntimeQueryPool,
+    stage_mask: u32,
+    query: u32,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).recording_thread@ == thread@,
+        runtime_query_pool_wf(&*old(pool)),
+        write_timestamp_valid(old(pool)@, query as nat),
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+        pool@ == write_timestamp(old(pool)@, query as nat),
+        runtime_query_pool_wf(pool),
+{
+    crate::ffi::ffi_cmd_write_timestamp(ctx, cb.handle, stage_mask, pool.handle, query);
+    pool.state = Ghost(write_timestamp(pool.state@, query as nat));
+}
+
+/// Exec: copy query pool results to a buffer.
+pub fn cmd_copy_query_pool_results_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    pool: &RuntimeQueryPool,
+    first: u32,
+    count: u32,
+    dst_handle: u64,
+    dst_offset: u64,
+    stride: u64,
+    flags: u32,
+    dst_state: Ghost<BufferState>,
+    dst_sync: Ghost<SyncState>,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).in_render_pass@ == false,
+        old(cb).recording_thread@ == thread@,
+        runtime_query_pool_wf(pool),
+        first as nat + count as nat <= pool@.query_count,
+        dst_state@.alive,
+        dst_state@.usage.contains(USAGE_TRANSFER_DST()),
+        dst_offset % 4 == 0,
+        writable(old(cb).barrier_log@, dst_sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_WRITE()),
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_copy_query_pool_results(ctx, cb.handle, pool.handle, first, count, dst_handle, dst_offset, stride, flags);
+}
+
+// ── Phase 5: WaitEvents ─────────────────────────────────────────────
+
+/// Exec: wait for events (sync command, pushes barrier entry).
+pub fn cmd_wait_events_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    event: &RuntimeEvent,
+    src_stage: u32,
+    dst_stage: u32,
+    entry: Ghost<BarrierEntry>,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).in_render_pass@ == false,
+        old(cb).recording_thread@ == thread@,
+        runtime_event_wf(event),
+        src_stage == stages_to_vk_bitmask(entry@.src_stages),
+        dst_stage == stages_to_vk_bitmask(entry@.dst_stages),
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@.push(entry@),
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_wait_events(ctx, cb.handle, event.handle, src_stage, dst_stage);
+    cb.barrier_log = Ghost(cb.barrier_log@.push(entry@));
+}
+
+// ── Phase 6: Indirect Count Draws ───────────────────────────────────
+
+/// Exec: draw indirect with count buffer.
+pub fn cmd_draw_indirect_count_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    buffer_handle: u64,
+    offset: u64,
+    count_buffer_handle: u64,
+    count_offset: u64,
+    max_draw_count: u32,
+    stride: u32,
+    pipeline: Ghost<GraphicsPipelineState>,
+    rp: Ghost<RenderPassState>,
+    params: Ghost<IndirectDrawParams>,
+    draw_buffer: Ghost<BufferState>,
+    count_buffer: Ghost<BufferState>,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).recording_thread@ == thread@,
+        draw_indirect_count_valid(
+            old(cb).recording_state@, pipeline@, rp@,
+            params@, draw_buffer@, count_buffer@,
+            count_offset as nat, max_draw_count as nat,
+        ),
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_draw_indirect_count(ctx, cb.handle, buffer_handle, offset, count_buffer_handle, count_offset, max_draw_count, stride);
+}
+
+/// Exec: draw indexed indirect with count buffer.
+pub fn cmd_draw_indexed_indirect_count_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    buffer_handle: u64,
+    offset: u64,
+    count_buffer_handle: u64,
+    count_offset: u64,
+    max_draw_count: u32,
+    stride: u32,
+    pipeline: Ghost<GraphicsPipelineState>,
+    rp: Ghost<RenderPassState>,
+    params: Ghost<IndirectDrawParams>,
+    draw_buffer: Ghost<BufferState>,
+    count_buffer: Ghost<BufferState>,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).recording_thread@ == thread@,
+        draw_indirect_count_valid(
+            old(cb).recording_state@, pipeline@, rp@,
+            params@, draw_buffer@, count_buffer@,
+            count_offset as nat, max_draw_count as nat,
+        ),
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_draw_indexed_indirect_count(ctx, cb.handle, buffer_handle, offset, count_buffer_handle, count_offset, max_draw_count, stride);
+}
+
+// ── Phase 7: Ray Tracing Commands ───────────────────────────────────
+
+/// Exec: trace rays.
+pub fn cmd_trace_rays_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    pipeline: Ghost<RayTracingPipelineState>,
+    tlas: Ghost<AccelerationStructureState>,
+    params: Ghost<TraceRaysParams>,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).in_render_pass@ == false,
+        old(cb).recording_thread@ == thread@,
+        trace_rays_valid(pipeline@, tlas@, params@),
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_trace_rays(ctx, cb.handle);
+}
+
+/// Exec: trace rays indirect.
+pub fn cmd_trace_rays_indirect_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    indirect_buffer_handle: u64,
+    pipeline: Ghost<RayTracingPipelineState>,
+    tlas: Ghost<AccelerationStructureState>,
+    params: Ghost<TraceRaysParams>,
+    buffer_state: Ghost<BufferState>,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).in_render_pass@ == false,
+        old(cb).recording_thread@ == thread@,
+        trace_rays_valid(pipeline@, tlas@, params@),
+        buffer_state@.alive,
+        buffer_state@.usage.contains(USAGE_INDIRECT_BUFFER()),
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_trace_rays_indirect(ctx, cb.handle, indirect_buffer_handle);
+}
+
+// ── Phase 8: Debug Labels ───────────────────────────────────────────
+
+/// Exec: begin a debug utils label region. No ghost state change.
+pub fn cmd_begin_debug_utils_label_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).recording_thread@ == thread@,
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_begin_debug_utils_label(ctx, cb.handle);
+}
+
+/// Exec: end a debug utils label region. No ghost state change.
+pub fn cmd_end_debug_utils_label_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).recording_thread@ == thread@,
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_end_debug_utils_label(ctx, cb.handle);
+}
+
+/// Exec: insert a debug utils label. No ghost state change.
+pub fn cmd_insert_debug_utils_label_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).recording_thread@ == thread@,
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_insert_debug_utils_label(ctx, cb.handle);
+}
+
+// ── Phase 9: Extension Commands ─────────────────────────────────────
+
+/// Exec: dispatch compute with base group offsets (Vulkan 1.1).
+pub fn cmd_dispatch_base_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    base_group_x: u32,
+    base_group_y: u32,
+    base_group_z: u32,
+    group_count_x: u32,
+    group_count_y: u32,
+    group_count_z: u32,
+    pipeline: Ghost<ComputePipelineState>,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).in_render_pass@ == false,
+        old(cb).recording_thread@ == thread@,
+        dispatch_call_valid(old(cb).recording_state@, pipeline@),
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_dispatch_base(ctx, cb.handle, base_group_x, base_group_y, base_group_z, group_count_x, group_count_y, group_count_z);
+}
+
+/// Exec: draw mesh tasks (VK_EXT_mesh_shader).
+pub fn cmd_draw_mesh_tasks_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    group_count_x: u32,
+    group_count_y: u32,
+    group_count_z: u32,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).in_render_pass@ == true,
+        old(cb).recording_thread@ == thread@,
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_draw_mesh_tasks(ctx, cb.handle, group_count_x, group_count_y, group_count_z);
+}
+
+/// Exec: draw mesh tasks indirect.
+pub fn cmd_draw_mesh_tasks_indirect_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    buffer_handle: u64,
+    offset: u64,
+    draw_count: u32,
+    stride: u32,
+    buffer_state: Ghost<BufferState>,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).in_render_pass@ == true,
+        old(cb).recording_thread@ == thread@,
+        buffer_state@.alive,
+        buffer_state@.usage.contains(USAGE_INDIRECT_BUFFER()),
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_draw_mesh_tasks_indirect(ctx, cb.handle, buffer_handle, offset, draw_count, stride);
+}
+
+/// Exec: draw mesh tasks indirect with count buffer.
+pub fn cmd_draw_mesh_tasks_indirect_count_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    buffer_handle: u64,
+    offset: u64,
+    count_buffer_handle: u64,
+    count_offset: u64,
+    max_draw_count: u32,
+    stride: u32,
+    buffer_state: Ghost<BufferState>,
+    count_buffer_state: Ghost<BufferState>,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).in_render_pass@ == true,
+        old(cb).recording_thread@ == thread@,
+        buffer_state@.alive,
+        buffer_state@.usage.contains(USAGE_INDIRECT_BUFFER()),
+        count_buffer_state@.alive,
+        count_offset as nat + 4 <= count_buffer_state@.size,
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_draw_mesh_tasks_indirect_count(ctx, cb.handle, buffer_handle, offset, count_buffer_handle, count_offset, max_draw_count, stride);
+}
+
+/// Exec: begin transform feedback (VK_EXT_transform_feedback).
+pub fn cmd_begin_transform_feedback_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).in_render_pass@ == true,
+        old(cb).recording_thread@ == thread@,
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_begin_transform_feedback(ctx, cb.handle);
+}
+
+/// Exec: end transform feedback.
+pub fn cmd_end_transform_feedback_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).in_render_pass@ == true,
+        old(cb).recording_thread@ == thread@,
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_end_transform_feedback(ctx, cb.handle);
+}
+
+/// Exec: pipeline barrier 2 (Vulkan 1.3). Same ghost effect as pipeline_barrier.
+pub fn cmd_pipeline_barrier2_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    entry: Ghost<BarrierEntry>,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).in_render_pass@ == false,
+        old(cb).recording_thread@ == thread@,
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@.push(entry@),
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_pipeline_barrier2(ctx, cb.handle);
+    cb.barrier_log = Ghost(cb.barrier_log@.push(entry@));
+}
+
+// ── Extended Specs & Proofs ──────────────────────────────────────────
 
 /// Whether any uncompleted submission references this command buffer.
 pub open spec fn cb_has_pending_work(pending: Seq<SubmissionRecord>, cb_id: nat) -> bool {

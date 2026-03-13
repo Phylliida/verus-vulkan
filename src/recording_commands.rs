@@ -35,6 +35,26 @@ pub enum RecordedCommand {
     EndRenderPass,
     NextSubpass,
     PipelineBarrier { barriers: Seq<BarrierEntry> },
+    FillBuffer { buffer: nat, offset: nat, size: nat },
+    UpdateBuffer { buffer: nat, offset: nat, size: nat },
+    ClearColorImage { image: nat },
+    ClearDepthStencilImage { image: nat },
+    ClearAttachments,
+    ResolveImage { src_image: nat, dst_image: nat },
+    WriteTimestamp { pool_id: nat, query: nat },
+    CopyQueryPoolResults { pool_id: nat, first_query: nat, query_count: nat, dst_buffer: nat },
+    WaitEvents { barriers: Seq<BarrierEntry> },
+    DrawIndirectCount { buffer: nat, offset: nat, count_buffer: nat, count_offset: nat, max_draw_count: nat },
+    DrawIndexedIndirectCount { buffer: nat, offset: nat, count_buffer: nat, count_offset: nat, max_draw_count: nat },
+    TraceRays,
+    TraceRaysIndirect { buffer: nat },
+    DispatchBase { base_x: nat, base_y: nat, base_z: nat, group_x: nat, group_y: nat, group_z: nat },
+    DrawMeshTasks { group_count_x: nat, group_count_y: nat, group_count_z: nat },
+    DrawMeshTasksIndirect { buffer: nat, offset: nat, draw_count: nat },
+    DrawMeshTasksIndirectCount { buffer: nat, offset: nat, count_buffer: nat, count_offset: nat, max_draw_count: nat },
+    BeginTransformFeedback,
+    EndTransformFeedback,
+    PipelineBarrier2 { barriers: Seq<BarrierEntry> },
 }
 
 /// Tracks the full recording context: current state, referenced resources,
@@ -408,6 +428,295 @@ pub proof fn lemma_record_end_rendering_preserves(
         record_end_rendering(ctx).state == ctx.state,
         record_end_rendering(ctx).barrier_log == ctx.barrier_log,
 {
+}
+
+// ── New Recording Spec Functions ─────────────────────────────────────
+
+/// Record a fill-buffer command.
+pub open spec fn record_fill_buffer(
+    ctx: RecordingContext,
+    buffer: nat,
+    offset: nat,
+    size: nat,
+    res: ResourceId,
+) -> RecordingContext {
+    RecordingContext {
+        state: ctx.state,
+        referenced_resources: ctx.referenced_resources.insert(res),
+        command_log: ctx.command_log.push(RecordedCommand::FillBuffer { buffer, offset, size }),
+        barrier_log: ctx.barrier_log,
+    }
+}
+
+/// Record an update-buffer command.
+pub open spec fn record_update_buffer(
+    ctx: RecordingContext,
+    buffer: nat,
+    offset: nat,
+    size: nat,
+    res: ResourceId,
+) -> RecordingContext {
+    RecordingContext {
+        state: ctx.state,
+        referenced_resources: ctx.referenced_resources.insert(res),
+        command_log: ctx.command_log.push(RecordedCommand::UpdateBuffer { buffer, offset, size }),
+        barrier_log: ctx.barrier_log,
+    }
+}
+
+/// Record a clear-color-image command.
+pub open spec fn record_clear_color_image(
+    ctx: RecordingContext,
+    image: nat,
+    res: ResourceId,
+) -> RecordingContext {
+    RecordingContext {
+        state: ctx.state,
+        referenced_resources: ctx.referenced_resources.insert(res),
+        command_log: ctx.command_log.push(RecordedCommand::ClearColorImage { image }),
+        barrier_log: ctx.barrier_log,
+    }
+}
+
+/// Record a clear-depth-stencil-image command.
+pub open spec fn record_clear_depth_stencil_image(
+    ctx: RecordingContext,
+    image: nat,
+    res: ResourceId,
+) -> RecordingContext {
+    RecordingContext {
+        state: ctx.state,
+        referenced_resources: ctx.referenced_resources.insert(res),
+        command_log: ctx.command_log.push(RecordedCommand::ClearDepthStencilImage { image }),
+        barrier_log: ctx.barrier_log,
+    }
+}
+
+/// Record a clear-attachments command (inside a render pass).
+pub open spec fn record_clear_attachments(
+    ctx: RecordingContext,
+) -> RecordingContext {
+    RecordingContext {
+        state: ctx.state,
+        referenced_resources: ctx.referenced_resources,
+        command_log: ctx.command_log.push(RecordedCommand::ClearAttachments),
+        barrier_log: ctx.barrier_log,
+    }
+}
+
+/// Record a resolve-image command.
+pub open spec fn record_resolve_image(
+    ctx: RecordingContext,
+    src: nat,
+    dst: nat,
+    src_res: ResourceId,
+    dst_res: ResourceId,
+) -> RecordingContext {
+    RecordingContext {
+        state: ctx.state,
+        referenced_resources: ctx.referenced_resources.insert(src_res).insert(dst_res),
+        command_log: ctx.command_log.push(RecordedCommand::ResolveImage { src_image: src, dst_image: dst }),
+        barrier_log: ctx.barrier_log,
+    }
+}
+
+/// Record a write-timestamp command.
+pub open spec fn record_write_timestamp(
+    ctx: RecordingContext,
+    pool_id: nat,
+    query: nat,
+) -> RecordingContext {
+    RecordingContext {
+        state: ctx.state,
+        referenced_resources: ctx.referenced_resources,
+        command_log: ctx.command_log.push(RecordedCommand::WriteTimestamp { pool_id, query }),
+        barrier_log: ctx.barrier_log,
+    }
+}
+
+/// Record a copy-query-pool-results command.
+pub open spec fn record_copy_query_pool_results(
+    ctx: RecordingContext,
+    pool_id: nat,
+    first_query: nat,
+    query_count: nat,
+    dst_buffer: nat,
+    dst_res: ResourceId,
+) -> RecordingContext {
+    RecordingContext {
+        state: ctx.state,
+        referenced_resources: ctx.referenced_resources.insert(dst_res),
+        command_log: ctx.command_log.push(RecordedCommand::CopyQueryPoolResults { pool_id, first_query, query_count, dst_buffer }),
+        barrier_log: ctx.barrier_log,
+    }
+}
+
+/// Record a wait-events command (pushes barrier entry like pipeline_barrier).
+pub open spec fn record_wait_events_single(
+    ctx: RecordingContext,
+    entry: BarrierEntry,
+) -> RecordingContext {
+    RecordingContext {
+        barrier_log: ctx.barrier_log.push(entry),
+        command_log: ctx.command_log.push(RecordedCommand::WaitEvents { barriers: seq![entry] }),
+        ..ctx
+    }
+}
+
+/// Record an indirect draw with count command.
+pub open spec fn record_draw_indirect_count(
+    ctx: RecordingContext,
+    buffer: nat,
+    offset: nat,
+    count_buffer: nat,
+    count_offset: nat,
+    max_draw_count: nat,
+    resources: Set<ResourceId>,
+) -> RecordingContext {
+    RecordingContext {
+        state: ctx.state,
+        referenced_resources: ctx.referenced_resources.union(resources),
+        command_log: ctx.command_log.push(RecordedCommand::DrawIndirectCount { buffer, offset, count_buffer, count_offset, max_draw_count }),
+        barrier_log: ctx.barrier_log,
+    }
+}
+
+/// Record an indirect indexed draw with count command.
+pub open spec fn record_draw_indexed_indirect_count(
+    ctx: RecordingContext,
+    buffer: nat,
+    offset: nat,
+    count_buffer: nat,
+    count_offset: nat,
+    max_draw_count: nat,
+    resources: Set<ResourceId>,
+) -> RecordingContext {
+    RecordingContext {
+        state: ctx.state,
+        referenced_resources: ctx.referenced_resources.union(resources),
+        command_log: ctx.command_log.push(RecordedCommand::DrawIndexedIndirectCount { buffer, offset, count_buffer, count_offset, max_draw_count }),
+        barrier_log: ctx.barrier_log,
+    }
+}
+
+/// Record a trace rays command.
+pub open spec fn record_trace_rays(
+    ctx: RecordingContext,
+    resources: Set<ResourceId>,
+) -> RecordingContext {
+    RecordingContext {
+        state: ctx.state,
+        referenced_resources: ctx.referenced_resources.union(resources),
+        command_log: ctx.command_log.push(RecordedCommand::TraceRays),
+        barrier_log: ctx.barrier_log,
+    }
+}
+
+/// Record a trace rays indirect command.
+pub open spec fn record_trace_rays_indirect(
+    ctx: RecordingContext,
+    buffer: nat,
+    resources: Set<ResourceId>,
+) -> RecordingContext {
+    RecordingContext {
+        state: ctx.state,
+        referenced_resources: ctx.referenced_resources.union(resources),
+        command_log: ctx.command_log.push(RecordedCommand::TraceRaysIndirect { buffer }),
+        barrier_log: ctx.barrier_log,
+    }
+}
+
+/// Record a dispatch base command.
+pub open spec fn record_dispatch_base(
+    ctx: RecordingContext,
+    base_x: nat, base_y: nat, base_z: nat,
+    group_x: nat, group_y: nat, group_z: nat,
+    resources: Set<ResourceId>,
+) -> RecordingContext {
+    RecordingContext {
+        state: ctx.state,
+        referenced_resources: ctx.referenced_resources.union(resources),
+        command_log: ctx.command_log.push(RecordedCommand::DispatchBase { base_x, base_y, base_z, group_x, group_y, group_z }),
+        barrier_log: ctx.barrier_log,
+    }
+}
+
+/// Record a draw mesh tasks command.
+pub open spec fn record_draw_mesh_tasks(
+    ctx: RecordingContext,
+    group_count_x: nat, group_count_y: nat, group_count_z: nat,
+    resources: Set<ResourceId>,
+) -> RecordingContext {
+    RecordingContext {
+        state: ctx.state,
+        referenced_resources: ctx.referenced_resources.union(resources),
+        command_log: ctx.command_log.push(RecordedCommand::DrawMeshTasks { group_count_x, group_count_y, group_count_z }),
+        barrier_log: ctx.barrier_log,
+    }
+}
+
+/// Record a draw mesh tasks indirect command.
+pub open spec fn record_draw_mesh_tasks_indirect(
+    ctx: RecordingContext,
+    buffer: nat, offset: nat, draw_count: nat,
+    resources: Set<ResourceId>,
+) -> RecordingContext {
+    RecordingContext {
+        state: ctx.state,
+        referenced_resources: ctx.referenced_resources.union(resources),
+        command_log: ctx.command_log.push(RecordedCommand::DrawMeshTasksIndirect { buffer, offset, draw_count }),
+        barrier_log: ctx.barrier_log,
+    }
+}
+
+/// Record a draw mesh tasks indirect count command.
+pub open spec fn record_draw_mesh_tasks_indirect_count(
+    ctx: RecordingContext,
+    buffer: nat, offset: nat, count_buffer: nat, count_offset: nat, max_draw_count: nat,
+    resources: Set<ResourceId>,
+) -> RecordingContext {
+    RecordingContext {
+        state: ctx.state,
+        referenced_resources: ctx.referenced_resources.union(resources),
+        command_log: ctx.command_log.push(RecordedCommand::DrawMeshTasksIndirectCount { buffer, offset, count_buffer, count_offset, max_draw_count }),
+        barrier_log: ctx.barrier_log,
+    }
+}
+
+/// Record begin transform feedback.
+pub open spec fn record_begin_transform_feedback(
+    ctx: RecordingContext,
+) -> RecordingContext {
+    RecordingContext {
+        state: ctx.state,
+        referenced_resources: ctx.referenced_resources,
+        command_log: ctx.command_log.push(RecordedCommand::BeginTransformFeedback),
+        barrier_log: ctx.barrier_log,
+    }
+}
+
+/// Record end transform feedback.
+pub open spec fn record_end_transform_feedback(
+    ctx: RecordingContext,
+) -> RecordingContext {
+    RecordingContext {
+        state: ctx.state,
+        referenced_resources: ctx.referenced_resources,
+        command_log: ctx.command_log.push(RecordedCommand::EndTransformFeedback),
+        barrier_log: ctx.barrier_log,
+    }
+}
+
+/// Record a pipeline barrier 2 (pushes barrier entry, same as pipeline_barrier).
+pub open spec fn record_pipeline_barrier2_single(
+    ctx: RecordingContext,
+    entry: BarrierEntry,
+) -> RecordingContext {
+    RecordingContext {
+        barrier_log: ctx.barrier_log.push(entry),
+        command_log: ctx.command_log.push(RecordedCommand::PipelineBarrier2 { barriers: seq![entry] }),
+        ..ctx
+    }
 }
 
 // ── Barrier Proofs ──────────────────────────────────────────────────────

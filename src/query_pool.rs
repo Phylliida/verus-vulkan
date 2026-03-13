@@ -257,6 +257,33 @@ pub proof fn lemma_end_preserves_others(
 {
 }
 
+/// Write timestamp is valid: slot must be Reset.
+pub open spec fn write_timestamp_valid(pool: QueryPoolState, index: nat) -> bool {
+    pool.alive && index < pool.query_count && query_is_reset(pool, index)
+}
+
+/// Ghost update: write a timestamp (transitions Reset → Available).
+pub open spec fn write_timestamp(
+    pool: QueryPoolState,
+    index: nat,
+) -> QueryPoolState
+    recommends index < pool.query_count,
+{
+    QueryPoolState {
+        slot_states: pool.slot_states.insert(index, QuerySlotState::Available),
+        ..pool
+    }
+}
+
+/// After write_timestamp, the slot is Available.
+pub proof fn lemma_write_timestamp_makes_available(pool: QueryPoolState, index: nat)
+    requires
+        pool.slot_states.contains_key(index),
+        index < pool.query_count,
+    ensures query_is_available(write_timestamp(pool, index), index),
+{
+}
+
 /// Destroy a query pool.
 pub open spec fn destroy_query_pool(pool: QueryPoolState) -> QueryPoolState {
     QueryPoolState {
