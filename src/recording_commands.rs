@@ -55,6 +55,23 @@ pub enum RecordedCommand {
     BeginTransformFeedback,
     EndTransformFeedback,
     PipelineBarrier2 { barriers: Seq<BarrierEntry> },
+    // VK_EXT_extended_dynamic_state (Vulkan 1.3)
+    SetCullMode,
+    SetFrontFace,
+    SetPrimitiveTopology,
+    SetDepthTestEnable,
+    SetDepthWriteEnable,
+    SetDepthCompareOp,
+    SetDepthBoundsTestEnable,
+    SetStencilTestEnable,
+    SetStencilOp,
+    SetRasterizerDiscardEnable,
+    // VK_KHR_push_descriptor
+    PushDescriptorSet { set_index: nat },
+    // VK_KHR_fragment_shading_rate
+    SetFragmentShadingRate,
+    // VK_EXT_shader_object
+    BindShaders,
 }
 
 /// Tracks the full recording context: current state, referenced resources,

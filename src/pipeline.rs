@@ -23,6 +23,17 @@ pub enum DynamicStateKind {
     StencilCompareMask,
     StencilWriteMask,
     StencilReference,
+    // VK_EXT_extended_dynamic_state (Vulkan 1.3)
+    CullMode,
+    FrontFace,
+    PrimitiveTopology,
+    DepthTestEnable,
+    DepthWriteEnable,
+    DepthCompareOp,
+    DepthBoundsTestEnable,
+    StencilTestEnable,
+    StencilOp,
+    RasterizerDiscardEnable,
 }
 
 /// The state of a graphics pipeline object.

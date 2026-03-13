@@ -2367,6 +2367,322 @@ pub proof fn lemma_fresh_recording_no_barriers()
 {
 }
 
+// ── Extended Dynamic State Exec Wrappers (VK 1.3) ──────────────────
+
+/// Exec: set dynamic cull mode.
+pub fn cmd_set_cull_mode_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    cull_mode: u32,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).recording_thread@ == thread@,
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_set_cull_mode(ctx, cb.handle, cull_mode);
+}
+
+/// Exec: set dynamic front face.
+pub fn cmd_set_front_face_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    front_face: u32,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).recording_thread@ == thread@,
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_set_front_face(ctx, cb.handle, front_face);
+}
+
+/// Exec: set dynamic primitive topology.
+pub fn cmd_set_primitive_topology_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    topology: u32,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).recording_thread@ == thread@,
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_set_primitive_topology(ctx, cb.handle, topology);
+}
+
+/// Exec: set dynamic depth test enable.
+pub fn cmd_set_depth_test_enable_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    enable: u32,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).recording_thread@ == thread@,
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_set_depth_test_enable(ctx, cb.handle, enable);
+}
+
+/// Exec: set dynamic depth write enable.
+pub fn cmd_set_depth_write_enable_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    enable: u32,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).recording_thread@ == thread@,
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_set_depth_write_enable(ctx, cb.handle, enable);
+}
+
+/// Exec: set dynamic depth compare op.
+pub fn cmd_set_depth_compare_op_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    compare_op: u32,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).recording_thread@ == thread@,
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_set_depth_compare_op(ctx, cb.handle, compare_op);
+}
+
+/// Exec: set dynamic depth bounds test enable.
+pub fn cmd_set_depth_bounds_test_enable_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    enable: u32,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).recording_thread@ == thread@,
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_set_depth_bounds_test_enable(ctx, cb.handle, enable);
+}
+
+/// Exec: set dynamic stencil test enable.
+pub fn cmd_set_stencil_test_enable_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    enable: u32,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).recording_thread@ == thread@,
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_set_stencil_test_enable(ctx, cb.handle, enable);
+}
+
+/// Exec: set dynamic stencil op.
+pub fn cmd_set_stencil_op_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    face_mask: u32,
+    fail_op: u32,
+    pass_op: u32,
+    depth_fail_op: u32,
+    compare_op: u32,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).recording_thread@ == thread@,
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_set_stencil_op(ctx, cb.handle, face_mask, fail_op, pass_op, depth_fail_op, compare_op);
+}
+
+/// Exec: set dynamic rasterizer discard enable.
+pub fn cmd_set_rasterizer_discard_enable_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    enable: u32,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).recording_thread@ == thread@,
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_set_rasterizer_discard_enable(ctx, cb.handle, enable);
+}
+
+// ── Push Descriptor Exec Wrapper ────────────────────────────────────
+
+/// Exec: push descriptor set.
+pub fn cmd_push_descriptor_set_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    bind_point: u32,
+    layout_handle: u64,
+    set_index: u32,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).recording_thread@ == thread@,
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_push_descriptor_set(ctx, cb.handle, bind_point, layout_handle, set_index);
+}
+
+// ── Fragment Shading Rate Exec Wrapper ──────────────────────────────
+
+/// Exec: set fragment shading rate.
+pub fn cmd_set_fragment_shading_rate_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    width: u32,
+    height: u32,
+    combiner0: u32,
+    combiner1: u32,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).recording_thread@ == thread@,
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_set_fragment_shading_rate(ctx, cb.handle, width, height, combiner0, combiner1);
+}
+
+// ── Shader Object Exec Wrapper ──────────────────────────────────────
+
+/// Exec: bind shader objects.
+pub fn cmd_bind_shaders_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    stage_count: u32,
+)
+    requires
+        is_recording(&*old(cb)),
+        runtime_cb_wf(&*old(cb)),
+        old(cb).recording_thread@ == thread@,
+    ensures
+        is_recording(cb),
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        cb.cb_id@ == old(cb).cb_id@,
+        runtime_cb_wf(cb),
+{
+    crate::ffi::ffi_cmd_bind_shaders(ctx, cb.handle, stage_count);
+}
+
 /// Proof: initial is not recording.
 pub proof fn lemma_initial_not_recording(cb: &RuntimeCommandBuffer)
     requires is_initial(cb),
