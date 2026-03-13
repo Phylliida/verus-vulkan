@@ -16,6 +16,7 @@ use crate::memory::*;
 use crate::lifetime::*;
 use crate::indirect::*;
 use crate::dynamic_rendering::*;
+use crate::msaa::*;
 use super::image_layout::RuntimeImageLayoutTracker;
 use super::device::RuntimeDevice;
 use super::query_pool::*;
@@ -431,6 +432,7 @@ pub fn cmd_bind_vertex_buffer_exec(
         old(cb).recording_thread@ == thread@,
         buffer@.alive,
         buffer@.id == buffer_id@,
+        buffer@.usage.contains(USAGE_VERTEX_BUFFER()),
     ensures
         is_recording(cb),
         cb.barrier_log@ == old(cb).barrier_log@,
@@ -462,6 +464,8 @@ pub fn cmd_bind_index_buffer_exec(
         old(cb).recording_thread@ == thread@,
         buffer@.alive,
         buffer@.id == buffer_id@,
+        buffer@.usage.contains(USAGE_INDEX_BUFFER()),
+        index_type == 0 || index_type == 1,
     ensures
         is_recording(cb),
         cb.barrier_log@ == old(cb).barrier_log@,
@@ -545,6 +549,9 @@ pub fn cmd_set_push_constants_exec(
         is_recording(&*old(cb)),
         runtime_cb_wf(&*old(cb)),
         old(cb).recording_thread@ == thread@,
+        offset as nat % 4 == 0,
+        data@.len() > 0,
+        data@.len() % 4 == 0,
     ensures
         is_recording(cb),
         cb.barrier_log@ == old(cb).barrier_log@,
@@ -685,6 +692,8 @@ pub fn cmd_copy_buffer_exec(
     size: u64,
     src_buffer: Ghost<nat>,
     dst_buffer: Ghost<nat>,
+    src_state: Ghost<BufferState>,
+    dst_state: Ghost<BufferState>,
     src_sync: Ghost<SyncState>,
     dst_sync: Ghost<SyncState>,
 )
@@ -694,6 +703,13 @@ pub fn cmd_copy_buffer_exec(
         old(cb).in_render_pass@ == false,
         old(cb).recording_thread@ == thread@,
         src_buffer@ != dst_buffer@,
+        size > 0,
+        src_state@.alive,
+        dst_state@.alive,
+        size as nat <= src_state@.size,
+        size as nat <= dst_state@.size,
+        src_state@.usage.contains(USAGE_TRANSFER_SRC()),
+        dst_state@.usage.contains(USAGE_TRANSFER_DST()),
         readable(old(cb).barrier_log@, src_sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_READ()),
         writable(old(cb).barrier_log@, dst_sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_WRITE()),
     ensures
@@ -723,6 +739,8 @@ pub fn cmd_copy_image_exec(
     layout_tracker: &RuntimeImageLayoutTracker,
     src_image: Ghost<ResourceId>,
     dst_image: Ghost<ResourceId>,
+    src_img_state: Ghost<ImageState>,
+    dst_img_state: Ghost<ImageState>,
     src_sync: Ghost<SyncState>,
     dst_sync: Ghost<SyncState>,
 )
@@ -732,6 +750,12 @@ pub fn cmd_copy_image_exec(
         old(cb).in_render_pass@ == false,
         old(cb).recording_thread@ == thread@,
         src_image@ != dst_image@,
+        width > 0,
+        height > 0,
+        src_img_state@.alive,
+        dst_img_state@.alive,
+        src_img_state@.usage.contains(USAGE_TRANSFER_SRC()),
+        dst_img_state@.usage.contains(USAGE_TRANSFER_DST()),
         layout_tracker@.contains_key(src_image@),
         layout_tracker@.contains_key(dst_image@),
         valid_transfer_src_layout(layout_tracker@[src_image@]),
@@ -765,6 +789,8 @@ pub fn cmd_blit_image_exec(
     layout_tracker: &RuntimeImageLayoutTracker,
     src_image: Ghost<ResourceId>,
     dst_image: Ghost<ResourceId>,
+    src_img_state: Ghost<ImageState>,
+    dst_img_state: Ghost<ImageState>,
     src_sync: Ghost<SyncState>,
     dst_sync: Ghost<SyncState>,
 )
@@ -774,6 +800,12 @@ pub fn cmd_blit_image_exec(
         old(cb).in_render_pass@ == false,
         old(cb).recording_thread@ == thread@,
         src_image@ != dst_image@,
+        width > 0,
+        height > 0,
+        src_img_state@.alive,
+        dst_img_state@.alive,
+        src_img_state@.usage.contains(USAGE_TRANSFER_SRC()),
+        dst_img_state@.usage.contains(USAGE_TRANSFER_DST()),
         layout_tracker@.contains_key(src_image@),
         layout_tracker@.contains_key(dst_image@),
         valid_transfer_src_layout(layout_tracker@[src_image@]),
@@ -807,6 +839,8 @@ pub fn cmd_copy_buffer_to_image_exec(
     layout_tracker: &RuntimeImageLayoutTracker,
     src_buffer: Ghost<nat>,
     dst_image: Ghost<ResourceId>,
+    src_buf_state: Ghost<BufferState>,
+    dst_img_state: Ghost<ImageState>,
     src_sync: Ghost<SyncState>,
     dst_sync: Ghost<SyncState>,
 )
@@ -815,8 +849,14 @@ pub fn cmd_copy_buffer_to_image_exec(
         runtime_cb_wf(&*old(cb)),
         old(cb).in_render_pass@ == false,
         old(cb).recording_thread@ == thread@,
+        src_buf_state@.alive,
+        dst_img_state@.alive,
+        src_buf_state@.usage.contains(USAGE_TRANSFER_SRC()),
+        dst_img_state@.usage.contains(USAGE_TRANSFER_DST()),
         layout_tracker@.contains_key(dst_image@),
         valid_transfer_dst_layout(layout_tracker@[dst_image@]),
+        width > 0,
+        height > 0,
         readable(old(cb).barrier_log@, src_sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_READ()),
         writable(old(cb).barrier_log@, dst_sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_WRITE()),
     ensures
@@ -846,6 +886,8 @@ pub fn cmd_copy_image_to_buffer_exec(
     layout_tracker: &RuntimeImageLayoutTracker,
     src_image: Ghost<ResourceId>,
     dst_buffer: Ghost<nat>,
+    src_img_state: Ghost<ImageState>,
+    dst_buf_state: Ghost<BufferState>,
     src_sync: Ghost<SyncState>,
     dst_sync: Ghost<SyncState>,
 )
@@ -854,8 +896,14 @@ pub fn cmd_copy_image_to_buffer_exec(
         runtime_cb_wf(&*old(cb)),
         old(cb).in_render_pass@ == false,
         old(cb).recording_thread@ == thread@,
+        src_img_state@.alive,
+        dst_buf_state@.alive,
+        src_img_state@.usage.contains(USAGE_TRANSFER_SRC()),
+        dst_buf_state@.usage.contains(USAGE_TRANSFER_DST()),
         layout_tracker@.contains_key(src_image@),
         valid_transfer_src_layout(layout_tracker@[src_image@]),
+        width > 0,
+        height > 0,
         readable(old(cb).barrier_log@, src_sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_READ()),
         writable(old(cb).barrier_log@, dst_sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_WRITE()),
     ensures
@@ -895,6 +943,7 @@ pub fn cmd_draw_indirect_exec(
         pipeline@.alive,
         rp@.alive,
         draw_indirect_valid(old(cb).recording_state@, pipeline@, rp@, indirect_params@, buffer@),
+        buffer@.usage.contains(USAGE_INDIRECT_BUFFER()),
         readable(old(cb).barrier_log@, buffer_sync@,
             crate::stage_access::STAGE_DRAW_INDIRECT(),
             crate::stage_access::ACCESS_INDIRECT_COMMAND_READ()),
@@ -996,6 +1045,7 @@ pub fn cmd_begin_dynamic_rendering_exec(
     height: u32,
     layer_count: u32,
     info: Ghost<DynamicRenderingInfo>,
+    pipeline_samples: Ghost<SampleCount>,
 )
     requires
         is_recording(&*old(cb)),
@@ -1003,6 +1053,7 @@ pub fn cmd_begin_dynamic_rendering_exec(
         old(cb).in_render_pass@ == false,
         old(cb).recording_thread@ == thread@,
         dynamic_rendering_well_formed(info@),
+        dynamic_rendering_samples_match(info@, pipeline_samples@),
     ensures
         is_recording(cb),
         cb.in_render_pass@ == true,

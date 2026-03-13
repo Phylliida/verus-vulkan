@@ -47,6 +47,7 @@ pub open spec fn USAGE_STORAGE_IMAGE() -> nat { 7 }
 pub open spec fn USAGE_COLOR_ATTACHMENT() -> nat { 8 }
 pub open spec fn USAGE_DEPTH_STENCIL_ATTACHMENT() -> nat { 9 }
 pub open spec fn USAGE_INPUT_ATTACHMENT() -> nat { 10 }
+pub open spec fn USAGE_INDIRECT_BUFFER() -> nat { 11 }
 
 /// A set of access types.
 pub struct AccessFlags {
