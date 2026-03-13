@@ -257,6 +257,7 @@ pub fn cmd_next_subpass_exec(
 }
 
 /// Exec: record a pipeline barrier.
+/// The runtime stage bitmasks must match the ghost barrier entry's stage sets.
 pub fn cmd_pipeline_barrier_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -269,6 +270,8 @@ pub fn cmd_pipeline_barrier_exec(
         is_recording(&*old(cb)),
         runtime_cb_wf(&*old(cb)),
         old(cb).recording_thread@ == thread@,
+        src_stage == stages_to_vk_bitmask(entry@.src_stages),
+        dst_stage == stages_to_vk_bitmask(entry@.dst_stages),
     ensures
         is_recording(cb),
         cb.barrier_log@ == old(cb).barrier_log@.push(entry@),
@@ -466,7 +469,17 @@ pub fn cmd_bind_index_buffer_exec(
 }
 
 /// Exec: set the dynamic viewport.
-pub fn cmd_set_viewport_exec(cb: &mut RuntimeCommandBuffer, thread: Ghost<ThreadId>)
+pub fn cmd_set_viewport_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    x: f32,
+    y: f32,
+    w: f32,
+    h: f32,
+    min_d: f32,
+    max_d: f32,
+)
     requires
         is_recording(&*old(cb)),
         runtime_cb_wf(&*old(cb)),
@@ -480,11 +493,20 @@ pub fn cmd_set_viewport_exec(cb: &mut RuntimeCommandBuffer, thread: Ghost<Thread
         cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
+    crate::ffi::ffi_cmd_set_viewport(ctx, cb.handle, x, y, w, h, min_d, max_d);
     cb.recording_state = Ghost(set_viewport_recording(cb.recording_state@));
 }
 
 /// Exec: set the dynamic scissor.
-pub fn cmd_set_scissor_exec(cb: &mut RuntimeCommandBuffer, thread: Ghost<ThreadId>)
+pub fn cmd_set_scissor_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    x: i32,
+    y: i32,
+    w: u32,
+    h: u32,
+)
     requires
         is_recording(&*old(cb)),
         runtime_cb_wf(&*old(cb)),
@@ -498,11 +520,20 @@ pub fn cmd_set_scissor_exec(cb: &mut RuntimeCommandBuffer, thread: Ghost<ThreadI
         cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
+    crate::ffi::ffi_cmd_set_scissor(ctx, cb.handle, x, y, w, h);
     cb.recording_state = Ghost(set_scissor_recording(cb.recording_state@));
 }
 
 /// Exec: set push constants.
-pub fn cmd_set_push_constants_exec(cb: &mut RuntimeCommandBuffer, thread: Ghost<ThreadId>)
+pub fn cmd_set_push_constants_exec(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    thread: Ghost<ThreadId>,
+    layout_handle: u64,
+    stage_flags: u32,
+    offset: u32,
+    data: &[u8],
+)
     requires
         is_recording(&*old(cb)),
         runtime_cb_wf(&*old(cb)),
@@ -516,6 +547,7 @@ pub fn cmd_set_push_constants_exec(cb: &mut RuntimeCommandBuffer, thread: Ghost<
         cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
+    crate::ffi::ffi_cmd_push_constants(ctx, cb.handle, layout_handle, stage_flags, offset, data);
     cb.recording_state = Ghost(set_push_constants_recording(cb.recording_state@));
 }
 
@@ -534,8 +566,6 @@ pub fn cmd_draw_exec(
     rp: Ghost<RenderPassState>,
     draw_state: Ghost<DrawCallState>,
     required_vertex_slots: Ghost<Set<nat>>,
-    first_vertex_ghost: Ghost<nat>,
-    vertex_count_ghost: Ghost<nat>,
 )
     requires
         is_recording(&*old(cb)),
@@ -548,7 +578,7 @@ pub fn cmd_draw_exec(
         descriptor_sets_bound_for_pipeline(old(cb).recording_state@, pipeline@.descriptor_set_layouts),
         has_vertex_buffer_bound(old(cb).recording_state@),
         dynamic_states_satisfied(draw_state@, pipeline@.required_dynamic_states),
-        vertex_draw_in_bounds(draw_state@, required_vertex_slots@, first_vertex_ghost@, vertex_count_ghost@),
+        vertex_draw_in_bounds(draw_state@, required_vertex_slots@, first_vertex as nat, vertex_count as nat),
     ensures
         is_recording(cb),
         cb.barrier_log@ == old(cb).barrier_log@,
@@ -578,8 +608,6 @@ pub fn cmd_draw_indexed_exec(
     required_vertex_slots: Ghost<Set<nat>>,
     first_vertex_ghost: Ghost<nat>,
     vertex_count_ghost: Ghost<nat>,
-    first_index_ghost: Ghost<nat>,
-    index_count_ghost: Ghost<nat>,
 )
     requires
         is_recording(&*old(cb)),
@@ -594,7 +622,7 @@ pub fn cmd_draw_indexed_exec(
         has_index_buffer_bound(old(cb).recording_state@),
         dynamic_states_satisfied(draw_state@, pipeline@.required_dynamic_states),
         vertex_draw_in_bounds(draw_state@, required_vertex_slots@, first_vertex_ghost@, vertex_count_ghost@),
-        indexed_draw_in_bounds(draw_state@, first_index_ghost@, index_count_ghost@),
+        indexed_draw_in_bounds(draw_state@, first_index as nat, index_count as nat),
     ensures
         is_recording(cb),
         cb.barrier_log@ == old(cb).barrier_log@,

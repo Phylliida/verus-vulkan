@@ -88,8 +88,6 @@ pub fn record_draw_ctx_exec(
     rp: Ghost<RenderPassState>,
     draw_state: Ghost<DrawCallState>,
     required_vertex_slots: Ghost<Set<nat>>,
-    first_vertex_ghost: Ghost<nat>,
-    vertex_count_ghost: Ghost<nat>,
     resources: Ghost<Set<ResourceId>>,
 )
     requires
@@ -102,7 +100,7 @@ pub fn record_draw_ctx_exec(
         descriptor_sets_bound_for_pipeline(old(rctx).cb.recording_state@, pipeline@.descriptor_set_layouts),
         has_vertex_buffer_bound(old(rctx).cb.recording_state@),
         dynamic_states_satisfied(draw_state@, pipeline@.required_dynamic_states),
-        vertex_draw_in_bounds(draw_state@, required_vertex_slots@, first_vertex_ghost@, vertex_count_ghost@),
+        vertex_draw_in_bounds(draw_state@, required_vertex_slots@, first_vertex as nat, vertex_count as nat),
     ensures
         recording_context_wf(rctx),
         rctx.ctx@ == record_draw(old(rctx).ctx@, resources@),
@@ -121,8 +119,6 @@ pub fn record_draw_ctx_exec(
         rp,
         draw_state,
         required_vertex_slots,
-        first_vertex_ghost,
-        vertex_count_ghost,
     );
     proof {
         let old_ctx = old(rctx).ctx@;
@@ -143,6 +139,8 @@ pub fn record_pipeline_barrier_ctx_exec(
     requires
         recording_context_wf(&*old(rctx)),
         old(rctx).cb.recording_thread@ == thread@,
+        src_stage == stages_to_vk_bitmask(entry@.src_stages),
+        dst_stage == stages_to_vk_bitmask(entry@.dst_stages),
     ensures
         recording_context_wf(rctx),
         rctx.ctx@ == record_pipeline_barrier_single(old(rctx).ctx@, entry@),

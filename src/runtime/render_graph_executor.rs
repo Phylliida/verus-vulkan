@@ -4,6 +4,7 @@ verus! {
 
 use crate::resource::*;
 use crate::sync::*;
+use crate::flags::*;
 use crate::recording::*;
 use crate::recording_commands::*;
 use crate::render_graph_compile::*;
@@ -57,6 +58,7 @@ pub fn execute_graph_step_exec(
     cg: Ghost<CompiledGraph>,
     step: Ghost<nat>,
     num_barriers: usize,
+    barrier_stages: &Vec<(u32, u32)>,
     ctx: Ghost<RecordingContext>,
     thread: Ghost<ThreadId>,
 ) -> (new_ctx: Ghost<RecordingContext>)
@@ -66,6 +68,13 @@ pub fn execute_graph_step_exec(
         old(cb).recording_thread@ == thread@,
         step@ < cg@.barrier_plans.len(),
         num_barriers as nat == cg@.barrier_plans[step@ as int].pre_barriers.len(),
+        barrier_stages@.len() == num_barriers as nat,
+        forall|i: int| 0 <= i < num_barriers as int ==> ({
+            let entry = barrier_action_to_entry(
+                cg@.barrier_plans[step@ as int].pre_barriers[i]);
+            (#[trigger] barrier_stages@[i]).0 == stages_to_vk_bitmask(entry.src_stages)
+            && barrier_stages@[i].1 == stages_to_vk_bitmask(entry.dst_stages)
+        }),
         ctx@.state == old(cb).recording_state@,
         ctx@.barrier_log == old(cb).barrier_log@,
     ensures
@@ -98,6 +107,13 @@ pub fn execute_graph_step_exec(
             cur_ctx.state == cb.recording_state@,
             cur_ctx.barrier_log == cb.barrier_log@,
             remaining =~= plan.pre_barriers.subrange(i as int, plan.pre_barriers.len() as int),
+            barrier_stages@.len() == num_barriers as nat,
+            forall|j: int| 0 <= j < num_barriers as int ==> ({
+                let entry = barrier_action_to_entry(
+                    cg@.barrier_plans[step@ as int].pre_barriers[j]);
+                (#[trigger] barrier_stages@[j]).0 == stages_to_vk_bitmask(entry.src_stages)
+                && barrier_stages@[j].1 == stages_to_vk_bitmask(entry.dst_stages)
+            }),
             // Key: applying remaining barriers to cur_ctx gives the same as applying all to ctx
             record_barrier_plan(cur_ctx, PassBarrierPlan {
                 pass_index: plan.pass_index,
@@ -109,7 +125,10 @@ pub fn execute_graph_step_exec(
         let ghost ba = remaining[0];
         let ghost entry = barrier_action_to_entry(ba);
 
-        cmd_pipeline_barrier_exec(vk, cb, thread, 0u32, 0u32, Ghost(entry));
+        let stages = &barrier_stages[i];
+        // The invariant ensures stages match the ghost barrier entry
+        assert(plan.pre_barriers[i as int] == ba);
+        cmd_pipeline_barrier_exec(vk, cb, thread, stages.0, stages.1, Ghost(entry));
 
         proof {
             // record_barrier_plan peels remaining[0] and recurses on remaining[1..]:
@@ -139,6 +158,7 @@ pub fn execute_compiled_graph_exec(
     cg: Ghost<CompiledGraph>,
     num_steps: usize,
     step_barrier_counts: &Vec<usize>,
+    all_barrier_stages: &Vec<Vec<(u32, u32)>>,
     thread: Ghost<ThreadId>,
 ) -> (result: GraphExecutionResult)
     requires
@@ -149,8 +169,17 @@ pub fn execute_compiled_graph_exec(
         old(cb).recording_state@ == initial_recording_state(),
         num_steps as nat == cg@.barrier_plans.len(),
         step_barrier_counts@.len() == num_steps,
+        all_barrier_stages@.len() == num_steps,
         forall|s: int| 0 <= s < num_steps as int
             ==> step_barrier_counts@[s] as nat == cg@.barrier_plans[s].pre_barriers.len(),
+        forall|s: int| 0 <= s < num_steps as int ==>
+            (#[trigger] all_barrier_stages@[s])@.len() == step_barrier_counts@[s] as nat,
+        forall|s: int, j: int| 0 <= s < num_steps as int && 0 <= j < step_barrier_counts@[s] as int ==> ({
+            let entry = barrier_action_to_entry(
+                cg@.barrier_plans[s].pre_barriers[j]);
+            (#[trigger] all_barrier_stages@[s]@[j]).0 == stages_to_vk_bitmask(entry.src_stages)
+            && all_barrier_stages@[s]@[j].1 == stages_to_vk_bitmask(entry.dst_stages)
+        }),
     ensures
         is_recording(cb),
         runtime_cb_wf(cb),
@@ -169,8 +198,17 @@ pub fn execute_compiled_graph_exec(
             0 <= step <= num_steps,
             num_steps as nat == cg@.barrier_plans.len(),
             step_barrier_counts@.len() == num_steps,
+            all_barrier_stages@.len() == num_steps,
             forall|s: int| 0 <= s < num_steps as int
                 ==> step_barrier_counts@[s] as nat == cg@.barrier_plans[s].pre_barriers.len(),
+            forall|s: int| 0 <= s < num_steps as int ==>
+                (#[trigger] all_barrier_stages@[s])@.len() == step_barrier_counts@[s] as nat,
+            forall|s: int, j: int| 0 <= s < num_steps as int && 0 <= j < step_barrier_counts@[s] as int ==> ({
+                let entry = barrier_action_to_entry(
+                    cg@.barrier_plans[s].pre_barriers[j]);
+                (#[trigger] all_barrier_stages@[s]@[j]).0 == stages_to_vk_bitmask(entry.src_stages)
+                && all_barrier_stages@[s]@[j].1 == stages_to_vk_bitmask(entry.dst_stages)
+            }),
             is_recording(cb),
             runtime_cb_wf(cb),
             cb.recording_thread@ == thread@,
@@ -183,7 +221,8 @@ pub fn execute_compiled_graph_exec(
     {
         let ghost old_ctx = cur_ctx;
         let nb = step_barrier_counts[step];
-        let new_ctx = execute_graph_step_exec(vk, cb, cg, Ghost(step as nat), nb, Ghost(cur_ctx), thread);
+        let bs = &all_barrier_stages[step];
+        let new_ctx = execute_graph_step_exec(vk, cb, cg, Ghost(step as nat), nb, bs, Ghost(cur_ctx), thread);
 
         proof {
             cur_ctx = new_ctx@;
