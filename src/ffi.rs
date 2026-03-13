@@ -2198,4 +2198,77 @@ pub(crate) fn ffi_cmd_pipeline_barrier2(ctx: &VulkanContext, cb_handle: u64) {
     // Ghost stub — Vulkan 1.3 vkCmdPipelineBarrier2.
 }
 
+// ── Extended dynamic state command bridges (ghost stubs — VK 1.3) ───
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_set_cull_mode(ctx: &VulkanContext, cb_handle: u64, cull_mode: u32) {
+    // Ghost stub — vkCmdSetCullMode (Vulkan 1.3).
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_set_front_face(ctx: &VulkanContext, cb_handle: u64, front_face: u32) {
+    // Ghost stub — vkCmdSetFrontFace (Vulkan 1.3).
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_set_primitive_topology(ctx: &VulkanContext, cb_handle: u64, topology: u32) {
+    // Ghost stub — vkCmdSetPrimitiveTopology (Vulkan 1.3).
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_set_depth_test_enable(ctx: &VulkanContext, cb_handle: u64, enable: u32) {
+    // Ghost stub — vkCmdSetDepthTestEnable (Vulkan 1.3).
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_set_depth_write_enable(ctx: &VulkanContext, cb_handle: u64, enable: u32) {
+    // Ghost stub — vkCmdSetDepthWriteEnable (Vulkan 1.3).
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_set_depth_compare_op(ctx: &VulkanContext, cb_handle: u64, compare_op: u32) {
+    // Ghost stub — vkCmdSetDepthCompareOp (Vulkan 1.3).
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_set_depth_bounds_test_enable(ctx: &VulkanContext, cb_handle: u64, enable: u32) {
+    // Ghost stub — vkCmdSetDepthBoundsTestEnable (Vulkan 1.3).
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_set_stencil_test_enable(ctx: &VulkanContext, cb_handle: u64, enable: u32) {
+    // Ghost stub — vkCmdSetStencilTestEnable (Vulkan 1.3).
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_set_stencil_op(ctx: &VulkanContext, cb_handle: u64, face_mask: u32, fail_op: u32, pass_op: u32, depth_fail_op: u32, compare_op: u32) {
+    // Ghost stub — vkCmdSetStencilOp (Vulkan 1.3).
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_set_rasterizer_discard_enable(ctx: &VulkanContext, cb_handle: u64, enable: u32) {
+    // Ghost stub — vkCmdSetRasterizerDiscardEnable (Vulkan 1.3).
+}
+
+// ── Push descriptor command bridges (ghost stubs) ───────────────────
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_push_descriptor_set(ctx: &VulkanContext, cb_handle: u64, bind_point: u32, layout: u64, set_index: u32) {
+    // Ghost stub — vkCmdPushDescriptorSetKHR.
+}
+
+// ── Fragment shading rate command bridges (ghost stubs) ─────────────
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_set_fragment_shading_rate(ctx: &VulkanContext, cb_handle: u64, width: u32, height: u32, combiner0: u32, combiner1: u32) {
+    // Ghost stub — vkCmdSetFragmentShadingRateKHR.
+}
+
+// ── Shader object command bridges (ghost stubs) ─────────────────────
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_bind_shaders(ctx: &VulkanContext, cb_handle: u64, stage_count: u32) {
+    // Ghost stub — vkCmdBindShadersEXT.
+}
+
 } // verus!

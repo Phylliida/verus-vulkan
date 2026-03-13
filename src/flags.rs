@@ -14,6 +14,10 @@ pub open spec fn STAGE_BOTTOM_OF_PIPE() -> nat { 5 }
 pub open spec fn STAGE_COLOR_ATTACHMENT_OUTPUT() -> nat { 6 }
 pub open spec fn STAGE_EARLY_FRAGMENT_TESTS() -> nat { 7 }
 pub open spec fn STAGE_LATE_FRAGMENT_TESTS() -> nat { 8 }
+pub open spec fn STAGE_TASK_SHADER() -> nat { 9 }
+pub open spec fn STAGE_MESH_SHADER() -> nat { 10 }
+pub open spec fn STAGE_RAY_TRACING_SHADER() -> nat { 11 }
+pub open spec fn STAGE_FRAGMENT_SHADING_RATE_ATTACHMENT() -> nat { 12 }
 
 /// A set of pipeline stages.
 pub struct PipelineStageFlags {
@@ -32,6 +36,9 @@ pub open spec fn ACCESS_TRANSFER_READ() -> nat { 6 }
 pub open spec fn ACCESS_TRANSFER_WRITE() -> nat { 7 }
 pub open spec fn ACCESS_HOST_READ() -> nat { 8 }
 pub open spec fn ACCESS_HOST_WRITE() -> nat { 9 }
+pub open spec fn ACCESS_FRAGMENT_SHADING_RATE_ATTACHMENT_READ() -> nat { 10 }
+pub open spec fn ACCESS_ACCELERATION_STRUCTURE_READ() -> nat { 11 }
+pub open spec fn ACCESS_ACCELERATION_STRUCTURE_WRITE() -> nat { 12 }
 
 // ── Buffer/Image usage flag constants ─────────────────────────────────
 // Each usage flag gets a distinct nat for Set<nat>-based usage tracking.
@@ -48,6 +55,8 @@ pub open spec fn USAGE_COLOR_ATTACHMENT() -> nat { 8 }
 pub open spec fn USAGE_DEPTH_STENCIL_ATTACHMENT() -> nat { 9 }
 pub open spec fn USAGE_INPUT_ATTACHMENT() -> nat { 10 }
 pub open spec fn USAGE_INDIRECT_BUFFER() -> nat { 11 }
+pub open spec fn USAGE_SHADING_RATE_IMAGE() -> nat { 12 }
+pub open spec fn USAGE_FRAGMENT_DENSITY_MAP() -> nat { 13 }
 
 /// A set of access types.
 pub struct AccessFlags {
@@ -61,6 +70,7 @@ pub open spec fn has_write_access(flags: AccessFlags) -> bool {
     || flags.accesses.contains(ACCESS_DEPTH_STENCIL_WRITE())
     || flags.accesses.contains(ACCESS_TRANSFER_WRITE())
     || flags.accesses.contains(ACCESS_HOST_WRITE())
+    || flags.accesses.contains(ACCESS_ACCELERATION_STRUCTURE_WRITE())
 }
 
 /// True iff the access set contains any read access.
@@ -70,6 +80,8 @@ pub open spec fn has_read_access(flags: AccessFlags) -> bool {
     || flags.accesses.contains(ACCESS_DEPTH_STENCIL_READ())
     || flags.accesses.contains(ACCESS_TRANSFER_READ())
     || flags.accesses.contains(ACCESS_HOST_READ())
+    || flags.accesses.contains(ACCESS_FRAGMENT_SHADING_RATE_ATTACHMENT_READ())
+    || flags.accesses.contains(ACCESS_ACCELERATION_STRUCTURE_READ())
 }
 
 /// An empty stage set.
@@ -199,6 +211,10 @@ pub enum PipelineStage {
     ColorAttachmentOutput,
     EarlyFragmentTests,
     LateFragmentTests,
+    TaskShader,
+    MeshShader,
+    RayTracingShader,
+    FragmentShadingRateAttachment,
 }
 
 /// Map a PipelineStage enum variant to its abstract stage ID (nat).
@@ -213,6 +229,10 @@ pub open spec fn stage_to_id(stage: PipelineStage) -> nat {
         PipelineStage::ColorAttachmentOutput => STAGE_COLOR_ATTACHMENT_OUTPUT(),
         PipelineStage::EarlyFragmentTests => STAGE_EARLY_FRAGMENT_TESTS(),
         PipelineStage::LateFragmentTests => STAGE_LATE_FRAGMENT_TESTS(),
+        PipelineStage::TaskShader => STAGE_TASK_SHADER(),
+        PipelineStage::MeshShader => STAGE_MESH_SHADER(),
+        PipelineStage::RayTracingShader => STAGE_RAY_TRACING_SHADER(),
+        PipelineStage::FragmentShadingRateAttachment => STAGE_FRAGMENT_SHADING_RATE_ATTACHMENT(),
     }
 }
 
@@ -228,6 +248,10 @@ pub open spec fn stage_vk_bit(stage: PipelineStage) -> u32 {
         PipelineStage::ColorAttachmentOutput => 0x00000400u32,
         PipelineStage::EarlyFragmentTests => 0x00000100u32,
         PipelineStage::LateFragmentTests => 0x00000200u32,
+        PipelineStage::TaskShader => 0x00080000u32,
+        PipelineStage::MeshShader => 0x00100000u32,
+        PipelineStage::RayTracingShader => 0x00200000u32,
+        PipelineStage::FragmentShadingRateAttachment => 0x00400000u32,
     }
 }
 
@@ -243,6 +267,10 @@ pub open spec fn stages_to_vk_bitmask(flags: PipelineStageFlags) -> u32 {
      + if flags.stages.contains(stage_to_id(PipelineStage::ColorAttachmentOutput))  { stage_vk_bit(PipelineStage::ColorAttachmentOutput) } else { 0u32 }
      + if flags.stages.contains(stage_to_id(PipelineStage::EarlyFragmentTests))     { stage_vk_bit(PipelineStage::EarlyFragmentTests) } else { 0u32 }
      + if flags.stages.contains(stage_to_id(PipelineStage::LateFragmentTests))      { stage_vk_bit(PipelineStage::LateFragmentTests) } else { 0u32 }
+     + if flags.stages.contains(stage_to_id(PipelineStage::TaskShader))             { stage_vk_bit(PipelineStage::TaskShader) } else { 0u32 }
+     + if flags.stages.contains(stage_to_id(PipelineStage::MeshShader))             { stage_vk_bit(PipelineStage::MeshShader) } else { 0u32 }
+     + if flags.stages.contains(stage_to_id(PipelineStage::RayTracingShader))       { stage_vk_bit(PipelineStage::RayTracingShader) } else { 0u32 }
+     + if flags.stages.contains(stage_to_id(PipelineStage::FragmentShadingRateAttachment)) { stage_vk_bit(PipelineStage::FragmentShadingRateAttachment) } else { 0u32 }
     ) as u32
 }
 
@@ -260,6 +288,49 @@ pub proof fn lemma_usage_constants_distinct()
         USAGE_TRANSFER_DST() != USAGE_STORAGE_BUFFER(),
         USAGE_SAMPLED() != USAGE_INPUT_ATTACHMENT(),
         USAGE_STORAGE_IMAGE() != USAGE_INPUT_ATTACHMENT(),
+        USAGE_SHADING_RATE_IMAGE() != USAGE_FRAGMENT_DENSITY_MAP(),
+        USAGE_INDIRECT_BUFFER() != USAGE_SHADING_RATE_IMAGE(),
+        USAGE_INDIRECT_BUFFER() != USAGE_FRAGMENT_DENSITY_MAP(),
+{
+}
+
+/// All new stage constants are distinct from each other and from existing ones.
+pub proof fn lemma_new_stage_constants_distinct()
+    ensures
+        STAGE_TASK_SHADER() != STAGE_MESH_SHADER(),
+        STAGE_TASK_SHADER() != STAGE_RAY_TRACING_SHADER(),
+        STAGE_TASK_SHADER() != STAGE_FRAGMENT_SHADING_RATE_ATTACHMENT(),
+        STAGE_MESH_SHADER() != STAGE_RAY_TRACING_SHADER(),
+        STAGE_MESH_SHADER() != STAGE_FRAGMENT_SHADING_RATE_ATTACHMENT(),
+        STAGE_RAY_TRACING_SHADER() != STAGE_FRAGMENT_SHADING_RATE_ATTACHMENT(),
+        STAGE_TASK_SHADER() != STAGE_TOP_OF_PIPE(),
+        STAGE_TASK_SHADER() != STAGE_VERTEX_SHADER(),
+        STAGE_TASK_SHADER() != STAGE_FRAGMENT_SHADER(),
+        STAGE_TASK_SHADER() != STAGE_COMPUTE_SHADER(),
+        STAGE_TASK_SHADER() != STAGE_TRANSFER(),
+        STAGE_TASK_SHADER() != STAGE_BOTTOM_OF_PIPE(),
+        STAGE_MESH_SHADER() != STAGE_TOP_OF_PIPE(),
+        STAGE_MESH_SHADER() != STAGE_VERTEX_SHADER(),
+        STAGE_MESH_SHADER() != STAGE_FRAGMENT_SHADER(),
+        STAGE_MESH_SHADER() != STAGE_COMPUTE_SHADER(),
+        STAGE_RAY_TRACING_SHADER() != STAGE_TOP_OF_PIPE(),
+        STAGE_RAY_TRACING_SHADER() != STAGE_VERTEX_SHADER(),
+        STAGE_RAY_TRACING_SHADER() != STAGE_COMPUTE_SHADER(),
+{
+}
+
+/// New access constants are distinct.
+pub proof fn lemma_new_access_constants_distinct()
+    ensures
+        ACCESS_FRAGMENT_SHADING_RATE_ATTACHMENT_READ() != ACCESS_ACCELERATION_STRUCTURE_READ(),
+        ACCESS_FRAGMENT_SHADING_RATE_ATTACHMENT_READ() != ACCESS_ACCELERATION_STRUCTURE_WRITE(),
+        ACCESS_ACCELERATION_STRUCTURE_READ() != ACCESS_ACCELERATION_STRUCTURE_WRITE(),
+        ACCESS_FRAGMENT_SHADING_RATE_ATTACHMENT_READ() != ACCESS_SHADER_READ(),
+        ACCESS_FRAGMENT_SHADING_RATE_ATTACHMENT_READ() != ACCESS_SHADER_WRITE(),
+        ACCESS_ACCELERATION_STRUCTURE_READ() != ACCESS_SHADER_READ(),
+        ACCESS_ACCELERATION_STRUCTURE_READ() != ACCESS_TRANSFER_READ(),
+        ACCESS_ACCELERATION_STRUCTURE_WRITE() != ACCESS_SHADER_WRITE(),
+        ACCESS_ACCELERATION_STRUCTURE_WRITE() != ACCESS_TRANSFER_WRITE(),
 {
 }
 

@@ -262,4 +262,28 @@ pub mod ffi;
 pub mod memory_binding;
 
 #[cfg(verus_keep_ghost)]
+pub mod extended_dynamic_state;
+
+#[cfg(verus_keep_ghost)]
+pub mod push_descriptor;
+
+#[cfg(verus_keep_ghost)]
+pub mod variable_rate_shading;
+
+#[cfg(verus_keep_ghost)]
+pub mod sparse_resources;
+
+#[cfg(verus_keep_ghost)]
+pub mod shader_object;
+
+#[cfg(verus_keep_ghost)]
+pub mod subgroup_ops;
+
+#[cfg(verus_keep_ghost)]
+pub mod external_memory;
+
+#[cfg(verus_keep_ghost)]
+pub mod multi_plane_image;
+
+#[cfg(verus_keep_ghost)]
 pub mod runtime;
