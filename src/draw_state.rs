@@ -159,7 +159,8 @@ pub open spec fn vertex_draw_in_bounds(
         && state.vertex_bindings.contains_key(slot)
         ==> {
             let b = state.vertex_bindings[slot];
-            b.offset + (first_vertex + vertex_count) * b.stride <= b.buffer_size
+            b.stride > 0
+            && b.offset + (first_vertex + vertex_count) * b.stride <= b.buffer_size
         }
 }
 

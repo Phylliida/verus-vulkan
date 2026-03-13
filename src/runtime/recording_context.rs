@@ -138,6 +138,7 @@ pub fn record_pipeline_barrier_ctx_exec(
 )
     requires
         recording_context_wf(&*old(rctx)),
+        old(rctx).cb.in_render_pass@ == false,
         old(rctx).cb.recording_thread@ == thread@,
         src_stage == stages_to_vk_bitmask(entry@.src_stages),
         dst_stage == stages_to_vk_bitmask(entry@.dst_stages),
@@ -379,6 +380,7 @@ pub fn record_draw_indirect_ctx_exec(
     draw_state: Ghost<DrawCallState>,
     indirect_params: Ghost<IndirectDrawParams>,
     buffer: Ghost<BufferState>,
+    buffer_sync: Ghost<SyncState>,
     resources: Ghost<Set<ResourceId>>,
 )
     requires
@@ -388,13 +390,16 @@ pub fn record_draw_indirect_ctx_exec(
         pipeline@.alive,
         rp@.alive,
         draw_indirect_valid(old(rctx).cb.recording_state@, pipeline@, rp@, indirect_params@, buffer@),
+        readable(old(rctx).cb.barrier_log@, buffer_sync@,
+            crate::stage_access::STAGE_DRAW_INDIRECT(),
+            crate::stage_access::ACCESS_INDIRECT_COMMAND_READ()),
     ensures
         recording_context_wf(rctx),
         rctx.ctx@ == record_draw_indirect(old(rctx).ctx@, indirect_params@.buffer_id, indirect_params@.offset, indirect_params@.draw_count, resources@),
         rctx.cb.cb_id@ == old(rctx).cb.cb_id@,
         rctx.cb.recording_thread@ == old(rctx).cb.recording_thread@,
 {
-    cmd_draw_indirect_exec(vk, &mut rctx.cb, thread, buffer_handle, offset, draw_count, stride, pipeline, rp, draw_state, indirect_params, buffer);
+    cmd_draw_indirect_exec(vk, &mut rctx.cb, thread, buffer_handle, offset, draw_count, stride, pipeline, rp, draw_state, indirect_params, buffer, buffer_sync);
     rctx.ctx = Ghost(record_draw_indirect(old(rctx).ctx@, indirect_params@.buffer_id, indirect_params@.offset, indirect_params@.draw_count, resources@));
 }
 
@@ -412,6 +417,7 @@ pub fn record_draw_indexed_indirect_ctx_exec(
     draw_state: Ghost<DrawCallState>,
     indirect_params: Ghost<IndirectDrawParams>,
     buffer: Ghost<BufferState>,
+    buffer_sync: Ghost<SyncState>,
     resources: Ghost<Set<ResourceId>>,
 )
     requires
@@ -421,13 +427,16 @@ pub fn record_draw_indexed_indirect_ctx_exec(
         pipeline@.alive,
         rp@.alive,
         draw_indexed_indirect_valid(old(rctx).cb.recording_state@, pipeline@, rp@, indirect_params@, buffer@),
+        readable(old(rctx).cb.barrier_log@, buffer_sync@,
+            crate::stage_access::STAGE_DRAW_INDIRECT(),
+            crate::stage_access::ACCESS_INDIRECT_COMMAND_READ()),
     ensures
         recording_context_wf(rctx),
         rctx.ctx@ == record_draw_indexed_indirect(old(rctx).ctx@, indirect_params@.buffer_id, indirect_params@.offset, indirect_params@.draw_count, resources@),
         rctx.cb.cb_id@ == old(rctx).cb.cb_id@,
         rctx.cb.recording_thread@ == old(rctx).cb.recording_thread@,
 {
-    cmd_draw_indexed_indirect_exec(vk, &mut rctx.cb, thread, buffer_handle, offset, draw_count, stride, pipeline, rp, draw_state, indirect_params, buffer);
+    cmd_draw_indexed_indirect_exec(vk, &mut rctx.cb, thread, buffer_handle, offset, draw_count, stride, pipeline, rp, draw_state, indirect_params, buffer, buffer_sync);
     rctx.ctx = Ghost(record_draw_indexed_indirect(old(rctx).ctx@, indirect_params@.buffer_id, indirect_params@.offset, indirect_params@.draw_count, resources@));
 }
 
@@ -442,6 +451,7 @@ pub fn record_dispatch_indirect_ctx_exec(
     buffer_id: Ghost<nat>,
     offset: Ghost<nat>,
     buffer: Ghost<BufferState>,
+    buffer_sync: Ghost<SyncState>,
     resources: Ghost<Set<ResourceId>>,
 )
     requires
@@ -450,13 +460,16 @@ pub fn record_dispatch_indirect_ctx_exec(
         old(rctx).cb.recording_thread@ == thread@,
         pipeline@.alive,
         dispatch_indirect_valid(old(rctx).cb.recording_state@, pipeline@, buffer_id@, offset@, buffer@),
+        readable(old(rctx).cb.barrier_log@, buffer_sync@,
+            crate::stage_access::STAGE_DRAW_INDIRECT(),
+            crate::stage_access::ACCESS_INDIRECT_COMMAND_READ()),
     ensures
         recording_context_wf(rctx),
         rctx.ctx@ == record_dispatch_indirect(old(rctx).ctx@, buffer_id@, offset@, resources@),
         rctx.cb.cb_id@ == old(rctx).cb.cb_id@,
         rctx.cb.recording_thread@ == old(rctx).cb.recording_thread@,
 {
-    cmd_dispatch_indirect_exec(vk, &mut rctx.cb, thread, buffer_handle, buffer_offset, pipeline, buffer_id, offset, buffer);
+    cmd_dispatch_indirect_exec(vk, &mut rctx.cb, thread, buffer_handle, buffer_offset, pipeline, buffer_id, offset, buffer, buffer_sync);
     rctx.ctx = Ghost(record_dispatch_indirect(old(rctx).ctx@, buffer_id@, offset@, resources@));
 }
 

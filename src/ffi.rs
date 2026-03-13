@@ -1345,7 +1345,7 @@ pub fn vk_destroy_query_pool(ctx: &VulkanContext, pool: &mut RuntimeQueryPool)
 
 /// FFI: reset queries in a command buffer.
 #[verifier::external_body]
-pub fn vk_cmd_reset_query_pool(
+pub(crate) fn vk_cmd_reset_query_pool(
     ctx: &VulkanContext,
     cb_handle: u64,
     pool: &mut RuntimeQueryPool,
@@ -1365,7 +1365,7 @@ pub fn vk_cmd_reset_query_pool(
 
 /// FFI: begin a query.
 #[verifier::external_body]
-pub fn vk_cmd_begin_query(
+pub(crate) fn vk_cmd_begin_query(
     ctx: &VulkanContext,
     cb_handle: u64,
     pool: &mut RuntimeQueryPool,
@@ -1382,7 +1382,7 @@ pub fn vk_cmd_begin_query(
 
 /// FFI: end a query.
 #[verifier::external_body]
-pub fn vk_cmd_end_query(
+pub(crate) fn vk_cmd_end_query(
     ctx: &VulkanContext,
     cb_handle: u64,
     pool: &mut RuntimeQueryPool,
@@ -1450,7 +1450,7 @@ pub fn vk_reset_event(ctx: &VulkanContext, event: &mut RuntimeEvent)
 
 /// FFI: set an event from a command buffer.
 #[verifier::external_body]
-pub fn vk_cmd_set_event(
+pub(crate) fn vk_cmd_set_event(
     ctx: &VulkanContext,
     cb_handle: u64,
     event: &mut RuntimeEvent,
@@ -1466,7 +1466,7 @@ pub fn vk_cmd_set_event(
 
 /// FFI: reset an event from a command buffer.
 #[verifier::external_body]
-pub fn vk_cmd_reset_event(
+pub(crate) fn vk_cmd_reset_event(
     ctx: &VulkanContext,
     cb_handle: u64,
     event: &mut RuntimeEvent,
@@ -1512,13 +1512,15 @@ pub fn vk_destroy_acceleration_structure(
 
 /// FFI: build an acceleration structure.
 #[verifier::external_body]
-pub fn vk_cmd_build_acceleration_structure(
+pub(crate) fn vk_cmd_build_acceleration_structure(
     ctx: &VulkanContext,
     cb_handle: u64,
     as_obj: &mut RuntimeAccelerationStructure,
     mode: Ghost<ASBuildMode>,
 )
-    requires runtime_as_wf(&*old(as_obj)),
+    requires
+        runtime_as_wf(&*old(as_obj)),
+        mode@ == ASBuildMode::Update ==> old(as_obj)@.built,
     ensures
         as_obj@ == build_as_ghost(old(as_obj)@, mode@),
         runtime_as_wf(as_obj),
@@ -1529,12 +1531,14 @@ pub fn vk_cmd_build_acceleration_structure(
 
 /// FFI: compact an acceleration structure.
 #[verifier::external_body]
-pub fn vk_cmd_compact_acceleration_structure(
+pub(crate) fn vk_cmd_compact_acceleration_structure(
     ctx: &VulkanContext,
     cb_handle: u64,
     as_obj: &mut RuntimeAccelerationStructure,
 )
-    requires runtime_as_wf(&*old(as_obj)),
+    requires
+        runtime_as_wf(&*old(as_obj)),
+        old(as_obj)@.built,
     ensures as_obj@ == compact_as_ghost(old(as_obj)@), runtime_as_wf(as_obj),
 {
     as_obj.state = Ghost(compact_as_ghost(as_obj.state@));
@@ -1780,6 +1784,48 @@ pub(crate) fn ffi_cmd_set_scissor(ctx: &VulkanContext, cb_handle: u64, x: i32, y
 #[verifier::external_body]
 pub(crate) fn ffi_cmd_push_constants(ctx: &VulkanContext, cb_handle: u64, layout: u64, stages: u32, offset: u32, data: &[u8]) {
     raw_cmd_push_constants(ctx, cb_handle, layout, stages, offset, data);
+}
+
+// ── Query Pool command bridges ───────────────────────────────────────
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_reset_query_pool(ctx: &VulkanContext, cb_handle: u64, pool_handle: u64, first: u32, count: u32) {
+    raw_cmd_reset_query_pool(ctx, cb_handle, pool_handle, first, count);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_begin_query(ctx: &VulkanContext, cb_handle: u64, pool_handle: u64, index: u32) {
+    raw_cmd_begin_query(ctx, cb_handle, pool_handle, index);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_end_query(ctx: &VulkanContext, cb_handle: u64, pool_handle: u64, index: u32) {
+    raw_cmd_end_query(ctx, cb_handle, pool_handle, index);
+}
+
+// ── Event command bridges ────────────────────────────────────────────
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_set_event(ctx: &VulkanContext, cb_handle: u64, event_handle: u64, stages_mask: u32) {
+    raw_cmd_set_event(ctx, cb_handle, event_handle, stages_mask);
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_reset_event(ctx: &VulkanContext, cb_handle: u64, event_handle: u64, stages_mask: u32) {
+    raw_cmd_reset_event(ctx, cb_handle, event_handle, stages_mask);
+}
+
+// ── Acceleration Structure command bridges ───────────────────────────
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_build_acceleration_structure(ctx: &VulkanContext, cb_handle: u64) {
+    // No raw_* exists — VulkanContext lacks khr::acceleration_structure::Device.
+    // Ghost-only stub for CB invariant enforcement.
+}
+
+#[verifier::external_body]
+pub(crate) fn ffi_cmd_compact_acceleration_structure(ctx: &VulkanContext, cb_handle: u64) {
+    // No raw_* exists — ghost-only stub.
 }
 
 } // verus!
