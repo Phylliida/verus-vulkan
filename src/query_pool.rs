@@ -257,9 +257,29 @@ pub proof fn lemma_end_preserves_others(
 {
 }
 
+/// Destroy a query pool.
+pub open spec fn destroy_query_pool(pool: QueryPoolState) -> QueryPoolState {
+    QueryPoolState {
+        alive: false,
+        ..pool
+    }
+}
+
 /// A fresh pool is alive.
 pub proof fn lemma_fresh_pool_alive(id: nat, count: nat)
     ensures create_query_pool(id, count).alive,
+{
+}
+
+/// Destroying a pool makes it not alive.
+pub proof fn lemma_destroy_not_alive(pool: QueryPoolState)
+    ensures !destroy_query_pool(pool).alive,
+{
+}
+
+/// Destroying a pool preserves its id.
+pub proof fn lemma_destroy_preserves_id(pool: QueryPoolState)
+    ensures destroy_query_pool(pool).id == pool.id,
 {
 }
 
