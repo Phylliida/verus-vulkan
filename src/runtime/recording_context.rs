@@ -15,6 +15,7 @@ use crate::sync_token::*;
 use crate::indirect::*;
 use crate::dynamic_rendering::*;
 use crate::memory::*;
+use crate::vk_context::VulkanContext;
 use crate::runtime::command_buffer::*;
 use crate::runtime::image_layout::RuntimeImageLayoutTracker;
 
@@ -67,23 +68,28 @@ pub fn create_recording_context_exec(
         rctx.cb.cb_id@ == cb.cb_id@,
         rctx.cb.recording_thread@ == cb.recording_thread@,
 {
-    let ghost ctx = initial_recording_context();
+    let ghost rec_ctx = initial_recording_context();
     RuntimeRecordingContext {
         cb: cb,
-        ctx: Ghost(ctx),
+        ctx: Ghost(rec_ctx),
     }
 }
 
 /// Record a draw command through the recording context.
 pub fn record_draw_ctx_exec(
+    vk: &VulkanContext,
     rctx: &mut RuntimeRecordingContext,
     thread: Ghost<ThreadId>,
+    vertex_count: u32,
+    instance_count: u32,
+    first_vertex: u32,
+    first_instance: u32,
     pipeline: Ghost<GraphicsPipelineState>,
     rp: Ghost<RenderPassState>,
     draw_state: Ghost<DrawCallState>,
     required_vertex_slots: Ghost<Set<nat>>,
-    first_vertex: Ghost<nat>,
-    vertex_count: Ghost<nat>,
+    first_vertex_ghost: Ghost<nat>,
+    vertex_count_ghost: Ghost<nat>,
     resources: Ghost<Set<ResourceId>>,
 )
     requires
@@ -96,7 +102,7 @@ pub fn record_draw_ctx_exec(
         descriptor_sets_bound_for_pipeline(old(rctx).cb.recording_state@, pipeline@.descriptor_set_layouts),
         has_vertex_buffer_bound(old(rctx).cb.recording_state@),
         dynamic_states_satisfied(draw_state@, pipeline@.required_dynamic_states),
-        vertex_draw_in_bounds(draw_state@, required_vertex_slots@, first_vertex@, vertex_count@),
+        vertex_draw_in_bounds(draw_state@, required_vertex_slots@, first_vertex_ghost@, vertex_count_ghost@),
     ensures
         recording_context_wf(rctx),
         rctx.ctx@ == record_draw(old(rctx).ctx@, resources@),
@@ -104,30 +110,34 @@ pub fn record_draw_ctx_exec(
         rctx.cb.recording_thread@ == old(rctx).cb.recording_thread@,
 {
     cmd_draw_exec(
+        vk,
         &mut rctx.cb,
         thread,
+        vertex_count,
+        instance_count,
+        first_vertex,
+        first_instance,
         pipeline,
         rp,
         draw_state,
         required_vertex_slots,
-        first_vertex,
-        vertex_count,
+        first_vertex_ghost,
+        vertex_count_ghost,
     );
-    // cmd_draw_exec preserves barrier_log and recording_state
-    // record_draw preserves state and barrier_log, only adds resources + command_log
     proof {
         let old_ctx = old(rctx).ctx@;
         let new_ctx = record_draw(old_ctx, resources@);
-        // state unchanged: cb.recording_state@ == old state == new_ctx.state
-        // barrier_log unchanged: cb.barrier_log@ == old log == new_ctx.barrier_log
     }
     rctx.ctx = Ghost(record_draw(old(rctx).ctx@, resources@));
 }
 
 /// Record a pipeline barrier through the recording context.
 pub fn record_pipeline_barrier_ctx_exec(
+    vk: &VulkanContext,
     rctx: &mut RuntimeRecordingContext,
     thread: Ghost<ThreadId>,
+    src_stage: u32,
+    dst_stage: u32,
     entry: Ghost<BarrierEntry>,
 )
     requires
@@ -139,16 +149,18 @@ pub fn record_pipeline_barrier_ctx_exec(
         rctx.cb.cb_id@ == old(rctx).cb.cb_id@,
         rctx.cb.recording_thread@ == old(rctx).cb.recording_thread@,
 {
-    cmd_pipeline_barrier_exec(&mut rctx.cb, thread, entry);
-    // cmd_pipeline_barrier_exec: barrier_log = old.push(entry@), state unchanged
-    // record_pipeline_barrier_single: barrier_log = old.push(entry), command_log updated, state unchanged
+    cmd_pipeline_barrier_exec(vk, &mut rctx.cb, thread, src_stage, dst_stage, entry);
     rctx.ctx = Ghost(record_pipeline_barrier_single(old(rctx).ctx@, entry@));
 }
 
 /// Record a buffer copy through the recording context.
 pub fn record_copy_buffer_ctx_exec(
+    vk: &VulkanContext,
     rctx: &mut RuntimeRecordingContext,
     thread: Ghost<ThreadId>,
+    src_handle: u64,
+    dst_handle: u64,
+    size: u64,
     src_buffer: Ghost<nat>,
     dst_buffer: Ghost<nat>,
     src_res: Ghost<ResourceId>,
@@ -169,17 +181,17 @@ pub fn record_copy_buffer_ctx_exec(
         rctx.cb.cb_id@ == old(rctx).cb.cb_id@,
         rctx.cb.recording_thread@ == old(rctx).cb.recording_thread@,
 {
-    cmd_copy_buffer_exec(&mut rctx.cb, thread, src_buffer, dst_buffer, src_sync, dst_sync);
-    // cmd_copy_buffer_exec preserves barrier_log and recording_state
-    // record_copy_buffer preserves state and barrier_log, adds resources + command
+    cmd_copy_buffer_exec(vk, &mut rctx.cb, thread, src_handle, dst_handle, size, src_buffer, dst_buffer, src_sync, dst_sync);
     rctx.ctx = Ghost(record_copy_buffer(old(rctx).ctx@, src_buffer@, dst_buffer@, src_res@, dst_res@));
 }
 
 /// Bind a graphics pipeline through the recording context.
 /// Caller must prove the pipeline is alive and the id matches.
 pub fn record_bind_graphics_pipeline_ctx_exec(
+    vk: &VulkanContext,
     rctx: &mut RuntimeRecordingContext,
     thread: Ghost<ThreadId>,
+    pipeline_handle: u64,
     pipeline_id: Ghost<nat>,
     pipeline: Ghost<GraphicsPipelineState>,
 )
@@ -196,8 +208,7 @@ pub fn record_bind_graphics_pipeline_ctx_exec(
         rctx.cb.cb_id@ == old(rctx).cb.cb_id@,
         rctx.cb.recording_thread@ == old(rctx).cb.recording_thread@,
 {
-    cmd_bind_pipeline_exec(&mut rctx.cb, thread, pipeline_id, pipeline);
-    // cmd_bind_pipeline_exec: recording_state = bind_graphics_pipeline(old, id), barrier_log unchanged
+    cmd_bind_pipeline_exec(vk, &mut rctx.cb, thread, pipeline_handle, pipeline_id, pipeline);
     let ghost new_ctx = RecordingContext {
         state: bind_graphics_pipeline(old(rctx).ctx@.state, pipeline_id@),
         command_log: old(rctx).ctx@.command_log.push(RecordedCommand::BindGraphicsPipeline { pipeline_id: pipeline_id@ }),
@@ -210,8 +221,13 @@ pub fn record_bind_graphics_pipeline_ctx_exec(
 
 /// Record a copy-image command through the recording context.
 pub fn record_copy_image_ctx_exec(
+    vk: &VulkanContext,
     rctx: &mut RuntimeRecordingContext,
     thread: Ghost<ThreadId>,
+    src_img_handle: u64,
+    dst_img_handle: u64,
+    width: u32,
+    height: u32,
     layout_tracker: &RuntimeImageLayoutTracker,
     src_image: Ghost<ResourceId>,
     dst_image: Ghost<ResourceId>,
@@ -237,14 +253,19 @@ pub fn record_copy_image_ctx_exec(
         rctx.cb.cb_id@ == old(rctx).cb.cb_id@,
         rctx.cb.recording_thread@ == old(rctx).cb.recording_thread@,
 {
-    cmd_copy_image_exec(&mut rctx.cb, thread, layout_tracker, src_image, dst_image, src_sync, dst_sync);
+    cmd_copy_image_exec(vk, &mut rctx.cb, thread, src_img_handle, dst_img_handle, width, height, layout_tracker, src_image, dst_image, src_sync, dst_sync);
     rctx.ctx = Ghost(record_copy_image(old(rctx).ctx@, 0nat, 0nat, src_res@, dst_res@));
 }
 
 /// Record a blit-image command through the recording context.
 pub fn record_blit_image_ctx_exec(
+    vk: &VulkanContext,
     rctx: &mut RuntimeRecordingContext,
     thread: Ghost<ThreadId>,
+    src_img_handle: u64,
+    dst_img_handle: u64,
+    width: u32,
+    height: u32,
     layout_tracker: &RuntimeImageLayoutTracker,
     src_image: Ghost<ResourceId>,
     dst_image: Ghost<ResourceId>,
@@ -270,14 +291,19 @@ pub fn record_blit_image_ctx_exec(
         rctx.cb.cb_id@ == old(rctx).cb.cb_id@,
         rctx.cb.recording_thread@ == old(rctx).cb.recording_thread@,
 {
-    cmd_blit_image_exec(&mut rctx.cb, thread, layout_tracker, src_image, dst_image, src_sync, dst_sync);
+    cmd_blit_image_exec(vk, &mut rctx.cb, thread, src_img_handle, dst_img_handle, width, height, layout_tracker, src_image, dst_image, src_sync, dst_sync);
     rctx.ctx = Ghost(record_blit_image(old(rctx).ctx@, 0nat, 0nat, src_res@, dst_res@));
 }
 
 /// Record a buffer-to-image copy through the recording context.
 pub fn record_copy_buffer_to_image_ctx_exec(
+    vk: &VulkanContext,
     rctx: &mut RuntimeRecordingContext,
     thread: Ghost<ThreadId>,
+    src_buf_handle: u64,
+    dst_img_handle: u64,
+    width: u32,
+    height: u32,
     layout_tracker: &RuntimeImageLayoutTracker,
     src_buffer: Ghost<nat>,
     dst_image: Ghost<ResourceId>,
@@ -300,14 +326,19 @@ pub fn record_copy_buffer_to_image_ctx_exec(
         rctx.cb.cb_id@ == old(rctx).cb.cb_id@,
         rctx.cb.recording_thread@ == old(rctx).cb.recording_thread@,
 {
-    cmd_copy_buffer_to_image_exec(&mut rctx.cb, thread, layout_tracker, src_buffer, dst_image, src_sync, dst_sync);
+    cmd_copy_buffer_to_image_exec(vk, &mut rctx.cb, thread, src_buf_handle, dst_img_handle, width, height, layout_tracker, src_buffer, dst_image, src_sync, dst_sync);
     rctx.ctx = Ghost(record_copy_buffer_to_image(old(rctx).ctx@, src_buffer@, 0nat, src_res@, dst_res@));
 }
 
 /// Record an image-to-buffer copy through the recording context.
 pub fn record_copy_image_to_buffer_ctx_exec(
+    vk: &VulkanContext,
     rctx: &mut RuntimeRecordingContext,
     thread: Ghost<ThreadId>,
+    src_img_handle: u64,
+    dst_buf_handle: u64,
+    width: u32,
+    height: u32,
     layout_tracker: &RuntimeImageLayoutTracker,
     src_image: Ghost<ResourceId>,
     dst_buffer: Ghost<nat>,
@@ -330,7 +361,7 @@ pub fn record_copy_image_to_buffer_ctx_exec(
         rctx.cb.cb_id@ == old(rctx).cb.cb_id@,
         rctx.cb.recording_thread@ == old(rctx).cb.recording_thread@,
 {
-    cmd_copy_image_to_buffer_exec(&mut rctx.cb, thread, layout_tracker, src_image, dst_buffer, src_sync, dst_sync);
+    cmd_copy_image_to_buffer_exec(vk, &mut rctx.cb, thread, src_img_handle, dst_buf_handle, width, height, layout_tracker, src_image, dst_buffer, src_sync, dst_sync);
     rctx.ctx = Ghost(record_copy_image_to_buffer(old(rctx).ctx@, 0nat, dst_buffer@, src_res@, dst_res@));
 }
 
@@ -338,8 +369,13 @@ pub fn record_copy_image_to_buffer_ctx_exec(
 
 /// Record an indirect draw through the recording context.
 pub fn record_draw_indirect_ctx_exec(
+    vk: &VulkanContext,
     rctx: &mut RuntimeRecordingContext,
     thread: Ghost<ThreadId>,
+    buffer_handle: u64,
+    offset: u64,
+    draw_count: u32,
+    stride: u32,
     pipeline: Ghost<GraphicsPipelineState>,
     rp: Ghost<RenderPassState>,
     draw_state: Ghost<DrawCallState>,
@@ -360,14 +396,19 @@ pub fn record_draw_indirect_ctx_exec(
         rctx.cb.cb_id@ == old(rctx).cb.cb_id@,
         rctx.cb.recording_thread@ == old(rctx).cb.recording_thread@,
 {
-    cmd_draw_indirect_exec(&mut rctx.cb, thread, pipeline, rp, draw_state, indirect_params, buffer);
+    cmd_draw_indirect_exec(vk, &mut rctx.cb, thread, buffer_handle, offset, draw_count, stride, pipeline, rp, draw_state, indirect_params, buffer);
     rctx.ctx = Ghost(record_draw_indirect(old(rctx).ctx@, indirect_params@.buffer_id, indirect_params@.offset, indirect_params@.draw_count, resources@));
 }
 
 /// Record an indirect indexed draw through the recording context.
 pub fn record_draw_indexed_indirect_ctx_exec(
+    vk: &VulkanContext,
     rctx: &mut RuntimeRecordingContext,
     thread: Ghost<ThreadId>,
+    buffer_handle: u64,
+    offset: u64,
+    draw_count: u32,
+    stride: u32,
     pipeline: Ghost<GraphicsPipelineState>,
     rp: Ghost<RenderPassState>,
     draw_state: Ghost<DrawCallState>,
@@ -388,14 +429,17 @@ pub fn record_draw_indexed_indirect_ctx_exec(
         rctx.cb.cb_id@ == old(rctx).cb.cb_id@,
         rctx.cb.recording_thread@ == old(rctx).cb.recording_thread@,
 {
-    cmd_draw_indexed_indirect_exec(&mut rctx.cb, thread, pipeline, rp, draw_state, indirect_params, buffer);
+    cmd_draw_indexed_indirect_exec(vk, &mut rctx.cb, thread, buffer_handle, offset, draw_count, stride, pipeline, rp, draw_state, indirect_params, buffer);
     rctx.ctx = Ghost(record_draw_indexed_indirect(old(rctx).ctx@, indirect_params@.buffer_id, indirect_params@.offset, indirect_params@.draw_count, resources@));
 }
 
 /// Record an indirect dispatch through the recording context.
 pub fn record_dispatch_indirect_ctx_exec(
+    vk: &VulkanContext,
     rctx: &mut RuntimeRecordingContext,
     thread: Ghost<ThreadId>,
+    buffer_handle: u64,
+    buffer_offset: u64,
     pipeline: Ghost<ComputePipelineState>,
     buffer_id: Ghost<nat>,
     offset: Ghost<nat>,
@@ -414,7 +458,7 @@ pub fn record_dispatch_indirect_ctx_exec(
         rctx.cb.cb_id@ == old(rctx).cb.cb_id@,
         rctx.cb.recording_thread@ == old(rctx).cb.recording_thread@,
 {
-    cmd_dispatch_indirect_exec(&mut rctx.cb, thread, pipeline, buffer_id, offset, buffer);
+    cmd_dispatch_indirect_exec(vk, &mut rctx.cb, thread, buffer_handle, buffer_offset, pipeline, buffer_id, offset, buffer);
     rctx.ctx = Ghost(record_dispatch_indirect(old(rctx).ctx@, buffer_id@, offset@, resources@));
 }
 
@@ -422,8 +466,12 @@ pub fn record_dispatch_indirect_ctx_exec(
 
 /// Begin dynamic rendering through the recording context.
 pub fn record_begin_rendering_ctx_exec(
+    vk: &VulkanContext,
     rctx: &mut RuntimeRecordingContext,
     thread: Ghost<ThreadId>,
+    width: u32,
+    height: u32,
+    layer_count: u32,
     info: Ghost<DynamicRenderingInfo>,
 )
     requires
@@ -438,12 +486,13 @@ pub fn record_begin_rendering_ctx_exec(
         rctx.cb.in_render_pass@ == true,
         is_recording(&rctx.cb),
 {
-    cmd_begin_dynamic_rendering_exec(&mut rctx.cb, thread, info);
+    cmd_begin_dynamic_rendering_exec(vk, &mut rctx.cb, thread, width, height, layer_count, info);
     rctx.ctx = Ghost(record_begin_rendering(old(rctx).ctx@, info@));
 }
 
 /// End dynamic rendering through the recording context.
 pub fn record_end_rendering_ctx_exec(
+    vk: &VulkanContext,
     rctx: &mut RuntimeRecordingContext,
     thread: Ghost<ThreadId>,
 )
@@ -458,12 +507,13 @@ pub fn record_end_rendering_ctx_exec(
         rctx.cb.in_render_pass@ == false,
         is_recording(&rctx.cb),
 {
-    cmd_end_dynamic_rendering_exec(&mut rctx.cb, thread);
+    cmd_end_dynamic_rendering_exec(vk, &mut rctx.cb, thread);
     rctx.ctx = Ghost(record_end_rendering(old(rctx).ctx@));
 }
 
 /// Finish recording and extract the command buffer + ghost context.
 pub fn finish_recording_context_exec(
+    vk: &VulkanContext,
     rctx: RuntimeRecordingContext,
     thread: Ghost<ThreadId>,
     pool: Ghost<PoolOwnership>,
@@ -481,7 +531,7 @@ pub fn finish_recording_context_exec(
         result.0.cb_id@ == rctx.cb.cb_id@,
 {
     let RuntimeRecordingContext { mut cb, ctx } = rctx;
-    end_recording_exec(&mut cb, thread, pool, reg);
+    end_recording_exec(vk, &mut cb, thread, pool, reg);
     (cb, ctx)
 }
 
