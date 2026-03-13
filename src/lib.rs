@@ -1,3 +1,5 @@
+pub mod vk_context;
+
 #[cfg(verus_keep_ghost)]
 pub mod resource;
 

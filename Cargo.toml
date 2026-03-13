@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 vstd = { path = "../verus/source/vstd" }
+ash = { version = "0.38", default-features = true }
 
 [package.metadata.verus]
 verify = true
