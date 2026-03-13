@@ -100,6 +100,7 @@ pub fn record_draw_ctx_exec(
         draw_call_valid(old(rctx).cb.recording_state@, pipeline@, rp@),
         descriptor_sets_bound_for_pipeline(old(rctx).cb.recording_state@, pipeline@.descriptor_set_layouts),
         has_vertex_buffer_bound(old(rctx).cb.recording_state@),
+        instance_count > 0,
         dynamic_states_satisfied(draw_state@, pipeline@.required_dynamic_states),
         vertex_draw_in_bounds(draw_state@, required_vertex_slots@, first_vertex as nat, vertex_count as nat),
     ensures
@@ -180,6 +181,8 @@ pub fn record_copy_buffer_ctx_exec(
         dst_state@.alive,
         size as nat <= src_state@.size,
         size as nat <= dst_state@.size,
+        src_state@.usage.contains(USAGE_TRANSFER_SRC()),
+        dst_state@.usage.contains(USAGE_TRANSFER_DST()),
         readable(old(rctx).cb.barrier_log@, src_sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_READ()),
         writable(old(rctx).cb.barrier_log@, dst_sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_WRITE()),
     ensures
@@ -238,6 +241,8 @@ pub fn record_copy_image_ctx_exec(
     layout_tracker: &RuntimeImageLayoutTracker,
     src_image: Ghost<ResourceId>,
     dst_image: Ghost<ResourceId>,
+    src_img_state: Ghost<ImageState>,
+    dst_img_state: Ghost<ImageState>,
     src_res: Ghost<ResourceId>,
     dst_res: Ghost<ResourceId>,
     src_sync: Ghost<SyncState>,
@@ -248,6 +253,10 @@ pub fn record_copy_image_ctx_exec(
         old(rctx).cb.in_render_pass@ == false,
         old(rctx).cb.recording_thread@ == thread@,
         src_image@ != dst_image@,
+        src_img_state@.alive,
+        dst_img_state@.alive,
+        src_img_state@.usage.contains(USAGE_TRANSFER_SRC()),
+        dst_img_state@.usage.contains(USAGE_TRANSFER_DST()),
         layout_tracker@.contains_key(src_image@),
         layout_tracker@.contains_key(dst_image@),
         valid_transfer_src_layout(layout_tracker@[src_image@]),
@@ -262,7 +271,7 @@ pub fn record_copy_image_ctx_exec(
         rctx.cb.cb_id@ == old(rctx).cb.cb_id@,
         rctx.cb.recording_thread@ == old(rctx).cb.recording_thread@,
 {
-    cmd_copy_image_exec(vk, &mut rctx.cb, thread, src_img_handle, dst_img_handle, width, height, layout_tracker, src_image, dst_image, src_sync, dst_sync);
+    cmd_copy_image_exec(vk, &mut rctx.cb, thread, src_img_handle, dst_img_handle, width, height, layout_tracker, src_image, dst_image, src_img_state, dst_img_state, src_sync, dst_sync);
     rctx.ctx = Ghost(record_copy_image(old(rctx).ctx@, 0nat, 0nat, src_res@, dst_res@));
 }
 
@@ -278,6 +287,8 @@ pub fn record_blit_image_ctx_exec(
     layout_tracker: &RuntimeImageLayoutTracker,
     src_image: Ghost<ResourceId>,
     dst_image: Ghost<ResourceId>,
+    src_img_state: Ghost<ImageState>,
+    dst_img_state: Ghost<ImageState>,
     src_res: Ghost<ResourceId>,
     dst_res: Ghost<ResourceId>,
     src_sync: Ghost<SyncState>,
@@ -288,6 +299,10 @@ pub fn record_blit_image_ctx_exec(
         old(rctx).cb.in_render_pass@ == false,
         old(rctx).cb.recording_thread@ == thread@,
         src_image@ != dst_image@,
+        src_img_state@.alive,
+        dst_img_state@.alive,
+        src_img_state@.usage.contains(USAGE_TRANSFER_SRC()),
+        dst_img_state@.usage.contains(USAGE_TRANSFER_DST()),
         layout_tracker@.contains_key(src_image@),
         layout_tracker@.contains_key(dst_image@),
         valid_transfer_src_layout(layout_tracker@[src_image@]),
@@ -302,7 +317,7 @@ pub fn record_blit_image_ctx_exec(
         rctx.cb.cb_id@ == old(rctx).cb.cb_id@,
         rctx.cb.recording_thread@ == old(rctx).cb.recording_thread@,
 {
-    cmd_blit_image_exec(vk, &mut rctx.cb, thread, src_img_handle, dst_img_handle, width, height, layout_tracker, src_image, dst_image, src_sync, dst_sync);
+    cmd_blit_image_exec(vk, &mut rctx.cb, thread, src_img_handle, dst_img_handle, width, height, layout_tracker, src_image, dst_image, src_img_state, dst_img_state, src_sync, dst_sync);
     rctx.ctx = Ghost(record_blit_image(old(rctx).ctx@, 0nat, 0nat, src_res@, dst_res@));
 }
 
@@ -318,6 +333,8 @@ pub fn record_copy_buffer_to_image_ctx_exec(
     layout_tracker: &RuntimeImageLayoutTracker,
     src_buffer: Ghost<nat>,
     dst_image: Ghost<ResourceId>,
+    src_buf_state: Ghost<BufferState>,
+    dst_img_state: Ghost<ImageState>,
     src_res: Ghost<ResourceId>,
     dst_res: Ghost<ResourceId>,
     src_sync: Ghost<SyncState>,
@@ -327,6 +344,10 @@ pub fn record_copy_buffer_to_image_ctx_exec(
         recording_context_wf(&*old(rctx)),
         old(rctx).cb.in_render_pass@ == false,
         old(rctx).cb.recording_thread@ == thread@,
+        src_buf_state@.alive,
+        dst_img_state@.alive,
+        src_buf_state@.usage.contains(USAGE_TRANSFER_SRC()),
+        dst_img_state@.usage.contains(USAGE_TRANSFER_DST()),
         layout_tracker@.contains_key(dst_image@),
         valid_transfer_dst_layout(layout_tracker@[dst_image@]),
         width > 0,
@@ -339,7 +360,7 @@ pub fn record_copy_buffer_to_image_ctx_exec(
         rctx.cb.cb_id@ == old(rctx).cb.cb_id@,
         rctx.cb.recording_thread@ == old(rctx).cb.recording_thread@,
 {
-    cmd_copy_buffer_to_image_exec(vk, &mut rctx.cb, thread, src_buf_handle, dst_img_handle, width, height, layout_tracker, src_buffer, dst_image, src_sync, dst_sync);
+    cmd_copy_buffer_to_image_exec(vk, &mut rctx.cb, thread, src_buf_handle, dst_img_handle, width, height, layout_tracker, src_buffer, dst_image, src_buf_state, dst_img_state, src_sync, dst_sync);
     rctx.ctx = Ghost(record_copy_buffer_to_image(old(rctx).ctx@, src_buffer@, 0nat, src_res@, dst_res@));
 }
 
@@ -355,6 +376,8 @@ pub fn record_copy_image_to_buffer_ctx_exec(
     layout_tracker: &RuntimeImageLayoutTracker,
     src_image: Ghost<ResourceId>,
     dst_buffer: Ghost<nat>,
+    src_img_state: Ghost<ImageState>,
+    dst_buf_state: Ghost<BufferState>,
     src_res: Ghost<ResourceId>,
     dst_res: Ghost<ResourceId>,
     src_sync: Ghost<SyncState>,
@@ -364,6 +387,10 @@ pub fn record_copy_image_to_buffer_ctx_exec(
         recording_context_wf(&*old(rctx)),
         old(rctx).cb.in_render_pass@ == false,
         old(rctx).cb.recording_thread@ == thread@,
+        src_img_state@.alive,
+        dst_buf_state@.alive,
+        src_img_state@.usage.contains(USAGE_TRANSFER_SRC()),
+        dst_buf_state@.usage.contains(USAGE_TRANSFER_DST()),
         layout_tracker@.contains_key(src_image@),
         valid_transfer_src_layout(layout_tracker@[src_image@]),
         width > 0,
@@ -376,7 +403,7 @@ pub fn record_copy_image_to_buffer_ctx_exec(
         rctx.cb.cb_id@ == old(rctx).cb.cb_id@,
         rctx.cb.recording_thread@ == old(rctx).cb.recording_thread@,
 {
-    cmd_copy_image_to_buffer_exec(vk, &mut rctx.cb, thread, src_img_handle, dst_buf_handle, width, height, layout_tracker, src_image, dst_buffer, src_sync, dst_sync);
+    cmd_copy_image_to_buffer_exec(vk, &mut rctx.cb, thread, src_img_handle, dst_buf_handle, width, height, layout_tracker, src_image, dst_buffer, src_img_state, dst_buf_state, src_sync, dst_sync);
     rctx.ctx = Ghost(record_copy_image_to_buffer(old(rctx).ctx@, 0nat, dst_buffer@, src_res@, dst_res@));
 }
 
@@ -406,6 +433,7 @@ pub fn record_draw_indirect_ctx_exec(
         pipeline@.alive,
         rp@.alive,
         draw_indirect_valid(old(rctx).cb.recording_state@, pipeline@, rp@, indirect_params@, buffer@),
+        buffer@.usage.contains(USAGE_INDIRECT_BUFFER()),
         readable(old(rctx).cb.barrier_log@, buffer_sync@,
             crate::stage_access::STAGE_DRAW_INDIRECT(),
             crate::stage_access::ACCESS_INDIRECT_COMMAND_READ()),
@@ -443,6 +471,7 @@ pub fn record_draw_indexed_indirect_ctx_exec(
         pipeline@.alive,
         rp@.alive,
         draw_indexed_indirect_valid(old(rctx).cb.recording_state@, pipeline@, rp@, indirect_params@, buffer@),
+        buffer@.usage.contains(USAGE_INDIRECT_BUFFER()),
         readable(old(rctx).cb.barrier_log@, buffer_sync@,
             crate::stage_access::STAGE_DRAW_INDIRECT(),
             crate::stage_access::ACCESS_INDIRECT_COMMAND_READ()),
@@ -476,6 +505,7 @@ pub fn record_dispatch_indirect_ctx_exec(
         old(rctx).cb.recording_thread@ == thread@,
         pipeline@.alive,
         dispatch_indirect_valid(old(rctx).cb.recording_state@, pipeline@, buffer_id@, offset@, buffer@),
+        buffer@.usage.contains(USAGE_INDIRECT_BUFFER()),
         readable(old(rctx).cb.barrier_log@, buffer_sync@,
             crate::stage_access::STAGE_DRAW_INDIRECT(),
             crate::stage_access::ACCESS_INDIRECT_COMMAND_READ()),
