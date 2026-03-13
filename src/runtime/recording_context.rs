@@ -12,7 +12,11 @@ use crate::render_pass::*;
 use crate::draw_state::*;
 use crate::pool_ownership::*;
 use crate::sync_token::*;
+use crate::indirect::*;
+use crate::dynamic_rendering::*;
+use crate::memory::*;
 use crate::runtime::command_buffer::*;
+use crate::runtime::image_layout::RuntimeImageLayoutTracker;
 
 // ─── Types ─────────────────────────────────────────────────────
 
@@ -200,6 +204,262 @@ pub fn record_bind_graphics_pipeline_ctx_exec(
         ..old(rctx).ctx@
     };
     rctx.ctx = Ghost(new_ctx);
+}
+
+// ─── Transfer wrappers ──────────────────────────────────────────
+
+/// Record a copy-image command through the recording context.
+pub fn record_copy_image_ctx_exec(
+    rctx: &mut RuntimeRecordingContext,
+    thread: Ghost<ThreadId>,
+    layout_tracker: &RuntimeImageLayoutTracker,
+    src_image: Ghost<ResourceId>,
+    dst_image: Ghost<ResourceId>,
+    src_res: Ghost<ResourceId>,
+    dst_res: Ghost<ResourceId>,
+    src_sync: Ghost<SyncState>,
+    dst_sync: Ghost<SyncState>,
+)
+    requires
+        recording_context_wf(&*old(rctx)),
+        old(rctx).cb.in_render_pass@ == false,
+        old(rctx).cb.recording_thread@ == thread@,
+        src_image@ != dst_image@,
+        layout_tracker@.contains_key(src_image@),
+        layout_tracker@.contains_key(dst_image@),
+        valid_transfer_src_layout(layout_tracker@[src_image@]),
+        valid_transfer_dst_layout(layout_tracker@[dst_image@]),
+        readable(old(rctx).cb.barrier_log@, src_sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_READ()),
+        writable(old(rctx).cb.barrier_log@, dst_sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_WRITE()),
+    ensures
+        recording_context_wf(rctx),
+        rctx.ctx@ == record_copy_image(old(rctx).ctx@, 0nat, 0nat, src_res@, dst_res@),
+        rctx.cb.cb_id@ == old(rctx).cb.cb_id@,
+        rctx.cb.recording_thread@ == old(rctx).cb.recording_thread@,
+{
+    cmd_copy_image_exec(&mut rctx.cb, thread, layout_tracker, src_image, dst_image, src_sync, dst_sync);
+    rctx.ctx = Ghost(record_copy_image(old(rctx).ctx@, 0nat, 0nat, src_res@, dst_res@));
+}
+
+/// Record a blit-image command through the recording context.
+pub fn record_blit_image_ctx_exec(
+    rctx: &mut RuntimeRecordingContext,
+    thread: Ghost<ThreadId>,
+    layout_tracker: &RuntimeImageLayoutTracker,
+    src_image: Ghost<ResourceId>,
+    dst_image: Ghost<ResourceId>,
+    src_res: Ghost<ResourceId>,
+    dst_res: Ghost<ResourceId>,
+    src_sync: Ghost<SyncState>,
+    dst_sync: Ghost<SyncState>,
+)
+    requires
+        recording_context_wf(&*old(rctx)),
+        old(rctx).cb.in_render_pass@ == false,
+        old(rctx).cb.recording_thread@ == thread@,
+        src_image@ != dst_image@,
+        layout_tracker@.contains_key(src_image@),
+        layout_tracker@.contains_key(dst_image@),
+        valid_transfer_src_layout(layout_tracker@[src_image@]),
+        valid_transfer_dst_layout(layout_tracker@[dst_image@]),
+        readable(old(rctx).cb.barrier_log@, src_sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_READ()),
+        writable(old(rctx).cb.barrier_log@, dst_sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_WRITE()),
+    ensures
+        recording_context_wf(rctx),
+        rctx.ctx@ == record_blit_image(old(rctx).ctx@, 0nat, 0nat, src_res@, dst_res@),
+        rctx.cb.cb_id@ == old(rctx).cb.cb_id@,
+        rctx.cb.recording_thread@ == old(rctx).cb.recording_thread@,
+{
+    cmd_blit_image_exec(&mut rctx.cb, thread, layout_tracker, src_image, dst_image, src_sync, dst_sync);
+    rctx.ctx = Ghost(record_blit_image(old(rctx).ctx@, 0nat, 0nat, src_res@, dst_res@));
+}
+
+/// Record a buffer-to-image copy through the recording context.
+pub fn record_copy_buffer_to_image_ctx_exec(
+    rctx: &mut RuntimeRecordingContext,
+    thread: Ghost<ThreadId>,
+    layout_tracker: &RuntimeImageLayoutTracker,
+    src_buffer: Ghost<nat>,
+    dst_image: Ghost<ResourceId>,
+    src_res: Ghost<ResourceId>,
+    dst_res: Ghost<ResourceId>,
+    src_sync: Ghost<SyncState>,
+    dst_sync: Ghost<SyncState>,
+)
+    requires
+        recording_context_wf(&*old(rctx)),
+        old(rctx).cb.in_render_pass@ == false,
+        old(rctx).cb.recording_thread@ == thread@,
+        layout_tracker@.contains_key(dst_image@),
+        valid_transfer_dst_layout(layout_tracker@[dst_image@]),
+        readable(old(rctx).cb.barrier_log@, src_sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_READ()),
+        writable(old(rctx).cb.barrier_log@, dst_sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_WRITE()),
+    ensures
+        recording_context_wf(rctx),
+        rctx.ctx@ == record_copy_buffer_to_image(old(rctx).ctx@, src_buffer@, 0nat, src_res@, dst_res@),
+        rctx.cb.cb_id@ == old(rctx).cb.cb_id@,
+        rctx.cb.recording_thread@ == old(rctx).cb.recording_thread@,
+{
+    cmd_copy_buffer_to_image_exec(&mut rctx.cb, thread, layout_tracker, src_buffer, dst_image, src_sync, dst_sync);
+    rctx.ctx = Ghost(record_copy_buffer_to_image(old(rctx).ctx@, src_buffer@, 0nat, src_res@, dst_res@));
+}
+
+/// Record an image-to-buffer copy through the recording context.
+pub fn record_copy_image_to_buffer_ctx_exec(
+    rctx: &mut RuntimeRecordingContext,
+    thread: Ghost<ThreadId>,
+    layout_tracker: &RuntimeImageLayoutTracker,
+    src_image: Ghost<ResourceId>,
+    dst_buffer: Ghost<nat>,
+    src_res: Ghost<ResourceId>,
+    dst_res: Ghost<ResourceId>,
+    src_sync: Ghost<SyncState>,
+    dst_sync: Ghost<SyncState>,
+)
+    requires
+        recording_context_wf(&*old(rctx)),
+        old(rctx).cb.in_render_pass@ == false,
+        old(rctx).cb.recording_thread@ == thread@,
+        layout_tracker@.contains_key(src_image@),
+        valid_transfer_src_layout(layout_tracker@[src_image@]),
+        readable(old(rctx).cb.barrier_log@, src_sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_READ()),
+        writable(old(rctx).cb.barrier_log@, dst_sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_WRITE()),
+    ensures
+        recording_context_wf(rctx),
+        rctx.ctx@ == record_copy_image_to_buffer(old(rctx).ctx@, 0nat, dst_buffer@, src_res@, dst_res@),
+        rctx.cb.cb_id@ == old(rctx).cb.cb_id@,
+        rctx.cb.recording_thread@ == old(rctx).cb.recording_thread@,
+{
+    cmd_copy_image_to_buffer_exec(&mut rctx.cb, thread, layout_tracker, src_image, dst_buffer, src_sync, dst_sync);
+    rctx.ctx = Ghost(record_copy_image_to_buffer(old(rctx).ctx@, 0nat, dst_buffer@, src_res@, dst_res@));
+}
+
+// ─── Indirect wrappers ─────────────────────────────────────────
+
+/// Record an indirect draw through the recording context.
+pub fn record_draw_indirect_ctx_exec(
+    rctx: &mut RuntimeRecordingContext,
+    thread: Ghost<ThreadId>,
+    pipeline: Ghost<GraphicsPipelineState>,
+    rp: Ghost<RenderPassState>,
+    draw_state: Ghost<DrawCallState>,
+    indirect_params: Ghost<IndirectDrawParams>,
+    buffer: Ghost<BufferState>,
+    resources: Ghost<Set<ResourceId>>,
+)
+    requires
+        recording_context_wf(&*old(rctx)),
+        old(rctx).cb.in_render_pass@ == true,
+        old(rctx).cb.recording_thread@ == thread@,
+        pipeline@.alive,
+        rp@.alive,
+        draw_indirect_valid(old(rctx).cb.recording_state@, pipeline@, rp@, indirect_params@, buffer@),
+    ensures
+        recording_context_wf(rctx),
+        rctx.ctx@ == record_draw_indirect(old(rctx).ctx@, indirect_params@.buffer_id, indirect_params@.offset, indirect_params@.draw_count, resources@),
+        rctx.cb.cb_id@ == old(rctx).cb.cb_id@,
+        rctx.cb.recording_thread@ == old(rctx).cb.recording_thread@,
+{
+    cmd_draw_indirect_exec(&mut rctx.cb, thread, pipeline, rp, draw_state, indirect_params, buffer);
+    rctx.ctx = Ghost(record_draw_indirect(old(rctx).ctx@, indirect_params@.buffer_id, indirect_params@.offset, indirect_params@.draw_count, resources@));
+}
+
+/// Record an indirect indexed draw through the recording context.
+pub fn record_draw_indexed_indirect_ctx_exec(
+    rctx: &mut RuntimeRecordingContext,
+    thread: Ghost<ThreadId>,
+    pipeline: Ghost<GraphicsPipelineState>,
+    rp: Ghost<RenderPassState>,
+    draw_state: Ghost<DrawCallState>,
+    indirect_params: Ghost<IndirectDrawParams>,
+    buffer: Ghost<BufferState>,
+    resources: Ghost<Set<ResourceId>>,
+)
+    requires
+        recording_context_wf(&*old(rctx)),
+        old(rctx).cb.in_render_pass@ == true,
+        old(rctx).cb.recording_thread@ == thread@,
+        pipeline@.alive,
+        rp@.alive,
+        draw_indexed_indirect_valid(old(rctx).cb.recording_state@, pipeline@, rp@, indirect_params@, buffer@),
+    ensures
+        recording_context_wf(rctx),
+        rctx.ctx@ == record_draw_indexed_indirect(old(rctx).ctx@, indirect_params@.buffer_id, indirect_params@.offset, indirect_params@.draw_count, resources@),
+        rctx.cb.cb_id@ == old(rctx).cb.cb_id@,
+        rctx.cb.recording_thread@ == old(rctx).cb.recording_thread@,
+{
+    cmd_draw_indexed_indirect_exec(&mut rctx.cb, thread, pipeline, rp, draw_state, indirect_params, buffer);
+    rctx.ctx = Ghost(record_draw_indexed_indirect(old(rctx).ctx@, indirect_params@.buffer_id, indirect_params@.offset, indirect_params@.draw_count, resources@));
+}
+
+/// Record an indirect dispatch through the recording context.
+pub fn record_dispatch_indirect_ctx_exec(
+    rctx: &mut RuntimeRecordingContext,
+    thread: Ghost<ThreadId>,
+    pipeline: Ghost<ComputePipelineState>,
+    buffer_id: Ghost<nat>,
+    offset: Ghost<nat>,
+    buffer: Ghost<BufferState>,
+    resources: Ghost<Set<ResourceId>>,
+)
+    requires
+        recording_context_wf(&*old(rctx)),
+        old(rctx).cb.in_render_pass@ == false,
+        old(rctx).cb.recording_thread@ == thread@,
+        pipeline@.alive,
+        dispatch_indirect_valid(old(rctx).cb.recording_state@, pipeline@, buffer_id@, offset@, buffer@),
+    ensures
+        recording_context_wf(rctx),
+        rctx.ctx@ == record_dispatch_indirect(old(rctx).ctx@, buffer_id@, offset@, resources@),
+        rctx.cb.cb_id@ == old(rctx).cb.cb_id@,
+        rctx.cb.recording_thread@ == old(rctx).cb.recording_thread@,
+{
+    cmd_dispatch_indirect_exec(&mut rctx.cb, thread, pipeline, buffer_id, offset, buffer);
+    rctx.ctx = Ghost(record_dispatch_indirect(old(rctx).ctx@, buffer_id@, offset@, resources@));
+}
+
+// ─── Dynamic rendering wrappers ────────────────────────────────
+
+/// Begin dynamic rendering through the recording context.
+pub fn record_begin_rendering_ctx_exec(
+    rctx: &mut RuntimeRecordingContext,
+    thread: Ghost<ThreadId>,
+    info: Ghost<DynamicRenderingInfo>,
+)
+    requires
+        recording_context_wf(&*old(rctx)),
+        old(rctx).cb.in_render_pass@ == false,
+        old(rctx).cb.recording_thread@ == thread@,
+        dynamic_rendering_well_formed(info@),
+    ensures
+        rctx.ctx@ == record_begin_rendering(old(rctx).ctx@, info@),
+        rctx.cb.cb_id@ == old(rctx).cb.cb_id@,
+        rctx.cb.recording_thread@ == old(rctx).cb.recording_thread@,
+        rctx.cb.in_render_pass@ == true,
+        is_recording(&rctx.cb),
+{
+    cmd_begin_dynamic_rendering_exec(&mut rctx.cb, thread, info);
+    rctx.ctx = Ghost(record_begin_rendering(old(rctx).ctx@, info@));
+}
+
+/// End dynamic rendering through the recording context.
+pub fn record_end_rendering_ctx_exec(
+    rctx: &mut RuntimeRecordingContext,
+    thread: Ghost<ThreadId>,
+)
+    requires
+        old(rctx).cb.in_render_pass@ == true,
+        old(rctx).cb.recording_thread@ == thread@,
+        is_recording(&old(rctx).cb),
+    ensures
+        rctx.ctx@ == record_end_rendering(old(rctx).ctx@),
+        rctx.cb.cb_id@ == old(rctx).cb.cb_id@,
+        rctx.cb.recording_thread@ == old(rctx).cb.recording_thread@,
+        rctx.cb.in_render_pass@ == false,
+        is_recording(&rctx.cb),
+{
+    cmd_end_dynamic_rendering_exec(&mut rctx.cb, thread);
+    rctx.ctx = Ghost(record_end_rendering(old(rctx).ctx@));
 }
 
 /// Finish recording and extract the command buffer + ghost context.

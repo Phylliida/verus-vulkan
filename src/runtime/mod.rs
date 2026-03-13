@@ -31,3 +31,5 @@ pub mod readback;
 pub mod bindless;
 pub mod conditional_rendering;
 pub mod animation;
+pub mod draw_state;
+pub mod completion;
