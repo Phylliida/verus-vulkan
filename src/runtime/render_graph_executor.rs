@@ -11,6 +11,7 @@ use crate::render_graph_recording::*;
 use crate::render_graph_soundness::*;
 use crate::pool_ownership::*;
 use crate::sync_token::*;
+use crate::vk_context::VulkanContext;
 use crate::runtime::command_buffer::*;
 
 // ─── Types ─────────────────────────────────────────────────────
@@ -51,6 +52,7 @@ pub open spec fn graph_step_barrier_count(cg: CompiledGraph, step: nat) -> nat
 /// Execute a single graph step: record all pre-barriers for this step.
 /// Inner loop over the ghost barrier plan, matching record_barrier_plan's recursive structure.
 pub fn execute_graph_step_exec(
+    vk: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     cg: Ghost<CompiledGraph>,
     step: Ghost<nat>,
@@ -107,7 +109,7 @@ pub fn execute_graph_step_exec(
         let ghost ba = remaining[0];
         let ghost entry = barrier_action_to_entry(ba);
 
-        cmd_pipeline_barrier_exec(cb, thread, Ghost(entry));
+        cmd_pipeline_barrier_exec(vk, cb, thread, 0u32, 0u32, Ghost(entry));
 
         proof {
             // record_barrier_plan peels remaining[0] and recurses on remaining[1..]:
@@ -132,6 +134,7 @@ pub fn execute_graph_step_exec(
 
 /// Execute all steps of a compiled graph.
 pub fn execute_compiled_graph_exec(
+    vk: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     cg: Ghost<CompiledGraph>,
     num_steps: usize,
@@ -180,7 +183,7 @@ pub fn execute_compiled_graph_exec(
     {
         let ghost old_ctx = cur_ctx;
         let nb = step_barrier_counts[step];
-        let new_ctx = execute_graph_step_exec(cb, cg, Ghost(step as nat), nb, Ghost(cur_ctx), thread);
+        let new_ctx = execute_graph_step_exec(vk, cb, cg, Ghost(step as nat), nb, Ghost(cur_ctx), thread);
 
         proof {
             cur_ctx = new_ctx@;

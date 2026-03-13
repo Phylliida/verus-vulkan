@@ -95,6 +95,7 @@ pub open spec fn is_pending(cb: &RuntimeCommandBuffer) -> bool {
 /// Exec: begin recording.
 /// Caller must prove exclusive access to the CB via pool ownership or direct token.
 pub fn begin_recording_exec(
+    ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     thread: Ghost<ThreadId>,
     pool: Ghost<PoolOwnership>,
@@ -112,6 +113,7 @@ pub fn begin_recording_exec(
         cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
+    crate::ffi::ffi_begin_command_buffer(ctx, cb.handle);
     cb.status = Ghost(CommandBufferStatus::Recording);
     cb.barrier_log = Ghost(Seq::empty());
     cb.in_render_pass = Ghost(false);
@@ -122,6 +124,7 @@ pub fn begin_recording_exec(
 /// Exec: end recording.
 /// Must be called by the same thread that began recording, with pool access.
 pub fn end_recording_exec(
+    ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     thread: Ghost<ThreadId>,
     pool: Ghost<PoolOwnership>,
@@ -141,6 +144,7 @@ pub fn end_recording_exec(
         cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
+    crate::ffi::ffi_end_command_buffer(ctx, cb.handle);
     cb.status = Ghost(CommandBufferStatus::Executable);
 }
 
@@ -148,8 +152,13 @@ pub fn end_recording_exec(
 /// Caller must prove the framebuffer is compatible with the render pass
 /// and that attachment images are in their expected initial layouts.
 pub fn cmd_begin_render_pass_exec(
+    ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     thread: Ghost<ThreadId>,
+    rp_handle: u64,
+    fb_handle: u64,
+    width: u32,
+    height: u32,
     rp: Ghost<RenderPassState>,
     fb: Ghost<FramebufferState>,
     layout_tracker: &RuntimeImageLayoutTracker,
@@ -174,6 +183,7 @@ pub fn cmd_begin_render_pass_exec(
         cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
+    crate::ffi::ffi_cmd_begin_render_pass(ctx, cb.handle, rp_handle, fb_handle, width, height);
     cb.in_render_pass = Ghost(true);
     cb.recording_state = Ghost(begin_render_pass_recording(cb.recording_state@, rp@.id, fb@.id));
 }
@@ -181,6 +191,7 @@ pub fn cmd_begin_render_pass_exec(
 /// Exec: end render pass.
 /// Updates the layout tracker so each attachment is in its final_layout.
 pub fn cmd_end_render_pass_exec(
+    ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     thread: Ghost<ThreadId>,
     rp: Ghost<RenderPassState>,
@@ -207,6 +218,7 @@ pub fn cmd_end_render_pass_exec(
             render_pass_end_transitions(rp@, attachment_resources@),
         ),
 {
+    crate::ffi::ffi_cmd_end_render_pass(ctx, cb.handle);
     cb.in_render_pass = Ghost(false);
     cb.recording_state = Ghost(end_render_pass_recording(cb.recording_state@));
     layout_tracker.states = Ghost(apply_transitions(
@@ -218,6 +230,7 @@ pub fn cmd_end_render_pass_exec(
 /// Exec: advance to the next subpass within a render pass.
 /// Caller must prove the next subpass exists in the render pass.
 pub fn cmd_next_subpass_exec(
+    ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     thread: Ghost<ThreadId>,
     rp: Ghost<RenderPassState>,
@@ -239,13 +252,17 @@ pub fn cmd_next_subpass_exec(
         cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
+    crate::ffi::ffi_cmd_next_subpass(ctx, cb.handle);
     cb.recording_state = Ghost(next_subpass_recording(cb.recording_state@));
 }
 
 /// Exec: record a pipeline barrier.
 pub fn cmd_pipeline_barrier_exec(
+    ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     thread: Ghost<ThreadId>,
+    src_stage: u32,
+    dst_stage: u32,
     entry: Ghost<BarrierEntry>,
 )
     requires
@@ -261,14 +278,17 @@ pub fn cmd_pipeline_barrier_exec(
         cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
+    crate::ffi::ffi_cmd_pipeline_barrier(ctx, cb.handle, src_stage, dst_stage);
     cb.barrier_log = Ghost(cb.barrier_log@.push(entry@));
 }
 
 /// Exec: bind a graphics pipeline (updates recording state).
 /// Caller must prove the pipeline is alive and the id matches.
 pub fn cmd_bind_graphics_pipeline_exec(
+    ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     thread: Ghost<ThreadId>,
+    pipeline_handle: u64,
     pipeline_id: Ghost<nat>,
     pipeline: Ghost<GraphicsPipelineState>,
 )
@@ -287,14 +307,17 @@ pub fn cmd_bind_graphics_pipeline_exec(
         cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
+    crate::ffi::ffi_cmd_bind_pipeline(ctx, cb.handle, 0, pipeline_handle);
     cb.recording_state = Ghost(bind_graphics_pipeline(cb.recording_state@, pipeline_id@));
 }
 
 /// Exec: bind a compute pipeline (updates recording state).
 /// Caller must prove the pipeline is alive and the id matches.
 pub fn cmd_bind_compute_pipeline_exec(
+    ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     thread: Ghost<ThreadId>,
+    pipeline_handle: u64,
     pipeline_id: Ghost<nat>,
     pipeline: Ghost<ComputePipelineState>,
 )
@@ -313,14 +336,17 @@ pub fn cmd_bind_compute_pipeline_exec(
         cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
+    crate::ffi::ffi_cmd_bind_pipeline(ctx, cb.handle, 1, pipeline_handle);
     cb.recording_state = Ghost(bind_compute_pipeline(cb.recording_state@, pipeline_id@));
 }
 
 /// Exec: bind a pipeline (backward compat, delegates to graphics variant).
 /// Caller must prove the pipeline is alive and the id matches.
 pub fn cmd_bind_pipeline_exec(
+    ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     thread: Ghost<ThreadId>,
+    pipeline_handle: u64,
     pipeline_id: Ghost<nat>,
     pipeline: Ghost<GraphicsPipelineState>,
 )
@@ -339,6 +365,7 @@ pub fn cmd_bind_pipeline_exec(
         cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
+    crate::ffi::ffi_cmd_bind_pipeline(ctx, cb.handle, 0, pipeline_handle);
     cb.recording_state = Ghost(bind_graphics_pipeline(cb.recording_state@, pipeline_id@));
 }
 
@@ -346,8 +373,13 @@ pub fn cmd_bind_pipeline_exec(
 /// The layout_id must match the descriptor set's actual layout for pipeline compatibility.
 /// Dynamic offsets are stored for later validation against buffer bounds.
 pub fn cmd_bind_descriptor_set_exec(
+    ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     thread: Ghost<ThreadId>,
+    bind_point: u32,
+    layout_handle: u64,
+    first_set: u32,
+    set_handles: &[u64],
     set_index: Ghost<nat>,
     set_id: Ghost<nat>,
     layout_id: Ghost<nat>,
@@ -366,14 +398,19 @@ pub fn cmd_bind_descriptor_set_exec(
         cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
+    crate::ffi::ffi_cmd_bind_descriptor_sets(ctx, cb.handle, bind_point, layout_handle, first_set, set_handles);
     cb.recording_state = Ghost(bind_descriptor_set(cb.recording_state@, set_index@, set_id@, layout_id@, dynamic_offsets@));
 }
 
 /// Exec: bind a vertex buffer at a given slot.
 /// Caller must prove the buffer is alive and the id matches.
 pub fn cmd_bind_vertex_buffer_exec(
+    ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     thread: Ghost<ThreadId>,
+    first_binding: u32,
+    buffer_handle: u64,
+    offset: u64,
     slot: Ghost<nat>,
     buffer_id: Ghost<nat>,
     buffer: Ghost<BufferState>,
@@ -393,14 +430,19 @@ pub fn cmd_bind_vertex_buffer_exec(
         cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
+    crate::ffi::ffi_cmd_bind_vertex_buffers(ctx, cb.handle, first_binding, buffer_handle, offset);
     cb.recording_state = Ghost(bind_vertex_buffer(cb.recording_state@, slot@, buffer_id@));
 }
 
 /// Exec: bind an index buffer.
 /// Caller must prove the buffer is alive and the id matches.
 pub fn cmd_bind_index_buffer_exec(
+    ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     thread: Ghost<ThreadId>,
+    buffer_handle: u64,
+    offset: u64,
+    index_type: u32,
     buffer_id: Ghost<nat>,
     buffer: Ghost<BufferState>,
 )
@@ -419,6 +461,7 @@ pub fn cmd_bind_index_buffer_exec(
         cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
+    crate::ffi::ffi_cmd_bind_index_buffer(ctx, cb.handle, buffer_handle, offset, index_type);
     cb.recording_state = Ghost(bind_index_buffer(cb.recording_state@, buffer_id@));
 }
 
@@ -480,14 +523,19 @@ pub fn cmd_set_push_constants_exec(cb: &mut RuntimeCommandBuffer, thread: Ghost<
 /// Caller must prove: pipeline bound, descriptors bound, vertex buffer bound,
 /// all required dynamic states set, and vertex draw in bounds.
 pub fn cmd_draw_exec(
+    ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     thread: Ghost<ThreadId>,
+    vertex_count: u32,
+    instance_count: u32,
+    first_vertex: u32,
+    first_instance: u32,
     pipeline: Ghost<GraphicsPipelineState>,
     rp: Ghost<RenderPassState>,
     draw_state: Ghost<DrawCallState>,
     required_vertex_slots: Ghost<Set<nat>>,
-    first_vertex: Ghost<nat>,
-    vertex_count: Ghost<nat>,
+    first_vertex_ghost: Ghost<nat>,
+    vertex_count_ghost: Ghost<nat>,
 )
     requires
         is_recording(&*old(cb)),
@@ -500,7 +548,7 @@ pub fn cmd_draw_exec(
         descriptor_sets_bound_for_pipeline(old(cb).recording_state@, pipeline@.descriptor_set_layouts),
         has_vertex_buffer_bound(old(cb).recording_state@),
         dynamic_states_satisfied(draw_state@, pipeline@.required_dynamic_states),
-        vertex_draw_in_bounds(draw_state@, required_vertex_slots@, first_vertex@, vertex_count@),
+        vertex_draw_in_bounds(draw_state@, required_vertex_slots@, first_vertex_ghost@, vertex_count_ghost@),
     ensures
         is_recording(cb),
         cb.barrier_log@ == old(cb).barrier_log@,
@@ -510,21 +558,28 @@ pub fn cmd_draw_exec(
         cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
+    crate::ffi::ffi_cmd_draw(ctx, cb.handle, vertex_count, instance_count, first_vertex, first_instance);
 }
 
 /// Exec: record an indexed draw command.
 /// Same as cmd_draw_exec but additionally requires index buffer bound + index bounds.
 pub fn cmd_draw_indexed_exec(
+    ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     thread: Ghost<ThreadId>,
+    index_count: u32,
+    instance_count: u32,
+    first_index: u32,
+    vertex_offset: i32,
+    first_instance: u32,
     pipeline: Ghost<GraphicsPipelineState>,
     rp: Ghost<RenderPassState>,
     draw_state: Ghost<DrawCallState>,
     required_vertex_slots: Ghost<Set<nat>>,
-    first_vertex: Ghost<nat>,
-    vertex_count: Ghost<nat>,
-    first_index: Ghost<nat>,
-    index_count: Ghost<nat>,
+    first_vertex_ghost: Ghost<nat>,
+    vertex_count_ghost: Ghost<nat>,
+    first_index_ghost: Ghost<nat>,
+    index_count_ghost: Ghost<nat>,
 )
     requires
         is_recording(&*old(cb)),
@@ -538,8 +593,8 @@ pub fn cmd_draw_indexed_exec(
         has_vertex_buffer_bound(old(cb).recording_state@),
         has_index_buffer_bound(old(cb).recording_state@),
         dynamic_states_satisfied(draw_state@, pipeline@.required_dynamic_states),
-        vertex_draw_in_bounds(draw_state@, required_vertex_slots@, first_vertex@, vertex_count@),
-        indexed_draw_in_bounds(draw_state@, first_index@, index_count@),
+        vertex_draw_in_bounds(draw_state@, required_vertex_slots@, first_vertex_ghost@, vertex_count_ghost@),
+        indexed_draw_in_bounds(draw_state@, first_index_ghost@, index_count_ghost@),
     ensures
         is_recording(cb),
         cb.barrier_log@ == old(cb).barrier_log@,
@@ -549,13 +604,18 @@ pub fn cmd_draw_indexed_exec(
         cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
+    crate::ffi::ffi_cmd_draw_indexed(ctx, cb.handle, index_count, instance_count, first_index, vertex_offset, first_instance);
 }
 
 /// Exec: record a dispatch command.
 /// Caller must prove a compatible compute pipeline is bound and all descriptor sets are bound.
 pub fn cmd_dispatch_exec(
+    ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     thread: Ghost<ThreadId>,
+    group_count_x: u32,
+    group_count_y: u32,
+    group_count_z: u32,
     pipeline: Ghost<ComputePipelineState>,
 )
     requires
@@ -575,14 +635,19 @@ pub fn cmd_dispatch_exec(
         cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
+    crate::ffi::ffi_cmd_dispatch(ctx, cb.handle, group_count_x, group_count_y, group_count_z);
 }
 
 /// Exec: record a buffer-to-buffer copy.
 /// Transfer commands must be outside a render pass.
 /// Caller must prove source is readable and destination is writable at the transfer stage.
 pub fn cmd_copy_buffer_exec(
+    ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     thread: Ghost<ThreadId>,
+    src_handle: u64,
+    dst_handle: u64,
+    size: u64,
     src_buffer: Ghost<nat>,
     dst_buffer: Ghost<nat>,
     src_sync: Ghost<SyncState>,
@@ -605,6 +670,7 @@ pub fn cmd_copy_buffer_exec(
         cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
+    crate::ffi::ffi_cmd_copy_buffer(ctx, cb.handle, src_handle, dst_handle, size);
 }
 
 /// Exec: record an image-to-image copy.
@@ -612,8 +678,13 @@ pub fn cmd_copy_buffer_exec(
 /// Source must be in TransferSrcOptimal or General; dest must be in TransferDstOptimal or General.
 /// Caller must prove source is readable and destination is writable at the transfer stage.
 pub fn cmd_copy_image_exec(
+    ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     thread: Ghost<ThreadId>,
+    src_img_handle: u64,
+    dst_img_handle: u64,
+    width: u32,
+    height: u32,
     layout_tracker: &RuntimeImageLayoutTracker,
     src_image: Ghost<ResourceId>,
     dst_image: Ghost<ResourceId>,
@@ -641,6 +712,7 @@ pub fn cmd_copy_image_exec(
         cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
+    crate::ffi::ffi_cmd_copy_image(ctx, cb.handle, src_img_handle, dst_img_handle, width, height);
 }
 
 /// Exec: record an image blit (scaled copy).
@@ -648,8 +720,13 @@ pub fn cmd_copy_image_exec(
 /// Source must be in TransferSrcOptimal or General; dest must be in TransferDstOptimal or General.
 /// Caller must prove source is readable and destination is writable at the transfer stage.
 pub fn cmd_blit_image_exec(
+    ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     thread: Ghost<ThreadId>,
+    src_img_handle: u64,
+    dst_img_handle: u64,
+    width: u32,
+    height: u32,
     layout_tracker: &RuntimeImageLayoutTracker,
     src_image: Ghost<ResourceId>,
     dst_image: Ghost<ResourceId>,
@@ -677,6 +754,7 @@ pub fn cmd_blit_image_exec(
         cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
+    crate::ffi::ffi_cmd_blit_image(ctx, cb.handle, src_img_handle, dst_img_handle, width, height);
 }
 
 /// Exec: record a buffer-to-image copy.
@@ -684,8 +762,13 @@ pub fn cmd_blit_image_exec(
 /// Dest image must be in TransferDstOptimal or General.
 /// Caller must prove source buffer is readable and destination image is writable.
 pub fn cmd_copy_buffer_to_image_exec(
+    ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     thread: Ghost<ThreadId>,
+    src_buf_handle: u64,
+    dst_img_handle: u64,
+    width: u32,
+    height: u32,
     layout_tracker: &RuntimeImageLayoutTracker,
     src_buffer: Ghost<nat>,
     dst_image: Ghost<ResourceId>,
@@ -710,6 +793,7 @@ pub fn cmd_copy_buffer_to_image_exec(
         cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
+    crate::ffi::ffi_cmd_copy_buffer_to_image(ctx, cb.handle, src_buf_handle, dst_img_handle, width, height);
 }
 
 /// Exec: record an image-to-buffer copy.
@@ -717,8 +801,13 @@ pub fn cmd_copy_buffer_to_image_exec(
 /// Source image must be in TransferSrcOptimal or General.
 /// Caller must prove source image is readable and destination buffer is writable.
 pub fn cmd_copy_image_to_buffer_exec(
+    ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     thread: Ghost<ThreadId>,
+    src_img_handle: u64,
+    dst_buf_handle: u64,
+    width: u32,
+    height: u32,
     layout_tracker: &RuntimeImageLayoutTracker,
     src_image: Ghost<ResourceId>,
     dst_buffer: Ghost<nat>,
@@ -743,13 +832,19 @@ pub fn cmd_copy_image_to_buffer_exec(
         cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
+    crate::ffi::ffi_cmd_copy_image_to_buffer(ctx, cb.handle, src_img_handle, dst_buf_handle, width, height);
 }
 
 /// Exec: record an indirect draw command.
 /// Caller must prove: pipeline bound, in render pass, indirect buffer sufficient.
 pub fn cmd_draw_indirect_exec(
+    ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     thread: Ghost<ThreadId>,
+    buffer_handle: u64,
+    offset: u64,
+    draw_count: u32,
+    stride: u32,
     pipeline: Ghost<GraphicsPipelineState>,
     rp: Ghost<RenderPassState>,
     draw_state: Ghost<DrawCallState>,
@@ -773,13 +868,19 @@ pub fn cmd_draw_indirect_exec(
         cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
+    crate::ffi::ffi_cmd_draw_indirect(ctx, cb.handle, buffer_handle, offset, draw_count, stride);
 }
 
 /// Exec: record an indirect indexed draw command.
 /// Caller must prove: pipeline bound, in render pass, indirect buffer sufficient.
 pub fn cmd_draw_indexed_indirect_exec(
+    ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     thread: Ghost<ThreadId>,
+    buffer_handle: u64,
+    offset: u64,
+    draw_count: u32,
+    stride: u32,
     pipeline: Ghost<GraphicsPipelineState>,
     rp: Ghost<RenderPassState>,
     draw_state: Ghost<DrawCallState>,
@@ -803,13 +904,17 @@ pub fn cmd_draw_indexed_indirect_exec(
         cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
+    crate::ffi::ffi_cmd_draw_indexed_indirect(ctx, cb.handle, buffer_handle, offset, draw_count, stride);
 }
 
 /// Exec: record an indirect dispatch command.
 /// Caller must prove: compute pipeline bound, not in render pass, buffer sufficient.
 pub fn cmd_dispatch_indirect_exec(
+    ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     thread: Ghost<ThreadId>,
+    buffer_handle: u64,
+    buffer_offset: u64,
     pipeline: Ghost<ComputePipelineState>,
     buffer_id: Ghost<nat>,
     offset: Ghost<nat>,
@@ -831,13 +936,18 @@ pub fn cmd_dispatch_indirect_exec(
         cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
+    crate::ffi::ffi_cmd_dispatch_indirect(ctx, cb.handle, buffer_handle, buffer_offset);
 }
 
 /// Exec: begin dynamic rendering (VK_KHR_dynamic_rendering).
 /// Sets the in_render_pass flag. Caller must prove rendering info is well-formed.
 pub fn cmd_begin_dynamic_rendering_exec(
+    ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     thread: Ghost<ThreadId>,
+    width: u32,
+    height: u32,
+    layer_count: u32,
     info: Ghost<DynamicRenderingInfo>,
 )
     requires
@@ -854,12 +964,14 @@ pub fn cmd_begin_dynamic_rendering_exec(
         cb.recording_thread@ == old(cb).recording_thread@,
         cb.cb_id@ == old(cb).cb_id@,
 {
+    crate::ffi::ffi_cmd_begin_rendering(ctx, cb.handle, width, height, layer_count);
     cb.in_render_pass = Ghost(true);
 }
 
 /// Exec: end dynamic rendering (VK_KHR_dynamic_rendering).
 /// Clears the in_render_pass flag.
 pub fn cmd_end_dynamic_rendering_exec(
+    ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     thread: Ghost<ThreadId>,
 )
@@ -875,6 +987,7 @@ pub fn cmd_end_dynamic_rendering_exec(
         cb.recording_thread@ == old(cb).recording_thread@,
         cb.cb_id@ == old(cb).cb_id@,
 {
+    crate::ffi::ffi_cmd_end_rendering(ctx, cb.handle);
     cb.in_render_pass = Ghost(false);
 }
 
