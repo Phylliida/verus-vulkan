@@ -14,6 +14,7 @@ use crate::pool_ownership::*;
 use crate::sync_token::*;
 use crate::indirect::*;
 use crate::dynamic_rendering::*;
+use crate::msaa::*;
 use crate::memory::*;
 use crate::vk_context::VulkanContext;
 use crate::runtime::command_buffer::*;
@@ -162,6 +163,8 @@ pub fn record_copy_buffer_ctx_exec(
     size: u64,
     src_buffer: Ghost<nat>,
     dst_buffer: Ghost<nat>,
+    src_state: Ghost<BufferState>,
+    dst_state: Ghost<BufferState>,
     src_res: Ghost<ResourceId>,
     dst_res: Ghost<ResourceId>,
     src_sync: Ghost<SyncState>,
@@ -172,6 +175,11 @@ pub fn record_copy_buffer_ctx_exec(
         old(rctx).cb.in_render_pass@ == false,
         old(rctx).cb.recording_thread@ == thread@,
         src_buffer@ != dst_buffer@,
+        size > 0,
+        src_state@.alive,
+        dst_state@.alive,
+        size as nat <= src_state@.size,
+        size as nat <= dst_state@.size,
         readable(old(rctx).cb.barrier_log@, src_sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_READ()),
         writable(old(rctx).cb.barrier_log@, dst_sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_WRITE()),
     ensures
@@ -180,7 +188,7 @@ pub fn record_copy_buffer_ctx_exec(
         rctx.cb.cb_id@ == old(rctx).cb.cb_id@,
         rctx.cb.recording_thread@ == old(rctx).cb.recording_thread@,
 {
-    cmd_copy_buffer_exec(vk, &mut rctx.cb, thread, src_handle, dst_handle, size, src_buffer, dst_buffer, src_sync, dst_sync);
+    cmd_copy_buffer_exec(vk, &mut rctx.cb, thread, src_handle, dst_handle, size, src_buffer, dst_buffer, src_state, dst_state, src_sync, dst_sync);
     rctx.ctx = Ghost(record_copy_buffer(old(rctx).ctx@, src_buffer@, dst_buffer@, src_res@, dst_res@));
 }
 
@@ -244,6 +252,8 @@ pub fn record_copy_image_ctx_exec(
         layout_tracker@.contains_key(dst_image@),
         valid_transfer_src_layout(layout_tracker@[src_image@]),
         valid_transfer_dst_layout(layout_tracker@[dst_image@]),
+        width > 0,
+        height > 0,
         readable(old(rctx).cb.barrier_log@, src_sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_READ()),
         writable(old(rctx).cb.barrier_log@, dst_sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_WRITE()),
     ensures
@@ -282,6 +292,8 @@ pub fn record_blit_image_ctx_exec(
         layout_tracker@.contains_key(dst_image@),
         valid_transfer_src_layout(layout_tracker@[src_image@]),
         valid_transfer_dst_layout(layout_tracker@[dst_image@]),
+        width > 0,
+        height > 0,
         readable(old(rctx).cb.barrier_log@, src_sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_READ()),
         writable(old(rctx).cb.barrier_log@, dst_sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_WRITE()),
     ensures
@@ -317,6 +329,8 @@ pub fn record_copy_buffer_to_image_ctx_exec(
         old(rctx).cb.recording_thread@ == thread@,
         layout_tracker@.contains_key(dst_image@),
         valid_transfer_dst_layout(layout_tracker@[dst_image@]),
+        width > 0,
+        height > 0,
         readable(old(rctx).cb.barrier_log@, src_sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_READ()),
         writable(old(rctx).cb.barrier_log@, dst_sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_WRITE()),
     ensures
@@ -352,6 +366,8 @@ pub fn record_copy_image_to_buffer_ctx_exec(
         old(rctx).cb.recording_thread@ == thread@,
         layout_tracker@.contains_key(src_image@),
         valid_transfer_src_layout(layout_tracker@[src_image@]),
+        width > 0,
+        height > 0,
         readable(old(rctx).cb.barrier_log@, src_sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_READ()),
         writable(old(rctx).cb.barrier_log@, dst_sync@, STAGE_TRANSFER(), ACCESS_TRANSFER_WRITE()),
     ensures
@@ -484,12 +500,14 @@ pub fn record_begin_rendering_ctx_exec(
     height: u32,
     layer_count: u32,
     info: Ghost<DynamicRenderingInfo>,
+    pipeline_samples: Ghost<SampleCount>,
 )
     requires
         recording_context_wf(&*old(rctx)),
         old(rctx).cb.in_render_pass@ == false,
         old(rctx).cb.recording_thread@ == thread@,
         dynamic_rendering_well_formed(info@),
+        dynamic_rendering_samples_match(info@, pipeline_samples@),
     ensures
         rctx.ctx@ == record_begin_rendering(old(rctx).ctx@, info@),
         rctx.cb.cb_id@ == old(rctx).cb.cb_id@,
@@ -497,7 +515,7 @@ pub fn record_begin_rendering_ctx_exec(
         rctx.cb.in_render_pass@ == true,
         is_recording(&rctx.cb),
 {
-    cmd_begin_dynamic_rendering_exec(vk, &mut rctx.cb, thread, width, height, layer_count, info);
+    cmd_begin_dynamic_rendering_exec(vk, &mut rctx.cb, thread, width, height, layer_count, info, pipeline_samples);
     rctx.ctx = Ghost(record_begin_rendering(old(rctx).ctx@, info@));
 }
 

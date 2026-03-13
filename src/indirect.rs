@@ -40,6 +40,7 @@ pub open spec fn indirect_buffer_size_sufficient(
 ) -> bool {
     buffer.alive
     && params.stride >= command_size
+    && params.stride % 4 == 0
     && params.draw_count > 0 ==> (
         params.offset + (params.draw_count - 1) * params.stride + command_size
             <= buffer.size
