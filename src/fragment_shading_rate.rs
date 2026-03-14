@@ -41,8 +41,11 @@ pub open spec fn fsr_attachment_well_formed(
 }
 
 /// A fragment shading rate attachment covers the entire framebuffer.
+/// Requires image dimensions — the image * texel must span the framebuffer.
 pub open spec fn fsr_attachment_covers_framebuffer(
     att: FragmentShadingRateAttachment,
+    image_width: nat,
+    image_height: nat,
     fb_width: nat,
     fb_height: nat,
 ) -> bool {
@@ -50,6 +53,8 @@ pub open spec fn fsr_attachment_covers_framebuffer(
     && att.texel_height > 0
     && fb_width > 0
     && fb_height > 0
+    && image_width * att.texel_width >= fb_width
+    && image_height * att.texel_height >= fb_height
 }
 
 /// Fragment shading rate properties are valid.
@@ -60,6 +65,24 @@ pub open spec fn fsr_properties_valid(props: FragmentShadingRateProperties) -> b
     && props.max_texel_size_height > 0
     && props.max_fragment_size_width > 0
     && props.max_fragment_size_height > 0
+}
+
+/// Clamp a combined width/height to the nearest valid shading rate dimension (1, 2, or 4).
+pub open spec fn clamp_shading_dim(d: nat) -> nat {
+    if d <= 1 { 1 }
+    else if d <= 2 { 2 }
+    else { 4 }
+}
+
+/// Look up the ShadingRate for a (clamped_width, clamped_height) pair.
+pub open spec fn shading_rate_from_dims(w: nat, h: nat) -> ShadingRate {
+    if w == 1 && h == 1 { ShadingRate::Rate1x1 }
+    else if w == 1 && h == 2 { ShadingRate::Rate1x2 }
+    else if w == 2 && h == 1 { ShadingRate::Rate2x1 }
+    else if w == 2 && h == 2 { ShadingRate::Rate2x2 }
+    else if w == 2 && h == 4 { ShadingRate::Rate2x4 }
+    else if w == 4 && h == 2 { ShadingRate::Rate4x2 }
+    else { ShadingRate::Rate4x4 } // 4x4 or any overflow
 }
 
 /// Combine two shading rates using a combiner operation.
@@ -85,7 +108,11 @@ pub open spec fn fsr_combine(
                 rate_b
             }
         },
-        ShadingRateCombinerOp::Mul => rate_a, // simplified: full mul would need clamping
+        ShadingRateCombinerOp::Mul => {
+            let w = clamp_shading_dim(shading_rate_width(rate_a) * shading_rate_width(rate_b));
+            let h = clamp_shading_dim(shading_rate_height(rate_a) * shading_rate_height(rate_b));
+            shading_rate_from_dims(w, h)
+        },
     }
 }
 
@@ -200,6 +227,28 @@ pub proof fn lemma_fsr_non_square_requires_support()
         !fsr_rate_is_square(ShadingRate::Rate2x1),
         !fsr_rate_is_square(ShadingRate::Rate2x4),
         !fsr_rate_is_square(ShadingRate::Rate4x2),
+{
+}
+
+/// Mul with 1x1 is identity: 1x1 * X == X for all rates.
+pub proof fn lemma_fsr_mul_1x1_identity(rate: ShadingRate)
+    ensures fsr_combine(ShadingRate::Rate1x1, rate, ShadingRateCombinerOp::Mul) == rate,
+{
+    // 1x1 has width=1, height=1, so 1*w=w, 1*h=h, clamp preserves valid dims
+}
+
+/// Attachment must actually cover the framebuffer — caller must provide image dimensions.
+pub proof fn lemma_fsr_coverage_requires_sufficient_image(
+    att: FragmentShadingRateAttachment,
+    image_width: nat,
+    image_height: nat,
+    fb_width: nat,
+    fb_height: nat,
+)
+    requires fsr_attachment_covers_framebuffer(att, image_width, image_height, fb_width, fb_height),
+    ensures
+        image_width * att.texel_width >= fb_width,
+        image_height * att.texel_height >= fb_height,
 {
 }
 
