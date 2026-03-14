@@ -62,6 +62,7 @@ pub open spec fn frame_lifecycle_valid(
         FrameLifecycleState::Idle => {
             // Frame is well-formed and swapchain image is available
             frame_submission_well_formed(inv.frame)
+            && !inv.swapchain.retired
             && inv.frame.image_index < inv.swapchain.image_states.len()
             && inv.swapchain.image_states[inv.frame.image_index as int]
                 == SwapchainImageState::Available

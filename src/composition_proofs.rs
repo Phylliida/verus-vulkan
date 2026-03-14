@@ -362,10 +362,11 @@ pub proof fn lemma_semaphore_signal_wait_cycle(
 pub proof fn lemma_secondary_requires_render_pass_alignment(
     primary_ctx: RecordingContext,
     secondary: SecondaryCommandBuffer,
+    rp: RenderPassState,
 )
     requires
         secondary.assumptions.requires_render_pass,
-        assumptions_satisfied(secondary.assumptions, primary_ctx),
+        assumptions_satisfied(secondary.assumptions, primary_ctx, rp),
     ensures
         in_render_pass(primary_ctx.state),
 {
@@ -387,6 +388,7 @@ pub proof fn lemma_swapchain_full_cycle_stable(
     swapchain: SwapchainState, idx: nat,
 )
     requires
+        !swapchain.retired,
         idx < swapchain.image_states.len(),
         swapchain.image_states[idx as int] == SwapchainImageState::Available,
     ensures ({

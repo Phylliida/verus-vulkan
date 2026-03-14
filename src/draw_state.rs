@@ -88,6 +88,22 @@ pub open spec fn set_dynamic_state(
     }
 }
 
+/// Set a dynamic state, validated against the pipeline's declared dynamic states.
+/// Callers should prefer this over `set_dynamic_state` to ensure only
+/// pipeline-declared dynamic states are set.
+pub open spec fn set_dynamic_state_validated(
+    state: DrawCallState,
+    kind: DynamicStateKind,
+    pipeline_dynamic_states: Set<DynamicStateKind>,
+) -> DrawCallState
+    recommends pipeline_dynamic_states.contains(kind),
+{
+    DrawCallState {
+        set_dynamic_states: state.set_dynamic_states.insert(kind),
+        ..state
+    }
+}
+
 /// Set push constants for a range.
 pub open spec fn set_push_constants(
     state: DrawCallState,
@@ -267,6 +283,19 @@ pub proof fn lemma_set_dynamic_satisfies(
 )
     ensures
         set_dynamic_state(state, kind)
+            .set_dynamic_states.contains(kind),
+{
+}
+
+/// Setting a validated dynamic state ensures it is in the pipeline's declared states.
+pub proof fn lemma_validated_dynamic_state_in_pipeline(
+    state: DrawCallState,
+    kind: DynamicStateKind,
+    pipeline_dynamic_states: Set<DynamicStateKind>,
+)
+    requires pipeline_dynamic_states.contains(kind),
+    ensures
+        set_dynamic_state_validated(state, kind, pipeline_dynamic_states)
             .set_dynamic_states.contains(kind),
 {
 }

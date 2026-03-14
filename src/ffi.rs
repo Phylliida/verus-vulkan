@@ -1475,6 +1475,7 @@ pub fn vk_create_swapchain(
         state: Ghost(SwapchainState {
             id: id@,
             image_states: Seq::new(image_count as nat, |_i| SwapchainImageState::Available),
+            retired: false,
         }),
     }
 }

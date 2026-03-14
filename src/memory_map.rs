@@ -6,7 +6,7 @@ verus! {
 
 // ── Types ───────────────────────────────────────────────────────────────
 
-/// Memory mapping state for a host-visible allocation.
+/// Memory mapping state for a memory allocation.
 pub struct MemoryMapState {
     pub allocation_id: nat,
     /// Whether the memory is currently mapped.
@@ -15,6 +15,10 @@ pub struct MemoryMapState {
     pub map_offset: nat,
     /// Mapped size (valid when mapped).
     pub map_size: nat,
+    /// Whether the memory type is host-visible (required for mapping).
+    pub host_visible: bool,
+    /// Total allocation size in bytes.
+    pub allocation_size: nat,
     /// Whether the memory type is host-coherent.
     pub host_coherent: bool,
     /// Whether a flush is pending (non-coherent only).
@@ -30,7 +34,9 @@ pub open spec fn map_memory(
     state: MemoryMapState,
     offset: nat,
     size: nat,
-) -> MemoryMapState {
+) -> MemoryMapState
+    recommends can_map(state), map_range_valid(state, offset, size),
+{
     MemoryMapState {
         mapped: true,
         map_offset: offset,
@@ -82,9 +88,16 @@ pub open spec fn host_writes_visible(state: MemoryMapState) -> bool {
     state.host_coherent || !state.flush_pending
 }
 
-/// Memory can be mapped: not already mapped.
+/// Memory can be mapped: not already mapped and memory type is host-visible.
 pub open spec fn can_map(state: MemoryMapState) -> bool {
     !state.mapped
+    && state.host_visible
+}
+
+/// A map range is valid: non-zero size and within the allocation.
+pub open spec fn map_range_valid(state: MemoryMapState, offset: nat, size: nat) -> bool {
+    size > 0
+    && offset + size <= state.allocation_size
 }
 
 /// An access is within the mapped range.
@@ -158,6 +171,20 @@ pub proof fn lemma_coherent_no_flush_needed(state: MemoryMapState)
 pub proof fn lemma_coherent_write_no_flush(state: MemoryMapState)
     requires state.host_coherent,
     ensures !host_write(state).flush_pending,
+{
+}
+
+/// Non-host-visible memory cannot be mapped.
+pub proof fn lemma_non_host_visible_cannot_map(state: MemoryMapState)
+    requires !state.host_visible,
+    ensures !can_map(state),
+{
+}
+
+/// A valid map range stays within the allocation.
+pub proof fn lemma_map_range_within_allocation(state: MemoryMapState, offset: nat, size: nat)
+    requires map_range_valid(state, offset, size),
+    ensures offset + size <= state.allocation_size,
 {
 }
 

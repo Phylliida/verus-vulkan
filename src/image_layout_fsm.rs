@@ -2,6 +2,8 @@ use vstd::prelude::*;
 use crate::resource::*;
 use crate::image_layout::*;
 use crate::render_pass::*;
+use crate::flags::*;
+use crate::memory::*;
 
 verus! {
 
@@ -464,6 +466,54 @@ pub proof fn lemma_matching_initials_permits_begin(
         has_layout(map, fb_attachments[att_idx as int], rp.attachments[att_idx as int].initial_layout),
 {
     assert(fb_attachments[att_idx as int] == fb_attachments[att_idx as int]); // trigger
+}
+
+// ── Image Usage-Layout Validation ────────────────────────────────────────
+
+/// The usage flag required for a given image layout, if any.
+/// General/Undefined/Preinitialized/PresentSrc don't require specific usage.
+pub open spec fn layout_requires_usage(layout: ImageLayout) -> Option<nat> {
+    match layout {
+        ImageLayout::ColorAttachmentOptimal => Some(USAGE_COLOR_ATTACHMENT()),
+        ImageLayout::DepthStencilAttachmentOptimal => Some(USAGE_DEPTH_STENCIL_ATTACHMENT()),
+        ImageLayout::DepthStencilReadOnlyOptimal => Some(USAGE_DEPTH_STENCIL_ATTACHMENT()),
+        ImageLayout::ShaderReadOnlyOptimal => Some(USAGE_SAMPLED()),
+        ImageLayout::TransferSrcOptimal => Some(USAGE_TRANSFER_SRC()),
+        ImageLayout::TransferDstOptimal => Some(USAGE_TRANSFER_DST()),
+        _ => None,
+    }
+}
+
+/// A layout transition's target layout is valid for the image's usage flags.
+pub open spec fn layout_transition_usage_valid(
+    image_usage: Set<nat>,
+    new_layout: ImageLayout,
+) -> bool {
+    match layout_requires_usage(new_layout) {
+        Some(required) => image_usage.contains(required),
+        None => true,
+    }
+}
+
+/// Transitioning to the image's current format requirements is valid
+/// when the image has the right usage flags.
+pub open spec fn transition_valid_for_image(
+    image: ImageState,
+    new_layout: ImageLayout,
+) -> bool {
+    layout_transition_usage_valid(image.usage, new_layout)
+}
+
+/// General layout always has valid usage (no specific flag required).
+pub proof fn lemma_general_layout_always_valid(image_usage: Set<nat>)
+    ensures layout_transition_usage_valid(image_usage, ImageLayout::General),
+{
+}
+
+/// Undefined layout always has valid usage (no specific flag required).
+pub proof fn lemma_undefined_layout_always_valid(image_usage: Set<nat>)
+    ensures layout_transition_usage_valid(image_usage, ImageLayout::Undefined),
+{
 }
 
 // ── Subresource Range Helpers ────────────────────────────────────────────

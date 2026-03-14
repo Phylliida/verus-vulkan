@@ -2,6 +2,7 @@ use vstd::prelude::*;
 use crate::resource::*;
 use crate::recording::*;
 use crate::recording_commands::*;
+use crate::render_pass::*;
 use crate::sync::*;
 
 verus! {
@@ -22,6 +23,10 @@ pub struct SecondaryAssumptions {
     pub expected_subpass_index: Option<nat>,
     /// Expected bound graphics pipeline, if any.
     pub expected_graphics_pipeline: Option<nat>,
+    /// Expected color attachment formats (if inside render pass).
+    pub expected_color_formats: Option<Seq<nat>>,
+    /// Expected depth attachment format (if inside render pass).
+    pub expected_depth_format: Option<nat>,
     /// Set of resources the secondary CB will access.
     pub referenced_resources: Set<ResourceId>,
     /// Barrier entries the secondary CB records.
@@ -41,9 +46,11 @@ pub struct SecondaryCommandBuffer {
 // ── Spec Functions ──────────────────────────────────────────────────────
 
 /// The primary's state satisfies the secondary CB's assumptions.
+/// `rp` is the render pass state, needed for format checking.
 pub open spec fn assumptions_satisfied(
     assumptions: SecondaryAssumptions,
     primary_ctx: RecordingContext,
+    rp: RenderPassState,
 ) -> bool {
     // If secondary requires render pass, primary must be in one
     (assumptions.requires_render_pass ==> in_render_pass(primary_ctx.state))
@@ -66,6 +73,39 @@ pub open spec fn assumptions_satisfied(
     && (match assumptions.expected_graphics_pipeline {
         Some(pipeline_id) =>
             primary_ctx.state.bound_graphics_pipeline == Some(pipeline_id),
+        None => true,
+    })
+
+    // Color attachment formats must match
+    && (match assumptions.expected_color_formats {
+        Some(formats) => primary_ctx.state.active_render_pass.is_some()
+            && ({
+                let sp_idx = primary_ctx.state.active_render_pass.unwrap().subpass_index;
+                sp_idx < rp.subpasses.len()
+                && rp.subpasses[sp_idx as int].color_attachments.len() == formats.len()
+                && forall|i: int| #![trigger formats[i]]
+                    0 <= i < formats.len() ==> {
+                    let att_idx = rp.subpasses[sp_idx as int].color_attachments[i].attachment_index;
+                    att_idx < rp.attachments.len()
+                    && rp.attachments[att_idx as int].format == formats[i]
+                }
+            }),
+        None => true,
+    })
+
+    // Depth format must match
+    && (match assumptions.expected_depth_format {
+        Some(fmt) => primary_ctx.state.active_render_pass.is_some()
+            && ({
+                let sp_idx = primary_ctx.state.active_render_pass.unwrap().subpass_index;
+                sp_idx < rp.subpasses.len()
+                && rp.subpasses[sp_idx as int].depth_attachment.is_some()
+                && ({
+                    let att_idx = rp.subpasses[sp_idx as int].depth_attachment.unwrap().attachment_index;
+                    att_idx < rp.attachments.len()
+                    && rp.attachments[att_idx as int].format == fmt
+                })
+            }),
         None => true,
     })
 }
@@ -104,6 +144,8 @@ pub open spec fn no_assumptions() -> SecondaryAssumptions {
         expected_render_pass_id: None,
         expected_subpass_index: None,
         expected_graphics_pipeline: None,
+        expected_color_formats: None,
+        expected_depth_format: None,
         referenced_resources: Set::empty(),
         barrier_entries: Seq::empty(),
     }
@@ -133,9 +175,10 @@ pub open spec fn execute_n_secondaries(
 pub proof fn lemma_satisfied_assumptions_enable_execute(
     assumptions: SecondaryAssumptions,
     primary_ctx: RecordingContext,
+    rp: RenderPassState,
 )
     requires
-        assumptions_satisfied(assumptions, primary_ctx),
+        assumptions_satisfied(assumptions, primary_ctx, rp),
         assumptions.requires_render_pass,
     ensures
         in_render_pass(primary_ctx.state),
@@ -183,9 +226,10 @@ pub proof fn lemma_execute_preserves_state(
 /// A secondary CB with no assumptions is always satisfied.
 pub proof fn lemma_no_assumptions_always_satisfied(
     primary_ctx: RecordingContext,
+    rp: RenderPassState,
 )
     ensures
-        assumptions_satisfied(no_assumptions(), primary_ctx),
+        assumptions_satisfied(no_assumptions(), primary_ctx, rp),
 {
 }
 
@@ -253,13 +297,33 @@ pub proof fn lemma_execute_n_accumulates_all_resources(
     }
 }
 
+/// Mismatched color formats cause assumptions_satisfied to return false.
+pub proof fn lemma_format_mismatch_not_satisfied(
+    assumptions: SecondaryAssumptions,
+    primary_ctx: RecordingContext,
+    rp: RenderPassState,
+)
+    requires
+        assumptions.expected_color_formats.is_some(),
+        assumptions_satisfied(assumptions, primary_ctx, rp),
+        primary_ctx.state.active_render_pass.is_some(),
+    ensures ({
+        let sp_idx = primary_ctx.state.active_render_pass.unwrap().subpass_index;
+        sp_idx < rp.subpasses.len()
+        && rp.subpasses[sp_idx as int].color_attachments.len()
+            == assumptions.expected_color_formats.unwrap().len()
+    }),
+{
+}
+
 /// Assumptions with a specific render pass are stricter than no-assumption.
 pub proof fn lemma_render_pass_assumption_implies_in_render_pass(
     assumptions: SecondaryAssumptions,
     primary_ctx: RecordingContext,
+    rp: RenderPassState,
 )
     requires
-        assumptions_satisfied(assumptions, primary_ctx),
+        assumptions_satisfied(assumptions, primary_ctx, rp),
         assumptions.expected_render_pass_id.is_some(),
     ensures
         primary_ctx.state.active_render_pass.is_some(),

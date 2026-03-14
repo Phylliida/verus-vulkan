@@ -17,6 +17,9 @@ pub struct SwapchainState {
     /// Unique identifier for this swapchain (used for thread-safe sync token lookup).
     pub id: nat,
     pub image_states: Seq<SwapchainImageState>,
+    /// Whether this swapchain has been retired (replaced by a new swapchain).
+    /// Acquiring from a retired swapchain is UB.
+    pub retired: bool,
 }
 
 /// Count how many images are currently acquired (not available, not presenting).
@@ -66,11 +69,13 @@ pub open spec fn count_in_flight(swapchain: SwapchainState) -> nat {
     count_acquired(swapchain) + count_present_pending(swapchain)
 }
 
-/// Acquire image at index `idx`.
+/// Acquire image at index `idx`. Fails if swapchain is retired.
 pub open spec fn acquire_image(swapchain: SwapchainState, idx: nat) -> Option<SwapchainState>
     recommends idx < swapchain.image_states.len(),
 {
-    if idx >= swapchain.image_states.len() {
+    if swapchain.retired {
+        None
+    } else if idx >= swapchain.image_states.len() {
         None
     } else {
         match swapchain.image_states[idx as int] {
@@ -117,6 +122,11 @@ pub open spec fn present_complete(swapchain: SwapchainState, idx: nat) -> Option
     }
 }
 
+/// Retire a swapchain (marks it as replaced by a new swapchain).
+pub open spec fn retire_swapchain(swapchain: SwapchainState) -> SwapchainState {
+    SwapchainState { retired: true, ..swapchain }
+}
+
 /// A swapchain where all images are Available.
 pub open spec fn all_available(swapchain: SwapchainState) -> bool {
     forall|i: int| 0 <= i < swapchain.image_states.len() ==>
@@ -153,9 +163,10 @@ proof fn lemma_all_available_zero_present(states: Seq<SwapchainImageState>, star
     }
 }
 
-/// Acquiring an available image succeeds.
+/// Acquiring an available image from a non-retired swapchain succeeds.
 pub proof fn lemma_acquire_available_succeeds(swapchain: SwapchainState, idx: nat)
     requires
+        !swapchain.retired,
         idx < swapchain.image_states.len(),
         swapchain.image_states[idx as int] == SwapchainImageState::Available,
     ensures acquire_image(swapchain, idx).is_some(),
@@ -192,6 +203,7 @@ pub proof fn lemma_complete_non_pending_fails(swapchain: SwapchainState, idx: na
 /// Acquiring preserves the number of images.
 pub proof fn lemma_acquire_preserves_image_count(swapchain: SwapchainState, idx: nat)
     requires
+        !swapchain.retired,
         idx < swapchain.image_states.len(),
         swapchain.image_states[idx as int] == SwapchainImageState::Available,
     ensures acquire_image(swapchain, idx).unwrap().image_states.len()
@@ -212,6 +224,7 @@ pub proof fn lemma_present_preserves_image_count(swapchain: SwapchainState, idx:
 /// Full cycle: acquire → present → complete returns to Available.
 pub proof fn lemma_full_cycle_returns_available(swapchain: SwapchainState, idx: nat)
     requires
+        !swapchain.retired,
         idx < swapchain.image_states.len(),
         swapchain.image_states[idx as int] == SwapchainImageState::Available,
     ensures ({
@@ -228,6 +241,7 @@ pub proof fn lemma_acquire_preserves_other(
     swapchain: SwapchainState, idx: nat, other: nat,
 )
     requires
+        !swapchain.retired,
         idx < swapchain.image_states.len(),
         other < swapchain.image_states.len(),
         idx != other,
@@ -235,6 +249,22 @@ pub proof fn lemma_acquire_preserves_other(
     ensures
         acquire_image(swapchain, idx).unwrap().image_states[other as int]
             == swapchain.image_states[other as int],
+{
+}
+
+/// A retired swapchain always returns None from acquire_image.
+pub proof fn lemma_retired_cannot_acquire(swapchain: SwapchainState, idx: nat)
+    requires swapchain.retired,
+    ensures acquire_image(swapchain, idx).is_none(),
+{
+}
+
+/// Retiring a swapchain preserves its image states (in-flight images
+/// can still be presented/completed).
+pub proof fn lemma_retire_preserves_images(swapchain: SwapchainState)
+    ensures
+        retire_swapchain(swapchain).image_states == swapchain.image_states,
+        retire_swapchain(swapchain).id == swapchain.id,
 {
 }
 

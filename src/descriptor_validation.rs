@@ -365,6 +365,58 @@ pub proof fn lemma_sequential_binds_satisfy_pipeline(
 {
 }
 
+// ── Buffer Descriptor Range Validation ────────────────────────────────
+
+/// A buffer descriptor's offset + range does not exceed the buffer's size.
+pub open spec fn buffer_descriptor_range_valid(
+    binding: DescriptorBinding,
+    buffers: Map<nat, BufferState>,
+) -> bool {
+    match binding {
+        DescriptorBinding::BoundBuffer { buffer_id, offset, range } =>
+            buffers.contains_key(buffer_id) ==>
+            offset + range <= buffers[buffer_id].size,
+        _ => true,
+    }
+}
+
+/// All buffer descriptor bindings in a descriptor set have valid ranges.
+pub open spec fn all_descriptor_buffer_ranges_valid(
+    dset: DescriptorSetState,
+    layout: DescriptorSetLayoutState,
+    buffers: Map<nat, BufferState>,
+) -> bool {
+    forall|i: int| #![trigger layout.bindings[i]]
+        0 <= i < layout.bindings.len() ==> {
+            let b = layout.bindings[i].binding;
+            dset.bindings.contains_key(b) ==>
+                buffer_descriptor_range_valid(dset.bindings[b], buffers)
+        }
+}
+
+/// Empty bindings trivially have valid buffer ranges.
+pub proof fn lemma_empty_binding_range_trivial(
+    buffers: Map<nat, BufferState>,
+)
+    ensures buffer_descriptor_range_valid(DescriptorBinding::Empty, buffers),
+{
+}
+
+/// A BoundBuffer with offset + range <= size has a valid range.
+pub proof fn lemma_bound_buffer_range_valid(
+    buffer_id: nat, offset: nat, range: nat,
+    buffers: Map<nat, BufferState>,
+)
+    requires
+        buffers.contains_key(buffer_id),
+        offset + range <= buffers[buffer_id].size,
+    ensures buffer_descriptor_range_valid(
+        DescriptorBinding::BoundBuffer { buffer_id, offset, range },
+        buffers,
+    ),
+{
+}
+
 // ── Phase 1: Descriptor Resource Liveness ────────────────────────────
 
 /// Whether a single descriptor binding's resource is alive.
