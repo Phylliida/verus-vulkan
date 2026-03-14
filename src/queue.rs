@@ -1,5 +1,6 @@
 use vstd::prelude::*;
 use crate::resource::*;
+use crate::resource_lifecycle::*;
 use crate::command::*;
 use crate::lifetime::*;
 use crate::fence::*;
@@ -89,6 +90,18 @@ pub open spec fn wait_stage_masks_valid(info: SubmitInfo) -> bool {
         info.wait_dst_stage_masks[i] > 0
 }
 
+/// All resources referenced by the submission's command buffers are still
+/// usable (Bound or Idle). Prevents use-after-destroy: destroying a resource
+/// between recording and submitting would leave it in Destroyed state.
+pub open spec fn all_referenced_resources_usable(
+    info: SubmitInfo,
+    lifecycle_states: Map<ResourceId, ResourceLifecycleState>,
+) -> bool {
+    forall|r: ResourceId| #[trigger] info.referenced_resources.contains(r) ==>
+        lifecycle_states.contains_key(r)
+        && can_use(lifecycle_states[r])
+}
+
 /// A submission is valid if all preconditions are met, including
 /// thread safety: the submitting thread must hold exclusive access
 /// to the queue, and all submitted CBs must not be held by others.
@@ -100,6 +113,7 @@ pub open spec fn submission_valid(
     cb_states: Map<nat, CommandBufferState>,
     sem_states: Map<nat, SemaphoreState>,
     fence_states: Map<nat, FenceState>,
+    lifecycle_states: Map<ResourceId, ResourceLifecycleState>,
     queue_id: nat,
     thread: ThreadId,
     reg: TokenRegistry,
@@ -109,6 +123,8 @@ pub open spec fn submission_valid(
     && all_wait_semaphores_signaled(info, sem_states)
     && fence_available_for_submit(info, fence_states)
     && wait_stage_masks_valid(info)
+    // All referenced resources must still be alive (not destroyed)
+    && all_referenced_resources_usable(info, lifecycle_states)
     // Thread safety: exclusive queue access
     && holds_exclusive(reg, queue_id, thread)
     // Thread safety: fence access (if specified)
@@ -193,11 +209,12 @@ pub proof fn lemma_valid_submission_has_executable_buffers(
     cb_states: Map<nat, CommandBufferState>,
     sem_states: Map<nat, SemaphoreState>,
     fence_states: Map<nat, FenceState>,
+    lifecycle_states: Map<ResourceId, ResourceLifecycleState>,
     queue_id: nat,
     thread: ThreadId,
     reg: TokenRegistry,
 )
-    requires submission_valid(info, cb_states, sem_states, fence_states, queue_id, thread, reg),
+    requires submission_valid(info, cb_states, sem_states, fence_states, lifecycle_states, queue_id, thread, reg),
     ensures all_command_buffers_executable(info, cb_states),
 {
 }
@@ -236,11 +253,12 @@ pub proof fn lemma_valid_submission_holds_queue(
     cb_states: Map<nat, CommandBufferState>,
     sem_states: Map<nat, SemaphoreState>,
     fence_states: Map<nat, FenceState>,
+    lifecycle_states: Map<ResourceId, ResourceLifecycleState>,
     queue_id: nat,
     thread: ThreadId,
     reg: TokenRegistry,
 )
-    requires submission_valid(info, cb_states, sem_states, fence_states, queue_id, thread, reg),
+    requires submission_valid(info, cb_states, sem_states, fence_states, lifecycle_states, queue_id, thread, reg),
     ensures holds_exclusive(reg, queue_id, thread),
 {
 }
@@ -260,11 +278,12 @@ pub proof fn lemma_valid_submission_has_stage_masks(
     cb_states: Map<nat, CommandBufferState>,
     sem_states: Map<nat, SemaphoreState>,
     fence_states: Map<nat, FenceState>,
+    lifecycle_states: Map<ResourceId, ResourceLifecycleState>,
     queue_id: nat,
     thread: ThreadId,
     reg: TokenRegistry,
 )
-    requires submission_valid(info, cb_states, sem_states, fence_states, queue_id, thread, reg),
+    requires submission_valid(info, cb_states, sem_states, fence_states, lifecycle_states, queue_id, thread, reg),
     ensures wait_stage_masks_valid(info),
 {
 }
@@ -275,6 +294,22 @@ pub proof fn lemma_single_wait_stage_mask(info: SubmitInfo)
         info.wait_dst_stage_masks.len() == 1,
         info.wait_dst_stage_masks[0] > 0,
     ensures wait_stage_masks_valid(info),
+{
+}
+
+/// A valid submission guarantees all referenced resources are usable.
+pub proof fn lemma_valid_submission_resources_alive(
+    info: SubmitInfo,
+    cb_states: Map<nat, CommandBufferState>,
+    sem_states: Map<nat, SemaphoreState>,
+    fence_states: Map<nat, FenceState>,
+    lifecycle_states: Map<ResourceId, ResourceLifecycleState>,
+    queue_id: nat,
+    thread: ThreadId,
+    reg: TokenRegistry,
+)
+    requires submission_valid(info, cb_states, sem_states, fence_states, lifecycle_states, queue_id, thread, reg),
+    ensures all_referenced_resources_usable(info, lifecycle_states),
 {
 }
 

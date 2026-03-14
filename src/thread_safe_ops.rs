@@ -159,6 +159,7 @@ pub open spec fn ts_submit(
     cb_states: Map<nat, CommandBufferState>,
     sem_states: Map<nat, SemaphoreState>,
     fence_states: Map<nat, FenceState>,
+    lifecycle_states: Map<ResourceId, ResourceLifecycleState>,
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<(QueueState, SubmissionRecord)> {
@@ -170,8 +171,8 @@ pub open spec fn ts_submit(
        && (forall|i: int| #![trigger info.command_buffers[i]]
            0 <= i < info.command_buffers.len() ==>
            not_held_by_other(reg, info.command_buffers[i], thread))
-       // Base validation must pass (now includes threading checks)
-       && submission_valid(info, cb_states, sem_states, fence_states, queue.queue_id, thread, reg)
+       // Base validation must pass (now includes resource liveness + threading checks)
+       && submission_valid(info, cb_states, sem_states, fence_states, lifecycle_states, queue.queue_id, thread, reg)
     {
         submit_ghost(queue, info, thread, reg)
     } else {
@@ -337,10 +338,11 @@ pub proof fn lemma_ts_submit_requires_queue_exclusive(
     cb_states: Map<nat, CommandBufferState>,
     sem_states: Map<nat, SemaphoreState>,
     fence_states: Map<nat, FenceState>,
+    lifecycle_states: Map<ResourceId, ResourceLifecycleState>,
     thread: ThreadId,
     reg: TokenRegistry,
 )
-    requires ts_submit(queue, info, cb_states, sem_states, fence_states, thread, reg).is_some(),
+    requires ts_submit(queue, info, cb_states, sem_states, fence_states, lifecycle_states, thread, reg).is_some(),
     ensures holds_exclusive(reg, queue.queue_id, thread),
 {
 }
@@ -352,12 +354,13 @@ pub proof fn lemma_ts_submit_blocks_others(
     cb_states: Map<nat, CommandBufferState>,
     sem_states: Map<nat, SemaphoreState>,
     fence_states: Map<nat, FenceState>,
+    lifecycle_states: Map<ResourceId, ResourceLifecycleState>,
     thread: ThreadId,
     other: ThreadId,
     reg: TokenRegistry,
 )
     requires
-        ts_submit(queue, info, cb_states, sem_states, fence_states, thread, reg).is_some(),
+        ts_submit(queue, info, cb_states, sem_states, fence_states, lifecycle_states, thread, reg).is_some(),
         other != thread,
     ensures
         !holds_exclusive(reg, queue.queue_id, other),
@@ -371,12 +374,13 @@ pub proof fn lemma_ts_submit_cbs_not_held(
     cb_states: Map<nat, CommandBufferState>,
     sem_states: Map<nat, SemaphoreState>,
     fence_states: Map<nat, FenceState>,
+    lifecycle_states: Map<ResourceId, ResourceLifecycleState>,
     thread: ThreadId,
     reg: TokenRegistry,
     i: int,
 )
     requires
-        ts_submit(queue, info, cb_states, sem_states, fence_states, thread, reg).is_some(),
+        ts_submit(queue, info, cb_states, sem_states, fence_states, lifecycle_states, thread, reg).is_some(),
         0 <= i < info.command_buffers.len(),
     ensures
         not_held_by_other(reg, info.command_buffers[i], thread),
@@ -390,11 +394,12 @@ pub proof fn lemma_ts_submit_implies_valid(
     cb_states: Map<nat, CommandBufferState>,
     sem_states: Map<nat, SemaphoreState>,
     fence_states: Map<nat, FenceState>,
+    lifecycle_states: Map<ResourceId, ResourceLifecycleState>,
     thread: ThreadId,
     reg: TokenRegistry,
 )
-    requires ts_submit(queue, info, cb_states, sem_states, fence_states, thread, reg).is_some(),
-    ensures submission_valid(info, cb_states, sem_states, fence_states, queue.queue_id, thread, reg),
+    requires ts_submit(queue, info, cb_states, sem_states, fence_states, lifecycle_states, thread, reg).is_some(),
+    ensures submission_valid(info, cb_states, sem_states, fence_states, lifecycle_states, queue.queue_id, thread, reg),
 {
 }
 
@@ -496,12 +501,13 @@ pub proof fn lemma_ts_submit_is_sufficient(
     cb_states: Map<nat, CommandBufferState>,
     sem_states: Map<nat, SemaphoreState>,
     fence_states: Map<nat, FenceState>,
+    lifecycle_states: Map<ResourceId, ResourceLifecycleState>,
     thread: ThreadId,
     reg: TokenRegistry,
 )
-    requires ts_submit(queue, info, cb_states, sem_states, fence_states, thread, reg).is_some(),
+    requires ts_submit(queue, info, cb_states, sem_states, fence_states, lifecycle_states, thread, reg).is_some(),
     ensures ({
-        let result = ts_submit(queue, info, cb_states, sem_states, fence_states, thread, reg).unwrap();
+        let result = ts_submit(queue, info, cb_states, sem_states, fence_states, lifecycle_states, thread, reg).unwrap();
         result == submit_ghost(queue, info, thread, reg).unwrap()
     }),
 {
@@ -1636,10 +1642,11 @@ pub open spec fn ts_lo_submit(
     cb_states: Map<nat, CommandBufferState>,
     sem_states: Map<nat, SemaphoreState>,
     fence_states: Map<nat, FenceState>,
+    lifecycle_states: Map<ResourceId, ResourceLifecycleState>,
     thread: ThreadId, reg: TokenRegistry, held: HeldLocks,
 ) -> Option<(QueueState, SubmissionRecord)> {
     if held.thread == thread && lock_order_valid(held) && can_acquire_at_level(held, queue_level()) {
-        ts_submit(queue, info, cb_states, sem_states, fence_states, thread, reg)
+        ts_submit(queue, info, cb_states, sem_states, fence_states, lifecycle_states, thread, reg)
     } else { None }
 }
 
@@ -1776,9 +1783,10 @@ pub proof fn lemma_lo_submit_requires_lock_order(
     cb_states: Map<nat, CommandBufferState>,
     sem_states: Map<nat, SemaphoreState>,
     fence_states: Map<nat, FenceState>,
+    lifecycle_states: Map<ResourceId, ResourceLifecycleState>,
     thread: ThreadId, reg: TokenRegistry, held: HeldLocks,
 )
-    requires ts_lo_submit(queue, info, cb_states, sem_states, fence_states, thread, reg, held).is_some(),
+    requires ts_lo_submit(queue, info, cb_states, sem_states, fence_states, lifecycle_states, thread, reg, held).is_some(),
     ensures lock_order_valid(held) && can_acquire_at_level(held, queue_level()),
 {
 }
@@ -2485,10 +2493,11 @@ pub open spec fn ts_submit_aliasing_safe(
     cb_states: Map<nat, CommandBufferState>,
     sem_states: Map<nat, SemaphoreState>,
     fence_states: Map<nat, FenceState>,
+    lifecycle_states: Map<ResourceId, ResourceLifecycleState>,
     submissions: Seq<SubmissionRecord>,
     thread: ThreadId, reg: TokenRegistry,
 ) -> Option<(QueueState, SubmissionRecord)> {
-    if submission_valid(info, cb_states, sem_states, fence_states, queue.queue_id, thread, reg)
+    if submission_valid(info, cb_states, sem_states, fence_states, lifecycle_states, queue.queue_id, thread, reg)
        && all_aliasing_safe(bindings, submissions)
     {
         submit_ghost(queue, info, thread, reg)
@@ -2558,10 +2567,11 @@ pub proof fn lemma_ts_submit_aliasing_enforces_safe(
     cb_states: Map<nat, CommandBufferState>,
     sem_states: Map<nat, SemaphoreState>,
     fence_states: Map<nat, FenceState>,
+    lifecycle_states: Map<ResourceId, ResourceLifecycleState>,
     submissions: Seq<SubmissionRecord>,
     thread: ThreadId, reg: TokenRegistry,
 )
-    requires ts_submit_aliasing_safe(queue, info, bindings, cb_states, sem_states, fence_states, submissions, thread, reg).is_some(),
+    requires ts_submit_aliasing_safe(queue, info, bindings, cb_states, sem_states, fence_states, lifecycle_states, submissions, thread, reg).is_some(),
     ensures all_aliasing_safe(bindings, submissions),
 {
 }
