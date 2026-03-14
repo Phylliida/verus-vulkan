@@ -63,7 +63,7 @@ pub fn free_exec(
         runtime_alloc_wf(&*old(alloc)),
         old(alloc).mapped@ == false,
         no_resources_use_allocation(resource_bindings@, old(alloc)@.id),
-        holds_exclusive(reg@, old(alloc)@.id, thread@),
+        holds_exclusive(reg@, SyncObjectId::Handle(old(alloc)@.id), thread@),
     ensures
         !alloc@.alive,
         alloc@.id == old(alloc)@.id,
@@ -84,7 +84,7 @@ pub fn map_memory_exec(
     requires
         runtime_alloc_wf(&*old(alloc)),
         old(alloc).mapped@ == false,
-        holds_exclusive(reg@, old(alloc)@.id, thread@),
+        holds_exclusive(reg@, SyncObjectId::Handle(old(alloc)@.id), thread@),
     ensures
         alloc.mapped@ == true,
         alloc@ == old(alloc)@,
@@ -102,7 +102,7 @@ pub fn unmap_memory_exec(
     requires
         runtime_alloc_wf(&*old(alloc)),
         old(alloc).mapped@ == true,
-        holds_exclusive(reg@, old(alloc)@.id, thread@),
+        holds_exclusive(reg@, SyncObjectId::Handle(old(alloc)@.id), thread@),
     ensures
         alloc.mapped@ == false,
         alloc@ == old(alloc)@,

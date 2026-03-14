@@ -51,10 +51,10 @@ pub fn submit_exec(
         submission@.queue_id == queue@,
         submission@.command_buffers.len() > 0,
         // Thread safety: exclusive queue access
-        holds_exclusive(reg@, queue@, thread@),
+        holds_exclusive(reg@, SyncObjectId::Queue(queue@), thread@),
         // Thread safety: CBs not held by other threads
         forall|i: int| 0 <= i < submission@.command_buffers.len()
-            ==> not_held_by_other(reg@, #[trigger] submission@.command_buffers[i], thread@),
+            ==> not_held_by_other(reg@, SyncObjectId::Handle(#[trigger] submission@.command_buffers[i]), thread@),
         // CB views: parallel sequence, all must be Executable
         cb_views@.len() == submission@.command_buffers.len(),
         forall|i: int| 0 <= i < cb_views@.len()
@@ -122,7 +122,7 @@ pub fn queue_wait_idle_exec(
 )
     requires
         runtime_device_wf(&*old(dev)),
-        holds_exclusive(reg@, queue@, thread@),
+        holds_exclusive(reg@, SyncObjectId::Queue(queue@), thread@),
     ensures
         dev@ == queue_wait_idle_ghost(old(dev)@, queue@),
 {

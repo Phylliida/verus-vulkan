@@ -27,18 +27,6 @@ pub struct ResourceLifecycleState {
     pub pending_use_count: nat,
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────────
-
-/// Extract the primary nat id from a ResourceId for sync token lookup.
-pub open spec fn resource_sync_id(r: ResourceId) -> nat {
-    match r {
-        ResourceId::Buffer { id } => id,
-        ResourceId::Image { id, .. } => id,
-        ResourceId::SwapchainImage { swapchain_id, .. } => swapchain_id,
-        ResourceId::DescriptorSet { id } => id,
-    }
-}
-
 // ── Spec Functions ──────────────────────────────────────────────────────
 
 /// Create a resource (enters Created state).

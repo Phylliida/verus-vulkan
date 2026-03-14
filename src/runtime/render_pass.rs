@@ -52,7 +52,7 @@ pub fn destroy_render_pass_exec(
         // All pending submissions must be completed
         forall|i: int| 0 <= i < dev@.pending_submissions.len()
             ==> (#[trigger] dev@.pending_submissions[i]).completed,
-        holds_exclusive(reg@, old(rp)@.id, thread@),
+        holds_exclusive(reg@, SyncObjectId::Handle(old(rp)@.id), thread@),
     ensures
         rp@ == destroy_render_pass_ghost(old(rp)@),
         !rp@.alive,

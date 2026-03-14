@@ -65,7 +65,7 @@ pub fn destroy_sampler_exec(
         // All pending submissions must be completed
         forall|i: int| 0 <= i < dev@.pending_submissions.len()
             ==> (#[trigger] dev@.pending_submissions[i]).completed,
-        holds_exclusive(reg@, old(s)@.id, thread@),
+        holds_exclusive(reg@, SyncObjectId::Handle(old(s)@.id), thread@),
     ensures
         s@ == destroy_sampler_ghost(old(s)@),
         !s@.alive,

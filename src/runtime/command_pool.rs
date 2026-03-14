@@ -57,7 +57,7 @@ pub fn destroy_command_pool_exec(
         // All pending submissions must be completed (CBs from this pool may be in-flight)
         forall|i: int| 0 <= i < dev@.pending_submissions.len()
             ==> (#[trigger] dev@.pending_submissions[i]).completed,
-        holds_exclusive(reg@, old(pool)@.id, thread@),
+        holds_exclusive(reg@, SyncObjectId::CommandPool(old(pool)@.id), thread@),
     ensures
         pool@ == destroy_command_pool_ghost(old(pool)@),
         !pool@.alive,
@@ -78,7 +78,7 @@ pub fn reset_command_pool_exec(
         // All pending submissions must be completed (CBs from this pool may be in-flight)
         forall|i: int| 0 <= i < dev@.pending_submissions.len()
             ==> (#[trigger] dev@.pending_submissions[i]).completed,
-        holds_exclusive(reg@, pool@.id, thread@),
+        holds_exclusive(reg@, SyncObjectId::CommandPool(pool@.id), thread@),
     ensures
         out@ == reset_pool_cbs(pool@, thread@, reg@).unwrap(),
 {
@@ -135,7 +135,7 @@ pub fn allocate_cb_exec(
 )
     requires
         runtime_command_pool_wf(&*old(pool)),
-        holds_exclusive(reg@, old(pool)@.id, thread@),
+        holds_exclusive(reg@, SyncObjectId::CommandPool(old(pool)@.id), thread@),
     ensures
         pool@ == allocate_cb(old(pool)@, cb_id@, thread@, reg@).unwrap(),
         cb_from_pool(pool@, cb_id@),
@@ -159,7 +159,7 @@ pub fn free_cb_exec(
         runtime_command_pool_wf(&*old(pool)),
         cb_from_pool(old(pool)@, cb_id@),
         cb_no_pending_work(dev@.pending_submissions, cb_id@),
-        holds_exclusive(reg@, old(pool)@.id, thread@),
+        holds_exclusive(reg@, SyncObjectId::CommandPool(old(pool)@.id), thread@),
     ensures
         pool@ == free_cb(old(pool)@, cb_id@, thread@, reg@).unwrap(),
         !cb_from_pool(pool@, cb_id@),
@@ -179,7 +179,7 @@ pub proof fn lemma_allocate_preserves_wf(
 )
     requires
         command_pool_well_formed(pool),
-        holds_exclusive(reg, pool.id, thread),
+        holds_exclusive(reg, SyncObjectId::CommandPool(pool.id), thread),
     ensures
         command_pool_well_formed(allocate_cb(pool, cb_id, thread, reg).unwrap()),
 {
@@ -194,7 +194,7 @@ pub proof fn lemma_free_preserves_wf(
 )
     requires
         command_pool_well_formed(pool),
-        holds_exclusive(reg, pool.id, thread),
+        holds_exclusive(reg, SyncObjectId::CommandPool(pool.id), thread),
     ensures
         command_pool_well_formed(free_cb(pool, cb_id, thread, reg).unwrap()),
 {

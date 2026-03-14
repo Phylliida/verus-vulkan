@@ -47,7 +47,7 @@ pub fn destroy_event_exec(
         runtime_event_wf(&*old(event)),
         forall|i: int| 0 <= i < dev@.pending_submissions.len()
             ==> (#[trigger] dev@.pending_submissions[i]).completed,
-        holds_exclusive(reg@, old(event)@.id, thread@),
+        holds_exclusive(reg@, SyncObjectId::Handle(old(event)@.id), thread@),
     ensures
         event@ == destroy_event(old(event)@),
         !event@.alive,

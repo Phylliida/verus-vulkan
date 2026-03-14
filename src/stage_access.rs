@@ -5,40 +5,8 @@ use crate::sync::*;
 
 verus! {
 
-// ── Constants ──────────────────────────────────────────────────────────
-
-// Pipeline stage constants (matching Vulkan spec).
-pub open spec fn STAGE_TOP_OF_PIPE() -> nat { 0 }
-pub open spec fn STAGE_DRAW_INDIRECT() -> nat { 1 }
-pub open spec fn STAGE_VERTEX_INPUT() -> nat { 2 }
-pub open spec fn STAGE_VERTEX_SHADER() -> nat { 3 }
-pub open spec fn STAGE_FRAGMENT_SHADER() -> nat { 4 }
-pub open spec fn STAGE_EARLY_FRAGMENT_TESTS() -> nat { 5 }
-pub open spec fn STAGE_LATE_FRAGMENT_TESTS() -> nat { 6 }
-pub open spec fn STAGE_COLOR_ATTACHMENT_OUTPUT() -> nat { 7 }
-pub open spec fn STAGE_COMPUTE_SHADER() -> nat { 8 }
-pub open spec fn STAGE_TRANSFER() -> nat { 9 }
-pub open spec fn STAGE_BOTTOM_OF_PIPE() -> nat { 10 }
-pub open spec fn STAGE_HOST() -> nat { 11 }
-
-// Access type constants (matching Vulkan spec).
-pub open spec fn ACCESS_INDIRECT_COMMAND_READ() -> nat { 0 }
-pub open spec fn ACCESS_INDEX_READ() -> nat { 1 }
-pub open spec fn ACCESS_VERTEX_ATTRIBUTE_READ() -> nat { 2 }
-pub open spec fn ACCESS_UNIFORM_READ() -> nat { 3 }
-pub open spec fn ACCESS_INPUT_ATTACHMENT_READ() -> nat { 4 }
-pub open spec fn ACCESS_SHADER_READ() -> nat { 5 }
-pub open spec fn ACCESS_SHADER_WRITE() -> nat { 6 }
-pub open spec fn ACCESS_COLOR_ATTACHMENT_READ() -> nat { 7 }
-pub open spec fn ACCESS_COLOR_ATTACHMENT_WRITE() -> nat { 8 }
-pub open spec fn ACCESS_DEPTH_STENCIL_ATTACHMENT_READ() -> nat { 9 }
-pub open spec fn ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE() -> nat { 10 }
-pub open spec fn ACCESS_TRANSFER_READ() -> nat { 11 }
-pub open spec fn ACCESS_TRANSFER_WRITE() -> nat { 12 }
-pub open spec fn ACCESS_HOST_READ() -> nat { 13 }
-pub open spec fn ACCESS_HOST_WRITE() -> nat { 14 }
-pub open spec fn ACCESS_MEMORY_READ() -> nat { 15 }
-pub open spec fn ACCESS_MEMORY_WRITE() -> nat { 16 }
+// Stage and access constants are now defined in flags.rs (single source of truth).
+// They are imported via `use crate::flags::*` above.
 
 // ── Spec Functions ──────────────────────────────────────────────────────
 

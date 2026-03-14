@@ -51,7 +51,7 @@ pub fn destroy_query_pool_exec(
         runtime_query_pool_wf(&*old(pool)),
         forall|i: int| 0 <= i < dev@.pending_submissions.len()
             ==> (#[trigger] dev@.pending_submissions[i]).completed,
-        holds_exclusive(reg@, old(pool)@.id, thread@),
+        holds_exclusive(reg@, SyncObjectId::Handle(old(pool)@.id), thread@),
     ensures
         pool@ == destroy_query_pool(old(pool)@),
         !pool@.alive,

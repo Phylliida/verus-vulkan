@@ -78,4 +78,67 @@ pub proof fn lemma_general_compatible_with_all(old_layout: ImageLayout)
 {
 }
 
+// ── Layout ID Mapping ──────────────────────────────────────────────────
+// Maps between ImageLayout enum and nat IDs (matching VkImageLayout values).
+
+/// Map an ImageLayout to its numeric ID.
+pub open spec fn layout_id(layout: ImageLayout) -> nat {
+    match layout {
+        ImageLayout::Undefined => 0,
+        ImageLayout::General => 1,
+        ImageLayout::ColorAttachmentOptimal => 2,
+        ImageLayout::DepthStencilAttachmentOptimal => 3,
+        ImageLayout::DepthStencilReadOnlyOptimal => 4,
+        ImageLayout::ShaderReadOnlyOptimal => 5,
+        ImageLayout::TransferSrcOptimal => 6,
+        ImageLayout::TransferDstOptimal => 7,
+        ImageLayout::Preinitialized => 8,
+        ImageLayout::PresentSrc => 9,
+    }
+}
+
+/// Map a numeric ID to an ImageLayout (Undefined for invalid IDs).
+pub open spec fn layout_from_id(id: nat) -> ImageLayout {
+    if id == 0 { ImageLayout::Undefined }
+    else if id == 1 { ImageLayout::General }
+    else if id == 2 { ImageLayout::ColorAttachmentOptimal }
+    else if id == 3 { ImageLayout::DepthStencilAttachmentOptimal }
+    else if id == 4 { ImageLayout::DepthStencilReadOnlyOptimal }
+    else if id == 5 { ImageLayout::ShaderReadOnlyOptimal }
+    else if id == 6 { ImageLayout::TransferSrcOptimal }
+    else if id == 7 { ImageLayout::TransferDstOptimal }
+    else if id == 8 { ImageLayout::Preinitialized }
+    else if id == 9 { ImageLayout::PresentSrc }
+    else { ImageLayout::Undefined }
+}
+
+/// A layout ID is valid (corresponds to a real ImageLayout).
+pub open spec fn valid_layout_id(id: nat) -> bool {
+    id <= 9
+}
+
+/// Roundtrip: layout_from_id(layout_id(l)) == l.
+pub proof fn lemma_layout_id_roundtrip(layout: ImageLayout)
+    ensures layout_from_id(layout_id(layout)) == layout,
+{
+}
+
+/// Roundtrip: valid_layout_id(id) → layout_id(layout_from_id(id)) == id.
+pub proof fn lemma_valid_id_roundtrip(id: nat)
+    requires valid_layout_id(id),
+    ensures layout_id(layout_from_id(id)) == id,
+{
+}
+
+/// All layout IDs are distinct.
+pub proof fn lemma_layout_ids_distinct()
+    ensures
+        layout_id(ImageLayout::Undefined) != layout_id(ImageLayout::General),
+        layout_id(ImageLayout::General) != layout_id(ImageLayout::ColorAttachmentOptimal),
+        layout_id(ImageLayout::ColorAttachmentOptimal) != layout_id(ImageLayout::ShaderReadOnlyOptimal),
+        layout_id(ImageLayout::TransferSrcOptimal) != layout_id(ImageLayout::TransferDstOptimal),
+        layout_id(ImageLayout::PresentSrc) != layout_id(ImageLayout::Undefined),
+{
+}
+
 } // verus!

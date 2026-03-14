@@ -276,7 +276,7 @@ pub fn destroy_descriptor_set_layout_exec(
 )
     requires
         runtime_dsl_wf(&*old(dsl)),
-        holds_exclusive(reg@, old(dsl)@.id, thread@),
+        holds_exclusive(reg@, SyncObjectId::Handle(old(dsl)@.id), thread@),
         // No pending submission may reference descriptor sets using this layout
         forall|i: int| 0 <= i < dev@.pending_submissions.len() ==> (#[trigger] dev@.pending_submissions[i]).completed,
     ensures

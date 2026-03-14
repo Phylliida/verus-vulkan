@@ -111,7 +111,7 @@ pub fn acquire_next_image_exec(
     requires
         runtime_swapchain_wf(&*old(sc)),
         can_acquire_image(&*old(sc), idx as nat),
-        holds_exclusive(reg@, old(sc)@.id, thread@),
+        holds_exclusive(reg@, SyncObjectId::Handle(old(sc)@.id), thread@),
     ensures
         sc@ == acquire_image(old(sc)@, idx as nat).unwrap(),
         sc@.image_states[idx as int] == SwapchainImageState::Acquired,
@@ -140,8 +140,8 @@ pub fn present_exec(
         layout_tracker@[image_resource@] == ImageLayout::PresentSrc,
         // Rendering-complete semaphore must be signaled before present
         wait_semaphore@.signaled,
-        holds_exclusive(reg@, old(sc)@.id, thread@),
-        holds_exclusive(reg@, queue_id@, thread@),
+        holds_exclusive(reg@, SyncObjectId::Handle(old(sc)@.id), thread@),
+        holds_exclusive(reg@, SyncObjectId::Queue(queue_id@), thread@),
     ensures
         sc@ == present_image(old(sc)@, idx as nat).unwrap(),
         sc@.image_states[idx as int] == SwapchainImageState::PresentPending,
@@ -162,7 +162,7 @@ pub fn present_complete_exec(
         runtime_swapchain_wf(&*old(sc)),
         idx < old(sc)@.image_states.len(),
         old(sc)@.image_states[idx as int] == SwapchainImageState::PresentPending,
-        holds_exclusive(reg@, old(sc)@.id, thread@),
+        holds_exclusive(reg@, SyncObjectId::Handle(old(sc)@.id), thread@),
     ensures
         sc@ == present_complete(old(sc)@, idx as nat).unwrap(),
         sc@.image_states[idx as int] == SwapchainImageState::Available,
@@ -194,7 +194,7 @@ pub fn recreate_swapchain_exec(
         runtime_swapchain_wf(&*old(sc)),
         new_image_count > 0,
         all_available(old(sc)@),
-        holds_exclusive(reg@, old(sc)@.id, thread@),
+        holds_exclusive(reg@, SyncObjectId::Handle(old(sc)@.id), thread@),
     ensures
         success ==> (
             sc@.id == old(sc)@.id

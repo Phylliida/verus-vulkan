@@ -55,7 +55,7 @@ pub fn destroy_image_view_exec(
         // All pending submissions must be completed
         forall|i: int| 0 <= i < dev@.pending_submissions.len()
             ==> (#[trigger] dev@.pending_submissions[i]).completed,
-        holds_exclusive(reg@, old(view)@.id, thread@),
+        holds_exclusive(reg@, SyncObjectId::Handle(old(view)@.id), thread@),
     ensures
         view@ == destroy_image_view_ghost(old(view)@),
         !view@.alive,
@@ -111,7 +111,7 @@ pub fn destroy_framebuffer_exec(
         // All pending submissions must be completed
         forall|i: int| 0 <= i < dev@.pending_submissions.len()
             ==> (#[trigger] dev@.pending_submissions[i]).completed,
-        holds_exclusive(reg@, old(fb)@.id, thread@),
+        holds_exclusive(reg@, SyncObjectId::Handle(old(fb)@.id), thread@),
     ensures
         fb@ == destroy_framebuffer_ghost(old(fb)@),
         !fb@.alive,

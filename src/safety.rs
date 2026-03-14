@@ -44,7 +44,7 @@ pub proof fn lemma_submit_wait_destroy_safe(
 )
     requires
         // Thread safety: submitter holds the queue
-        holds_exclusive(reg, queue.queue_id, thread),
+        holds_exclusive(reg, SyncObjectId::Queue(queue.queue_id), thread),
         // The submission uses a fence
         info.fence_id == Some(fence_id),
         fence_states.contains_key(fence_id),
@@ -100,7 +100,7 @@ pub proof fn lemma_fresh_resource_submit_wait_destroy(
     reg: TokenRegistry,
 )
     requires
-        holds_exclusive(reg, queue.queue_id, thread),
+        holds_exclusive(reg, SyncObjectId::Queue(queue.queue_id), thread),
         info.fence_id == Some(fence_id),
         fence_states.contains_key(fence_id),
         info.referenced_resources.contains(resource),
@@ -124,6 +124,7 @@ pub proof fn lemma_fresh_resource_submit_wait_destroy(
                 max_push_constants_size: 0,
             },
             format_properties: Map::empty(),
+            lifecycle_registry: Map::empty(),
         };
         let (_, record) = submit_ghost(queue, info, thread, reg).unwrap();
         let new_dev = DeviceState {
@@ -152,6 +153,7 @@ pub proof fn lemma_fresh_resource_submit_wait_destroy(
             max_push_constants_size: 0,
         },
         format_properties: Map::empty(),
+        lifecycle_registry: Map::empty(),
     };
 
     // Empty submissions → no submission references resource

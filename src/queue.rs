@@ -126,14 +126,14 @@ pub open spec fn submission_valid(
     // All referenced resources must still be alive (not destroyed)
     && all_referenced_resources_usable(info, lifecycle_states)
     // Thread safety: exclusive queue access
-    && holds_exclusive(reg, queue_id, thread)
+    && holds_exclusive(reg, SyncObjectId::Queue(queue_id), thread)
     // Thread safety: fence access (if specified)
     && (info.fence_id.is_none()
-        || holds_exclusive(reg, info.fence_id.unwrap(), thread))
+        || holds_exclusive(reg, SyncObjectId::Handle(info.fence_id.unwrap()), thread))
     // Thread safety: no other thread exclusively holds submitted CBs
     && (forall|i: int| #![trigger info.command_buffers[i]]
         0 <= i < info.command_buffers.len() ==>
-        not_held_by_other(reg, info.command_buffers[i], thread))
+        not_held_by_other(reg, SyncObjectId::Handle(info.command_buffers[i]), thread))
 }
 
 /// Ghost submit: advance the queue sequence and produce a submission record.
@@ -146,7 +146,7 @@ pub open spec fn submit_ghost(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<(QueueState, SubmissionRecord)> {
-    if !holds_exclusive(reg, queue.queue_id, thread) {
+    if !holds_exclusive(reg, SyncObjectId::Queue(queue.queue_id), thread) {
         None
     } else {
         let record = SubmissionRecord {
@@ -175,7 +175,7 @@ pub proof fn lemma_submit_increments_sequence(
     thread: ThreadId,
     reg: TokenRegistry,
 )
-    requires holds_exclusive(reg, queue.queue_id, thread),
+    requires holds_exclusive(reg, SyncObjectId::Queue(queue.queue_id), thread),
     ensures
         submit_ghost(queue, info, thread, reg).is_some(),
         submit_ghost(queue, info, thread, reg).unwrap().0.next_sequence
@@ -191,7 +191,7 @@ pub proof fn lemma_submit_creates_pending_record(
     thread: ThreadId,
     reg: TokenRegistry,
 )
-    requires holds_exclusive(reg, queue.queue_id, thread),
+    requires holds_exclusive(reg, SyncObjectId::Queue(queue.queue_id), thread),
     ensures ({
         let record = submit_ghost(queue, info, thread, reg).unwrap().1;
         !record.completed
@@ -229,7 +229,7 @@ pub proof fn lemma_submit_record_matches_fence(
 )
     requires
         info.fence_id == fence_id,
-        holds_exclusive(reg, queue.queue_id, thread),
+        holds_exclusive(reg, SyncObjectId::Queue(queue.queue_id), thread),
     ensures
         submit_ghost(queue, info, thread, reg).unwrap().1.fence_id == fence_id,
 {
@@ -242,7 +242,7 @@ pub proof fn lemma_no_queue_access_no_submit(
     thread: ThreadId,
     reg: TokenRegistry,
 )
-    requires !holds_exclusive(reg, queue.queue_id, thread),
+    requires !holds_exclusive(reg, SyncObjectId::Queue(queue.queue_id), thread),
     ensures submit_ghost(queue, info, thread, reg).is_none(),
 {
 }
@@ -259,7 +259,7 @@ pub proof fn lemma_valid_submission_holds_queue(
     reg: TokenRegistry,
 )
     requires submission_valid(info, cb_states, sem_states, fence_states, lifecycle_states, queue_id, thread, reg),
-    ensures holds_exclusive(reg, queue_id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Queue(queue_id), thread),
 {
 }
 
