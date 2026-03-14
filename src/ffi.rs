@@ -29,6 +29,17 @@ use crate::query_pool::*;
 use crate::event::*;
 use crate::acceleration_structure::*;
 use crate::ray_tracing_pipeline::*;
+use crate::surface::*;
+use crate::shader_module::*;
+use crate::render_pass::*;
+use crate::framebuffer::*;
+use crate::command_pool::*;
+use crate::pipeline_layout::*;
+use crate::runtime::render_pass::*;
+use crate::runtime::framebuffer::*;
+use crate::runtime::command_pool::*;
+use crate::runtime::surface::*;
+use crate::runtime::shader_module::*;
 
 use ash::vk;
 use ash::vk::Handle;
@@ -868,6 +879,192 @@ fn raw_cmd_wait_events(ctx: &VulkanContext, cb: u64, event: u64, src_stage: u32,
             &[],
         );
     }
+}
+
+// ── Surface helpers ──────────────────────────────────────────────────
+
+fn raw_destroy_surface(ctx: &VulkanContext, handle: u64) {
+    unsafe { ctx.surface_loader.destroy_surface(vk::SurfaceKHR::from_raw(handle), None) }
+}
+
+// ── Shader Module helpers ────────────────────────────────────────────
+
+fn raw_create_shader_module(ctx: &VulkanContext, code: &[u32]) -> u64 {
+    let ci = vk::ShaderModuleCreateInfo::default().code(code);
+    unsafe { ctx.device.create_shader_module(&ci, None) }
+        .expect("create_shader_module failed").as_raw()
+}
+
+fn raw_destroy_shader_module(ctx: &VulkanContext, handle: u64) {
+    unsafe { ctx.device.destroy_shader_module(vk::ShaderModule::from_raw(handle), None) }
+}
+
+// ── Render Pass helpers ──────────────────────────────────────────────
+
+fn raw_create_render_pass(ctx: &VulkanContext, format: u32, load_op: u32, store_op: u32, samples: u32) -> u64 {
+    let attachment = vk::AttachmentDescription::default()
+        .format(vk::Format::from_raw(format as i32))
+        .samples(vk::SampleCountFlags::from_raw(samples))
+        .load_op(if load_op == 0 { vk::AttachmentLoadOp::LOAD }
+            else if load_op == 1 { vk::AttachmentLoadOp::CLEAR }
+            else { vk::AttachmentLoadOp::DONT_CARE })
+        .store_op(if store_op == 0 { vk::AttachmentStoreOp::STORE }
+            else { vk::AttachmentStoreOp::DONT_CARE })
+        .stencil_load_op(vk::AttachmentLoadOp::DONT_CARE)
+        .stencil_store_op(vk::AttachmentStoreOp::DONT_CARE)
+        .initial_layout(vk::ImageLayout::UNDEFINED)
+        .final_layout(vk::ImageLayout::PRESENT_SRC_KHR);
+    let color_ref = vk::AttachmentReference {
+        attachment: 0,
+        layout: vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+    };
+    let color_refs = [color_ref];
+    let subpass = vk::SubpassDescription::default()
+        .pipeline_bind_point(vk::PipelineBindPoint::GRAPHICS)
+        .color_attachments(&color_refs);
+    let dep = vk::SubpassDependency::default()
+        .src_subpass(vk::SUBPASS_EXTERNAL)
+        .dst_subpass(0)
+        .src_stage_mask(vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT)
+        .dst_stage_mask(vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT)
+        .dst_access_mask(vk::AccessFlags::COLOR_ATTACHMENT_WRITE);
+    let attachments = [attachment];
+    let subpasses = [subpass];
+    let dependencies = [dep];
+    let ci = vk::RenderPassCreateInfo::default()
+        .attachments(&attachments)
+        .subpasses(&subpasses)
+        .dependencies(&dependencies);
+    unsafe { ctx.device.create_render_pass(&ci, None) }
+        .expect("create_render_pass failed").as_raw()
+}
+
+fn raw_destroy_render_pass(ctx: &VulkanContext, handle: u64) {
+    unsafe { ctx.device.destroy_render_pass(vk::RenderPass::from_raw(handle), None) }
+}
+
+// ── Image View helpers ──────────────────────────────────────────────
+
+fn raw_create_image_view(ctx: &VulkanContext, image: u64, format: u32, aspect: u32) -> u64 {
+    let ci = vk::ImageViewCreateInfo::default()
+        .image(vk::Image::from_raw(image))
+        .view_type(vk::ImageViewType::TYPE_2D)
+        .format(vk::Format::from_raw(format as i32))
+        .components(vk::ComponentMapping {
+            r: vk::ComponentSwizzle::IDENTITY,
+            g: vk::ComponentSwizzle::IDENTITY,
+            b: vk::ComponentSwizzle::IDENTITY,
+            a: vk::ComponentSwizzle::IDENTITY,
+        })
+        .subresource_range(vk::ImageSubresourceRange {
+            aspect_mask: vk::ImageAspectFlags::from_raw(aspect),
+            base_mip_level: 0,
+            level_count: 1,
+            base_array_layer: 0,
+            layer_count: 1,
+        });
+    unsafe { ctx.device.create_image_view(&ci, None) }
+        .expect("create_image_view failed").as_raw()
+}
+
+fn raw_destroy_image_view(ctx: &VulkanContext, handle: u64) {
+    unsafe { ctx.device.destroy_image_view(vk::ImageView::from_raw(handle), None) }
+}
+
+// ── Framebuffer helpers ──────────────────────────────────────────────
+
+fn raw_create_framebuffer(ctx: &VulkanContext, rp: u64, views: &[u64], w: u32, h: u32) -> u64 {
+    let vk_views: Vec<vk::ImageView> = views.iter()
+        .map(|v| vk::ImageView::from_raw(*v)).collect();
+    let ci = vk::FramebufferCreateInfo::default()
+        .render_pass(vk::RenderPass::from_raw(rp))
+        .attachments(&vk_views)
+        .width(w)
+        .height(h)
+        .layers(1);
+    unsafe { ctx.device.create_framebuffer(&ci, None) }
+        .expect("create_framebuffer failed").as_raw()
+}
+
+fn raw_destroy_framebuffer(ctx: &VulkanContext, handle: u64) {
+    unsafe { ctx.device.destroy_framebuffer(vk::Framebuffer::from_raw(handle), None) }
+}
+
+// ── Command Pool helpers ─────────────────────────────────────────────
+
+fn raw_create_command_pool(ctx: &VulkanContext, queue_family: u32, flags: u32) -> u64 {
+    let ci = vk::CommandPoolCreateInfo::default()
+        .queue_family_index(queue_family)
+        .flags(vk::CommandPoolCreateFlags::from_raw(flags));
+    unsafe { ctx.device.create_command_pool(&ci, None) }
+        .expect("create_command_pool failed").as_raw()
+}
+
+fn raw_destroy_command_pool(ctx: &VulkanContext, handle: u64) {
+    unsafe { ctx.device.destroy_command_pool(vk::CommandPool::from_raw(handle), None) }
+}
+
+// ── Swapchain Image Query helpers ────────────────────────────────────
+
+fn raw_get_swapchain_images(ctx: &VulkanContext, swapchain: u64) -> Vec<u64> {
+    let images = unsafe {
+        ctx.swapchain_loader.get_swapchain_images(vk::SwapchainKHR::from_raw(swapchain))
+    }.expect("get_swapchain_images failed");
+    images.iter().map(|img| img.as_raw()).collect()
+}
+
+// ── Enhanced Graphics Pipeline helpers ───────────────────────────────
+
+fn raw_create_graphics_pipeline_full(
+    ctx: &VulkanContext, layout: u64, rp: u64, vert: u64, frag: u64,
+) -> u64 {
+    let vert_stage = vk::PipelineShaderStageCreateInfo::default()
+        .stage(vk::ShaderStageFlags::VERTEX)
+        .module(vk::ShaderModule::from_raw(vert))
+        .name(c"main");
+    let frag_stage = vk::PipelineShaderStageCreateInfo::default()
+        .stage(vk::ShaderStageFlags::FRAGMENT)
+        .module(vk::ShaderModule::from_raw(frag))
+        .name(c"main");
+    let stages = [vert_stage, frag_stage];
+
+    let vertex_input = vk::PipelineVertexInputStateCreateInfo::default();
+    let input_assembly = vk::PipelineInputAssemblyStateCreateInfo::default()
+        .topology(vk::PrimitiveTopology::TRIANGLE_LIST);
+    let viewport_state = vk::PipelineViewportStateCreateInfo::default()
+        .viewport_count(1)
+        .scissor_count(1);
+    let rasterization = vk::PipelineRasterizationStateCreateInfo::default()
+        .polygon_mode(vk::PolygonMode::FILL)
+        .cull_mode(vk::CullModeFlags::NONE)
+        .front_face(vk::FrontFace::COUNTER_CLOCKWISE)
+        .line_width(1.0);
+    let multisample = vk::PipelineMultisampleStateCreateInfo::default()
+        .rasterization_samples(vk::SampleCountFlags::TYPE_1);
+    let blend_attachment = vk::PipelineColorBlendAttachmentState::default()
+        .color_write_mask(vk::ColorComponentFlags::RGBA);
+    let blend_attachments = [blend_attachment];
+    let color_blend = vk::PipelineColorBlendStateCreateInfo::default()
+        .attachments(&blend_attachments);
+    let dynamic_states = [vk::DynamicState::VIEWPORT, vk::DynamicState::SCISSOR];
+    let dynamic_state = vk::PipelineDynamicStateCreateInfo::default()
+        .dynamic_states(&dynamic_states);
+
+    let ci = vk::GraphicsPipelineCreateInfo::default()
+        .stages(&stages)
+        .vertex_input_state(&vertex_input)
+        .input_assembly_state(&input_assembly)
+        .viewport_state(&viewport_state)
+        .rasterization_state(&rasterization)
+        .multisample_state(&multisample)
+        .color_blend_state(&color_blend)
+        .dynamic_state(&dynamic_state)
+        .layout(vk::PipelineLayout::from_raw(layout))
+        .render_pass(vk::RenderPass::from_raw(rp))
+        .subpass(0);
+
+    unsafe { ctx.device.create_graphics_pipelines(vk::PipelineCache::null(), &[ci], None) }
+        .expect("create_graphics_pipelines failed")[0].as_raw()
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -2272,6 +2469,256 @@ pub(crate) fn ffi_cmd_set_fragment_shading_rate(ctx: &VulkanContext, cb_handle: 
 #[verifier::external_body]
 pub(crate) fn ffi_cmd_bind_shaders(ctx: &VulkanContext, cb_handle: u64, stage_count: u32) {
     // Ghost stub — vkCmdBindShadersEXT.
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Round 4 — Triangle-ready FFI
+// ═══════════════════════════════════════════════════════════════════════
+
+// ── Surface FFI ─────────────────────────────────────────────────────
+
+/// Wrap a caller-provided surface handle with ghost state.
+/// Surface creation is platform-specific (winit/ash-window provides the raw handle).
+#[verifier::external_body]
+pub fn vk_create_surface(
+    ctx: &VulkanContext,
+    id: Ghost<nat>,
+    handle: u64,
+) -> (out: RuntimeSurface)
+    ensures
+        out@ == (SurfaceState { id: id@, alive: true }),
+        runtime_surface_wf(&out),
+{
+    RuntimeSurface {
+        handle,
+        state: Ghost(SurfaceState { id: id@, alive: true }),
+    }
+}
+
+/// Destroy a surface.
+#[verifier::external_body]
+pub fn vk_destroy_surface(
+    ctx: &VulkanContext,
+    surface: &mut RuntimeSurface,
+)
+    requires runtime_surface_wf(&*old(surface)),
+    ensures
+        surface@ == destroy_surface_ghost(old(surface)@),
+        !surface@.alive,
+{
+    raw_destroy_surface(ctx, surface.handle);
+    surface.state = Ghost(destroy_surface_ghost(surface.state@));
+}
+
+// ── Shader Module FFI ────────────────────────────────────────────────
+
+/// Create a shader module from SPIR-V code.
+#[verifier::external_body]
+pub fn vk_create_shader_module(
+    ctx: &VulkanContext,
+    state: Ghost<ShaderModuleState>,
+    code: &[u32],
+) -> (out: RuntimeShaderModule)
+    requires state@.alive,
+    ensures
+        out@ == state@,
+        runtime_shader_module_wf(&out),
+{
+    let h = raw_create_shader_module(ctx, code);
+    RuntimeShaderModule { handle: h, state: Ghost(state@) }
+}
+
+/// Destroy a shader module.
+#[verifier::external_body]
+pub fn vk_destroy_shader_module(
+    ctx: &VulkanContext,
+    sm: &mut RuntimeShaderModule,
+)
+    requires runtime_shader_module_wf(&*old(sm)),
+    ensures
+        sm@ == destroy_shader_module_ghost(old(sm)@),
+        !sm@.alive,
+{
+    raw_destroy_shader_module(ctx, sm.handle);
+    sm.state = Ghost(destroy_shader_module_ghost(sm.state@));
+}
+
+// ── Render Pass FFI ──────────────────────────────────────────────────
+
+/// Create a render pass (single attachment, single subpass — covers triangle case).
+#[verifier::external_body]
+pub fn vk_create_render_pass(
+    ctx: &VulkanContext,
+    rps: Ghost<RenderPassState>,
+    format: u32,
+    load_op: u32,
+    store_op: u32,
+    samples: u32,
+) -> (out: RuntimeRenderPass)
+    requires render_pass_well_formed(rps@), rps@.alive,
+    ensures out@ == rps@, runtime_render_pass_wf(&out),
+{
+    let h = raw_create_render_pass(ctx, format, load_op, store_op, samples);
+    RuntimeRenderPass { handle: h, state: Ghost(rps@) }
+}
+
+/// Destroy a render pass.
+#[verifier::external_body]
+pub fn vk_destroy_render_pass(
+    ctx: &VulkanContext,
+    rp: &mut RuntimeRenderPass,
+)
+    requires runtime_render_pass_wf(&*old(rp)),
+    ensures
+        rp@ == destroy_render_pass_ghost(old(rp)@),
+        !rp@.alive,
+{
+    raw_destroy_render_pass(ctx, rp.handle);
+    rp.state = Ghost(destroy_render_pass_ghost(rp.state@));
+}
+
+// ── Image View FFI ───────────────────────────────────────────────────
+
+/// Create an image view (2D, 1 mip, 1 layer).
+#[verifier::external_body]
+pub fn vk_create_image_view(
+    ctx: &VulkanContext,
+    state: Ghost<ImageViewState>,
+    image_handle: u64,
+    format: u32,
+    aspect: u32,
+) -> (out: RuntimeImageView)
+    requires state@.alive,
+    ensures out@ == state@, runtime_image_view_wf(&out),
+{
+    let h = raw_create_image_view(ctx, image_handle, format, aspect);
+    RuntimeImageView { handle: h, state: Ghost(state@) }
+}
+
+/// Destroy an image view.
+#[verifier::external_body]
+pub fn vk_destroy_image_view(
+    ctx: &VulkanContext,
+    view: &mut RuntimeImageView,
+)
+    requires runtime_image_view_wf(&*old(view)),
+    ensures
+        view@ == destroy_image_view_ghost(old(view)@),
+        !view@.alive,
+{
+    raw_destroy_image_view(ctx, view.handle);
+    view.state = Ghost(destroy_image_view_ghost(view.state@));
+}
+
+// ── Framebuffer FFI ──────────────────────────────────────────────────
+
+/// Create a framebuffer.
+#[verifier::external_body]
+pub fn vk_create_framebuffer(
+    ctx: &VulkanContext,
+    state: Ghost<FramebufferState>,
+    rp_handle: u64,
+    view_handles: &[u64],
+    w: u32,
+    h: u32,
+) -> (out: RuntimeFramebuffer)
+    requires state@.alive,
+    ensures out@ == state@, runtime_framebuffer_wf(&out),
+{
+    let handle = raw_create_framebuffer(ctx, rp_handle, view_handles, w, h);
+    RuntimeFramebuffer { handle, state: Ghost(state@) }
+}
+
+/// Destroy a framebuffer.
+#[verifier::external_body]
+pub fn vk_destroy_framebuffer(
+    ctx: &VulkanContext,
+    fb: &mut RuntimeFramebuffer,
+)
+    requires runtime_framebuffer_wf(&*old(fb)),
+    ensures
+        fb@ == destroy_framebuffer_ghost(old(fb)@),
+        !fb@.alive,
+{
+    raw_destroy_framebuffer(ctx, fb.handle);
+    fb.state = Ghost(destroy_framebuffer_ghost(fb.state@));
+}
+
+// ── Command Pool FFI ─────────────────────────────────────────────────
+
+/// Create a command pool.
+#[verifier::external_body]
+pub fn vk_create_command_pool(
+    ctx: &VulkanContext,
+    id: Ghost<nat>,
+    queue_family: u32,
+    individual_reset: bool,
+) -> (out: RuntimeCommandPool)
+    ensures
+        out@ == create_command_pool(id@, queue_family as nat, individual_reset),
+        runtime_command_pool_wf(&out),
+        pool_empty(out@),
+{
+    let flags = if individual_reset {
+        vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER.as_raw()
+    } else {
+        0u32
+    };
+    let h = raw_create_command_pool(ctx, queue_family, flags);
+    proof { lemma_fresh_pool_well_formed(id@, queue_family as nat, individual_reset); }
+    RuntimeCommandPool {
+        handle: h,
+        state: Ghost(create_command_pool(id@, queue_family as nat, individual_reset)),
+    }
+}
+
+/// Destroy a command pool.
+#[verifier::external_body]
+pub fn vk_destroy_command_pool(
+    ctx: &VulkanContext,
+    pool: &mut RuntimeCommandPool,
+)
+    requires runtime_command_pool_wf(&*old(pool)), pool_empty(old(pool)@),
+    ensures
+        pool@ == destroy_command_pool_ghost(old(pool)@),
+        !pool@.alive,
+{
+    raw_destroy_command_pool(ctx, pool.handle);
+    pool.state = Ghost(destroy_command_pool_ghost(pool.state@));
+}
+
+// ── Swapchain Image Query FFI ────────────────────────────────────────
+
+/// Get swapchain image handles.
+#[verifier::external_body]
+pub fn vk_get_swapchain_images(
+    ctx: &VulkanContext,
+    sc: &RuntimeSwapchain,
+) -> (out: Vec<u64>)
+    requires runtime_swapchain_wf(sc),
+    ensures out@.len() == sc@.image_states.len(),
+{
+    let handles = raw_get_swapchain_images(ctx, sc.handle);
+    handles
+}
+
+// ── Enhanced Graphics Pipeline FFI ───────────────────────────────────
+
+/// Create a graphics pipeline with vertex and fragment shaders.
+#[verifier::external_body]
+pub fn vk_create_graphics_pipeline_full(
+    ctx: &VulkanContext,
+    gps: Ghost<GraphicsPipelineState>,
+    layout_handle: u64,
+    render_pass_handle: u64,
+    vert_module_handle: u64,
+    frag_module_handle: u64,
+) -> (out: RuntimeGraphicsPipeline)
+    requires gps@.alive,
+    ensures out@ == gps@, runtime_gfx_pipeline_wf(&out),
+{
+    let h = raw_create_graphics_pipeline_full(ctx, layout_handle, render_pass_handle, vert_module_handle, frag_module_handle);
+    RuntimeGraphicsPipeline { handle: h, state: Ghost(gps@) }
 }
 
 } // verus!

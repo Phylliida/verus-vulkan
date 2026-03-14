@@ -11,6 +11,7 @@ pub struct VulkanContext {
     pub physical_device: vk::PhysicalDevice,
     pub device: Device,
     pub swapchain_loader: khr::swapchain::Device,
+    pub surface_loader: khr::surface::Instance,
 }
 
 impl VulkanContext {
@@ -87,12 +88,16 @@ impl VulkanContext {
         // 5. Create swapchain loader
         let swapchain_loader = khr::swapchain::Device::new(&instance, &device);
 
+        // 6. Create surface loader
+        let surface_loader = khr::surface::Instance::new(&entry, &instance);
+
         VulkanContext {
             entry,
             instance,
             physical_device,
             device,
             swapchain_loader,
+            surface_loader,
         }
     }
 
