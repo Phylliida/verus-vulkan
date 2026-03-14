@@ -466,4 +466,309 @@ pub proof fn lemma_matching_initials_permits_begin(
     assert(fb_attachments[att_idx as int] == fb_attachments[att_idx as int]); // trigger
 }
 
+// ── Subresource Range Helpers ────────────────────────────────────────────
+
+/// A range of image subresources (mip levels × array layers).
+/// Mirrors VkImageSubresourceRange.
+pub struct SubresourceRange {
+    pub image_id: nat,
+    pub base_mip_level: nat,
+    pub mip_level_count: nat,
+    pub base_array_layer: nat,
+    pub array_layer_count: nat,
+}
+
+/// A subresource range is valid (non-empty).
+pub open spec fn subresource_range_valid(range: SubresourceRange) -> bool {
+    range.mip_level_count > 0 && range.array_layer_count > 0
+}
+
+/// Whether a resource id falls within a subresource range.
+pub open spec fn subresource_in_range(
+    range: SubresourceRange,
+    resource: ResourceId,
+) -> bool {
+    match resource {
+        ResourceId::Image { id, mip_level, array_layer } => {
+            id == range.image_id
+            && mip_level >= range.base_mip_level
+            && mip_level < range.base_mip_level + range.mip_level_count
+            && array_layer >= range.base_array_layer
+            && array_layer < range.base_array_layer + range.array_layer_count
+        },
+        _ => false,
+    }
+}
+
+/// Apply a layout transition to all subresources in a range.
+/// Iterates over mip levels and array layers using double recursion.
+pub open spec fn apply_range_transition(
+    map: ImageLayoutMap,
+    range: SubresourceRange,
+    new_layout: ImageLayout,
+    mip: nat,
+    layer: nat,
+) -> ImageLayoutMap
+    decreases range.mip_level_count - mip, range.array_layer_count - layer,
+{
+    if mip >= range.mip_level_count {
+        map
+    } else if layer >= range.array_layer_count {
+        // Done with this mip level, move to next
+        apply_range_transition(map, range, new_layout, mip + 1, 0)
+    } else {
+        let resource = ResourceId::Image {
+            id: range.image_id,
+            mip_level: range.base_mip_level + mip,
+            array_layer: range.base_array_layer + layer,
+        };
+        let updated = apply_layout_transition(map, resource, new_layout);
+        apply_range_transition(updated, range, new_layout, mip, layer + 1)
+    }
+}
+
+/// Build the ResourceId for a subresource within a range at offset (m, l).
+pub open spec fn range_resource_id(range: SubresourceRange, m: nat, l: nat) -> ResourceId {
+    ResourceId::Image {
+        id: range.image_id,
+        mip_level: range.base_mip_level + m,
+        array_layer: range.base_array_layer + l,
+    }
+}
+
+/// Check that all subresources in a range have the expected layout.
+pub open spec fn all_subresources_have_layout(
+    map: ImageLayoutMap,
+    range: SubresourceRange,
+    expected: ImageLayout,
+) -> bool {
+    forall|m: nat, l: nat|
+        m < range.mip_level_count && l < range.array_layer_count ==>
+        has_layout(map, #[trigger] range_resource_id(range, m, l), expected)
+}
+
+// ── Subresource Range Proofs ────────────────────────────────────────────
+
+/// After apply_range_transition, all subresources in the range have the new layout.
+pub proof fn lemma_range_transition_sets_all(
+    map: ImageLayoutMap,
+    range: SubresourceRange,
+    new_layout: ImageLayout,
+)
+    requires subresource_range_valid(range),
+    ensures all_subresources_have_layout(
+        apply_range_transition(map, range, new_layout, 0, 0),
+        range,
+        new_layout,
+    ),
+{
+    assert forall|m: nat, l: nat|
+        m < range.mip_level_count && l < range.array_layer_count
+    implies has_layout(
+        apply_range_transition(map, range, new_layout, 0, 0),
+        #[trigger] range_resource_id(range, m, l),
+        new_layout,
+    ) by {
+        lemma_range_transition_sets_one(map, range, new_layout, 0, 0, m, l);
+    }
+}
+
+/// Helper: a specific subresource in the range has the new layout after apply_range_transition.
+/// Precondition: (mip, layer) <= (target_mip, target_layer) in lexicographic order,
+/// meaning we haven't yet passed the target.
+proof fn lemma_range_transition_sets_one(
+    map: ImageLayoutMap,
+    range: SubresourceRange,
+    new_layout: ImageLayout,
+    mip: nat,
+    layer: nat,
+    target_mip: nat,
+    target_layer: nat,
+)
+    requires
+        subresource_range_valid(range),
+        target_mip < range.mip_level_count,
+        target_layer < range.array_layer_count,
+        mip < target_mip || (mip == target_mip && layer <= target_layer),
+        mip <= range.mip_level_count,
+        layer <= range.array_layer_count,
+    ensures has_layout(
+        apply_range_transition(map, range, new_layout, mip, layer),
+        ResourceId::Image {
+            id: range.image_id,
+            mip_level: range.base_mip_level + target_mip,
+            array_layer: range.base_array_layer + target_layer,
+        },
+        new_layout,
+    ),
+    decreases range.mip_level_count - mip, range.array_layer_count - layer,
+{
+    if mip >= range.mip_level_count {
+        // Contradiction: target_mip < mip_level_count but mip <= target_mip
+    } else if layer >= range.array_layer_count {
+        // Recurse to next mip level; mip < target_mip (can't be equal since layer > target_layer)
+        // OR mip == target_mip but layer > target_layer is impossible since target_layer < array_layer_count <= layer
+        // So mip < target_mip, which means mip+1 <= target_mip
+        lemma_range_transition_sets_one(map, range, new_layout, mip + 1, 0, target_mip, target_layer);
+    } else if mip == target_mip && layer == target_layer {
+        // This is the target subresource — it gets set then preserved by later iterations
+        let resource = ResourceId::Image {
+            id: range.image_id,
+            mip_level: range.base_mip_level + mip,
+            array_layer: range.base_array_layer + layer,
+        };
+        let updated = apply_layout_transition(map, resource, new_layout);
+        lemma_range_transition_preserves_one(updated, range, new_layout, mip, layer + 1, target_mip, target_layer);
+    } else {
+        // Not yet at target — recurse past this subresource
+        let resource = ResourceId::Image {
+            id: range.image_id,
+            mip_level: range.base_mip_level + mip,
+            array_layer: range.base_array_layer + layer,
+        };
+        let updated = apply_layout_transition(map, resource, new_layout);
+        lemma_range_transition_sets_one(updated, range, new_layout, mip, layer + 1, target_mip, target_layer);
+    }
+}
+
+/// Helper: if a subresource already has the layout, later range iterations preserve it.
+proof fn lemma_range_transition_preserves_one(
+    map: ImageLayoutMap,
+    range: SubresourceRange,
+    new_layout: ImageLayout,
+    mip: nat,
+    layer: nat,
+    target_mip: nat,
+    target_layer: nat,
+)
+    requires
+        has_layout(map, ResourceId::Image {
+            id: range.image_id,
+            mip_level: range.base_mip_level + target_mip,
+            array_layer: range.base_array_layer + target_layer,
+        }, new_layout),
+        target_mip < range.mip_level_count,
+        target_layer < range.array_layer_count,
+        mip <= range.mip_level_count,
+        layer <= range.array_layer_count,
+    ensures has_layout(
+        apply_range_transition(map, range, new_layout, mip, layer),
+        ResourceId::Image {
+            id: range.image_id,
+            mip_level: range.base_mip_level + target_mip,
+            array_layer: range.base_array_layer + target_layer,
+        },
+        new_layout,
+    ),
+    decreases range.mip_level_count - mip, range.array_layer_count - layer,
+{
+    if mip >= range.mip_level_count {
+        // Base case: no more transitions, layout preserved
+    } else if layer >= range.array_layer_count {
+        lemma_range_transition_preserves_one(map, range, new_layout, mip + 1, 0, target_mip, target_layer);
+    } else {
+        let resource = ResourceId::Image {
+            id: range.image_id,
+            mip_level: range.base_mip_level + mip,
+            array_layer: range.base_array_layer + layer,
+        };
+        let updated = apply_layout_transition(map, resource, new_layout);
+        // The insert either overwrites with the same layout or touches a different key
+        // Either way, target still has new_layout in updated
+        lemma_range_transition_preserves_one(updated, range, new_layout, mip, layer + 1, target_mip, target_layer);
+    }
+}
+
+/// apply_range_transition does not affect subresources outside the range.
+pub proof fn lemma_range_transition_preserves_others(
+    map: ImageLayoutMap,
+    range: SubresourceRange,
+    new_layout: ImageLayout,
+    other: ResourceId,
+)
+    requires
+        !subresource_in_range(range, other),
+        map.contains_key(other),
+    ensures
+        apply_range_transition(map, range, new_layout, 0, 0).contains_key(other),
+        apply_range_transition(map, range, new_layout, 0, 0)[other] == map[other],
+{
+    lemma_range_transition_preserves_other_rec(map, range, new_layout, 0, 0, other);
+}
+
+/// Recursive helper for preserves_others.
+proof fn lemma_range_transition_preserves_other_rec(
+    map: ImageLayoutMap,
+    range: SubresourceRange,
+    new_layout: ImageLayout,
+    mip: nat,
+    layer: nat,
+    other: ResourceId,
+)
+    requires
+        !subresource_in_range(range, other),
+        map.contains_key(other),
+        mip <= range.mip_level_count,
+        layer <= range.array_layer_count,
+    ensures
+        apply_range_transition(map, range, new_layout, mip, layer).contains_key(other),
+        apply_range_transition(map, range, new_layout, mip, layer)[other] == map[other],
+    decreases range.mip_level_count - mip, range.array_layer_count - layer,
+{
+    if mip >= range.mip_level_count {
+        // Base case
+    } else if layer >= range.array_layer_count {
+        lemma_range_transition_preserves_other_rec(map, range, new_layout, mip + 1, 0, other);
+    } else {
+        let resource = ResourceId::Image {
+            id: range.image_id,
+            mip_level: range.base_mip_level + mip,
+            array_layer: range.base_array_layer + layer,
+        };
+        // resource != other because other is not in range
+        let updated = apply_layout_transition(map, resource, new_layout);
+        lemma_range_transition_preserves_other_rec(updated, range, new_layout, mip, layer + 1, other);
+    }
+}
+
+/// A range with count=1,1 is equivalent to a single apply_layout_transition.
+pub proof fn lemma_single_subresource_range(
+    map: ImageLayoutMap,
+    image_id: nat,
+    mip_level: nat,
+    array_layer: nat,
+    new_layout: ImageLayout,
+)
+    ensures ({
+        let range = SubresourceRange {
+            image_id,
+            base_mip_level: mip_level,
+            mip_level_count: 1,
+            base_array_layer: array_layer,
+            array_layer_count: 1,
+        };
+        let resource = ResourceId::Image { id: image_id, mip_level, array_layer };
+        apply_range_transition(map, range, new_layout, 0, 0)
+            =~= apply_layout_transition(map, resource, new_layout)
+    }),
+{
+    let range = SubresourceRange {
+        image_id,
+        base_mip_level: mip_level,
+        mip_level_count: 1,
+        base_array_layer: array_layer,
+        array_layer_count: 1,
+    };
+    let resource = ResourceId::Image { id: image_id, mip_level, array_layer };
+    // Unfold step by step:
+    // apply_range_transition(map, range, new_layout, 0, 0)
+    //   mip=0 < 1, layer=0 < 1 → insert resource → apply_range_transition(updated, range, new_layout, 0, 1)
+    //   mip=0 < 1, layer=1 >= 1 → apply_range_transition(updated, range, new_layout, 1, 0)
+    //   mip=1 >= 1 → updated
+    let updated = apply_layout_transition(map, resource, new_layout);
+    assert(apply_range_transition(updated, range, new_layout, 1, 0) == updated);
+    assert(apply_range_transition(updated, range, new_layout, 0, 1) == updated);
+    assert(apply_range_transition(map, range, new_layout, 0, 0) == updated);
+}
+
 } // verus!

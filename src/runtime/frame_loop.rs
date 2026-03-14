@@ -191,7 +191,7 @@ pub proof fn lemma_full_frame_loop_safe(
             ==> !inv.dev.pending_submissions[i].referenced_resources.contains(resource),
         submission_valid(
             inv.frame.submit_info, inv.cb_states, inv.sem_states,
-            inv.fence_states, inv.queue.queue_id, inv.thread, inv.reg,
+            inv.fence_states, inv.lifecycle_states, inv.queue.queue_id, inv.thread, inv.reg,
         ),
     ensures
         ({

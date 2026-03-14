@@ -15,6 +15,7 @@ use crate::lifetime::*;
 use crate::sync_token::*;
 use crate::command::*;
 use crate::submit::*;
+use crate::resource_lifecycle::*;
 
 verus! {
 
@@ -45,6 +46,7 @@ pub struct FrameInvariant {
     pub cb_states: Map<nat, CommandBufferState>,
     pub sem_states: Map<nat, SemaphoreState>,
     pub fence_states: Map<nat, FenceState>,
+    pub lifecycle_states: Map<ResourceId, ResourceLifecycleState>,
     pub thread: ThreadId,
     pub reg: TokenRegistry,
 }
@@ -198,7 +200,7 @@ pub proof fn lemma_full_frame_safe(
         // Submission is valid
         submission_valid(
             inv.frame.submit_info, inv.cb_states, inv.sem_states,
-            inv.fence_states, inv.queue.queue_id, inv.thread, inv.reg,
+            inv.fence_states, inv.lifecycle_states, inv.queue.queue_id, inv.thread, inv.reg,
         ),
     ensures ({
         // The full acquire→submit path succeeds
