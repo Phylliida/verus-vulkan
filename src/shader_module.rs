@@ -1,4 +1,5 @@
 use vstd::prelude::*;
+use crate::shader_interface::*;
 
 verus! {
 
@@ -12,7 +13,7 @@ pub enum ShaderStageKind {
 }
 
 /// Ghost model for a VkShaderModule object.
-/// Wraps a compiled SPIR-V module with lifecycle tracking.
+/// Wraps a compiled SPIR-V module with lifecycle tracking and interface.
 pub struct ShaderModuleState {
     /// Unique identifier.
     pub id: nat,
@@ -20,6 +21,9 @@ pub struct ShaderModuleState {
     pub alive: bool,
     /// Which pipeline stage this shader is for.
     pub stage: ShaderStageKind,
+    /// The shader's interface (inputs, outputs, descriptor bindings, push constants).
+    /// Established at create_shader_module time from SPIR-V reflection.
+    pub interface: ShaderInterface,
 }
 
 // ── Spec Functions ───────────────────────────────────────────────────
@@ -49,8 +53,8 @@ pub open spec fn shader_module_is_fragment(sm: ShaderModuleState) -> bool {
 // ── Proofs ───────────────────────────────────────────────────────────
 
 /// A freshly created shader module is alive.
-pub proof fn lemma_create_shader_module_alive(id: nat, stage: ShaderStageKind)
-    ensures shader_module_well_formed(ShaderModuleState { id, alive: true, stage }),
+pub proof fn lemma_create_shader_module_alive(id: nat, stage: ShaderStageKind, interface: ShaderInterface)
+    ensures shader_module_well_formed(ShaderModuleState { id, alive: true, stage, interface }),
 {
 }
 
@@ -70,6 +74,12 @@ pub proof fn lemma_destroy_shader_module_preserves_id(sm: ShaderModuleState)
 /// Destroying a shader module preserves its stage.
 pub proof fn lemma_destroy_shader_module_preserves_stage(sm: ShaderModuleState)
     ensures destroy_shader_module_ghost(sm).stage == sm.stage,
+{
+}
+
+/// Destroying a shader module preserves its interface.
+pub proof fn lemma_destroy_shader_module_preserves_interface(sm: ShaderModuleState)
+    ensures destroy_shader_module_ghost(sm).interface == sm.interface,
 {
 }
 

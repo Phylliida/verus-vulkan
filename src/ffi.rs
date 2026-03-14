@@ -34,7 +34,6 @@ use crate::shader_module::*;
 use crate::render_pass::*;
 use crate::framebuffer::*;
 use crate::command_pool::*;
-use crate::pipeline_layout::*;
 use crate::runtime::render_pass::*;
 use crate::runtime::framebuffer::*;
 use crate::runtime::command_pool::*;
@@ -405,10 +404,50 @@ fn raw_queue_present(ctx: &VulkanContext, queue: u64, sc: u64, idx: u32, wait_se
 
 // ── Pipeline helpers ────────────────────────────────────────────────────
 
-fn raw_create_graphics_pipeline(ctx: &VulkanContext, layout: u64, rp: u64) -> u64 {
+fn raw_create_graphics_pipeline(
+    ctx: &VulkanContext, layout: u64, rp: u64, vert: u64, frag: u64,
+) -> u64 {
+    let vert_stage = vk::PipelineShaderStageCreateInfo::default()
+        .stage(vk::ShaderStageFlags::VERTEX)
+        .module(vk::ShaderModule::from_raw(vert))
+        .name(c"main");
+    let frag_stage = vk::PipelineShaderStageCreateInfo::default()
+        .stage(vk::ShaderStageFlags::FRAGMENT)
+        .module(vk::ShaderModule::from_raw(frag))
+        .name(c"main");
+    let stages = [vert_stage, frag_stage];
+    let vertex_input = vk::PipelineVertexInputStateCreateInfo::default();
+    let input_assembly = vk::PipelineInputAssemblyStateCreateInfo::default()
+        .topology(vk::PrimitiveTopology::TRIANGLE_LIST);
+    let viewport_state = vk::PipelineViewportStateCreateInfo::default()
+        .viewport_count(1).scissor_count(1);
+    let rasterization = vk::PipelineRasterizationStateCreateInfo::default()
+        .polygon_mode(vk::PolygonMode::FILL)
+        .cull_mode(vk::CullModeFlags::NONE)
+        .front_face(vk::FrontFace::COUNTER_CLOCKWISE)
+        .line_width(1.0);
+    let multisample = vk::PipelineMultisampleStateCreateInfo::default()
+        .rasterization_samples(vk::SampleCountFlags::TYPE_1);
+    let blend_attachment = vk::PipelineColorBlendAttachmentState::default()
+        .color_write_mask(vk::ColorComponentFlags::RGBA);
+    let blend_attachments = [blend_attachment];
+    let color_blend = vk::PipelineColorBlendStateCreateInfo::default()
+        .attachments(&blend_attachments);
+    let dynamic_states = [vk::DynamicState::VIEWPORT, vk::DynamicState::SCISSOR];
+    let dynamic_state = vk::PipelineDynamicStateCreateInfo::default()
+        .dynamic_states(&dynamic_states);
     let ci = vk::GraphicsPipelineCreateInfo::default()
+        .stages(&stages)
+        .vertex_input_state(&vertex_input)
+        .input_assembly_state(&input_assembly)
+        .viewport_state(&viewport_state)
+        .rasterization_state(&rasterization)
+        .multisample_state(&multisample)
+        .color_blend_state(&color_blend)
+        .dynamic_state(&dynamic_state)
         .layout(vk::PipelineLayout::from_raw(layout))
-        .render_pass(vk::RenderPass::from_raw(rp));
+        .render_pass(vk::RenderPass::from_raw(rp))
+        .subpass(0);
     unsafe { ctx.device.create_graphics_pipelines(vk::PipelineCache::null(), &[ci], None) }
         .expect("create_graphics_pipelines failed")[0].as_raw()
 }
@@ -1013,60 +1052,6 @@ fn raw_get_swapchain_images(ctx: &VulkanContext, swapchain: u64) -> Vec<u64> {
     images.iter().map(|img| img.as_raw()).collect()
 }
 
-// ── Enhanced Graphics Pipeline helpers ───────────────────────────────
-
-fn raw_create_graphics_pipeline_full(
-    ctx: &VulkanContext, layout: u64, rp: u64, vert: u64, frag: u64,
-) -> u64 {
-    let vert_stage = vk::PipelineShaderStageCreateInfo::default()
-        .stage(vk::ShaderStageFlags::VERTEX)
-        .module(vk::ShaderModule::from_raw(vert))
-        .name(c"main");
-    let frag_stage = vk::PipelineShaderStageCreateInfo::default()
-        .stage(vk::ShaderStageFlags::FRAGMENT)
-        .module(vk::ShaderModule::from_raw(frag))
-        .name(c"main");
-    let stages = [vert_stage, frag_stage];
-
-    let vertex_input = vk::PipelineVertexInputStateCreateInfo::default();
-    let input_assembly = vk::PipelineInputAssemblyStateCreateInfo::default()
-        .topology(vk::PrimitiveTopology::TRIANGLE_LIST);
-    let viewport_state = vk::PipelineViewportStateCreateInfo::default()
-        .viewport_count(1)
-        .scissor_count(1);
-    let rasterization = vk::PipelineRasterizationStateCreateInfo::default()
-        .polygon_mode(vk::PolygonMode::FILL)
-        .cull_mode(vk::CullModeFlags::NONE)
-        .front_face(vk::FrontFace::COUNTER_CLOCKWISE)
-        .line_width(1.0);
-    let multisample = vk::PipelineMultisampleStateCreateInfo::default()
-        .rasterization_samples(vk::SampleCountFlags::TYPE_1);
-    let blend_attachment = vk::PipelineColorBlendAttachmentState::default()
-        .color_write_mask(vk::ColorComponentFlags::RGBA);
-    let blend_attachments = [blend_attachment];
-    let color_blend = vk::PipelineColorBlendStateCreateInfo::default()
-        .attachments(&blend_attachments);
-    let dynamic_states = [vk::DynamicState::VIEWPORT, vk::DynamicState::SCISSOR];
-    let dynamic_state = vk::PipelineDynamicStateCreateInfo::default()
-        .dynamic_states(&dynamic_states);
-
-    let ci = vk::GraphicsPipelineCreateInfo::default()
-        .stages(&stages)
-        .vertex_input_state(&vertex_input)
-        .input_assembly_state(&input_assembly)
-        .viewport_state(&viewport_state)
-        .rasterization_state(&rasterization)
-        .multisample_state(&multisample)
-        .color_blend_state(&color_blend)
-        .dynamic_state(&dynamic_state)
-        .layout(vk::PipelineLayout::from_raw(layout))
-        .render_pass(vk::RenderPass::from_raw(rp))
-        .subpass(0);
-
-    unsafe { ctx.device.create_graphics_pipelines(vk::PipelineCache::null(), &[ci], None) }
-        .expect("create_graphics_pipelines failed")[0].as_raw()
-}
-
 // ═══════════════════════════════════════════════════════════════════════════
 // Verified FFI layer — inside verus!
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1507,11 +1492,13 @@ pub fn vk_create_graphics_pipeline(
     gps: Ghost<GraphicsPipelineState>,
     layout_handle: u64,
     render_pass_handle: u64,
+    vert_module_handle: u64,
+    frag_module_handle: u64,
 ) -> (out: RuntimeGraphicsPipeline)
     requires gps@.alive,
     ensures out@ == gps@, runtime_gfx_pipeline_wf(&out),
 {
-    let h = raw_create_graphics_pipeline(ctx, layout_handle, render_pass_handle);
+    let h = raw_create_graphics_pipeline(ctx, layout_handle, render_pass_handle, vert_module_handle, frag_module_handle);
     RuntimeGraphicsPipeline { handle: h, state: Ghost(gps@) }
 }
 
@@ -2703,22 +2690,5 @@ pub fn vk_get_swapchain_images(
 }
 
 // ── Enhanced Graphics Pipeline FFI ───────────────────────────────────
-
-/// Create a graphics pipeline with vertex and fragment shaders.
-#[verifier::external_body]
-pub fn vk_create_graphics_pipeline_full(
-    ctx: &VulkanContext,
-    gps: Ghost<GraphicsPipelineState>,
-    layout_handle: u64,
-    render_pass_handle: u64,
-    vert_module_handle: u64,
-    frag_module_handle: u64,
-) -> (out: RuntimeGraphicsPipeline)
-    requires gps@.alive,
-    ensures out@ == gps@, runtime_gfx_pipeline_wf(&out),
-{
-    let h = raw_create_graphics_pipeline_full(ctx, layout_handle, render_pass_handle, vert_module_handle, frag_module_handle);
-    RuntimeGraphicsPipeline { handle: h, state: Ghost(gps@) }
-}
 
 } // verus!

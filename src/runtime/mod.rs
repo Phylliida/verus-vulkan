@@ -33,3 +33,5 @@ pub mod conditional_rendering;
 pub mod animation;
 pub mod draw_state;
 pub mod completion;
+pub mod surface;
+pub mod shader_module;
