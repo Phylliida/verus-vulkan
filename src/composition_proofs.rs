@@ -85,7 +85,7 @@ pub proof fn lemma_begin_rp_bind_enables_draw(
         graphics_pipeline_compatible_with_subpass(pipeline, rp, 0),
     ensures ({
         let s1 = begin_render_pass_recording(state, rp.id, fb_id);
-        let s2 = bind_graphics_pipeline(s1, pipeline.id);
+        let s2 = bind_graphics_pipeline(s1, pipeline.id, pipeline.descriptor_set_layouts);
         draw_call_valid(s2, pipeline, rp)
     }),
 {

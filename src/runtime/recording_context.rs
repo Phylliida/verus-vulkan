@@ -212,7 +212,7 @@ pub fn record_bind_graphics_pipeline_ctx_exec(
         pipeline@.id == pipeline_id@,
     ensures
         recording_context_wf(rctx),
-        rctx.ctx@.state == bind_graphics_pipeline(old(rctx).ctx@.state, pipeline_id@),
+        rctx.ctx@.state == bind_graphics_pipeline(old(rctx).ctx@.state, pipeline_id@, pipeline@.descriptor_set_layouts),
         rctx.ctx@.barrier_log == old(rctx).ctx@.barrier_log,
         rctx.ctx@.referenced_resources == old(rctx).ctx@.referenced_resources,
         rctx.cb.cb_id@ == old(rctx).cb.cb_id@,
@@ -220,7 +220,7 @@ pub fn record_bind_graphics_pipeline_ctx_exec(
 {
     cmd_bind_pipeline_exec(vk, &mut rctx.cb, thread, pipeline_handle, pipeline_id, pipeline);
     let ghost new_ctx = RecordingContext {
-        state: bind_graphics_pipeline(old(rctx).ctx@.state, pipeline_id@),
+        state: bind_graphics_pipeline(old(rctx).ctx@.state, pipeline_id@, pipeline@.descriptor_set_layouts),
         command_log: old(rctx).ctx@.command_log.push(RecordedCommand::BindGraphicsPipeline { pipeline_id: pipeline_id@ }),
         ..old(rctx).ctx@
     };

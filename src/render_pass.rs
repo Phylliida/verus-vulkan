@@ -3,6 +3,7 @@ use crate::flags::*;
 use crate::image_layout::*;
 use crate::format_properties::*;
 use crate::device::*;
+use crate::subpass_dep::*;
 
 verus! {
 
@@ -90,6 +91,8 @@ pub struct RenderPassState {
     pub subpasses: Seq<SubpassDescription>,
     /// Dependencies between subpasses (and external).
     pub dependencies: Seq<SubpassDependency>,
+    /// Extended dependencies supporting self-dependencies (src == dst subpass).
+    pub extended_dependencies: Seq<ExtendedSubpassDependency>,
     /// Whether this render pass object is still alive (not destroyed).
     pub alive: bool,
 }
@@ -200,12 +203,49 @@ pub open spec fn dependency_well_formed(
     })
 }
 
+/// A subpass has an input-output overlap: it reads an attachment as input
+/// that it also writes as color or depth output. Vulkan spec 7.1 requires
+/// a self-dependency for this case to avoid undefined read-after-write.
+pub open spec fn subpass_has_input_output_overlap(
+    rp: RenderPassState,
+    subpass_idx: nat,
+) -> bool
+    recommends subpass_idx < rp.subpasses.len(),
+{
+    let sp = rp.subpasses[subpass_idx as int];
+    // Input attachment overlaps with a color attachment
+    (exists|i: int, j: int|
+        0 <= i < sp.input_attachments.len()
+        && 0 <= j < sp.color_attachments.len()
+        && sp.input_attachments[i].attachment_index
+            == sp.color_attachments[j].attachment_index)
+    // Or input attachment overlaps with the depth attachment
+    || (sp.depth_attachment.is_some()
+        && exists|i: int|
+            0 <= i < sp.input_attachments.len()
+            && sp.input_attachments[i].attachment_index
+                == sp.depth_attachment.unwrap().attachment_index)
+}
+
+/// If a subpass has input-output overlap, it must declare a self-dependency.
+pub open spec fn input_attachment_self_dependency_satisfied(
+    rp: RenderPassState,
+    subpass_idx: nat,
+) -> bool
+    recommends subpass_idx < rp.subpasses.len(),
+{
+    subpass_has_input_output_overlap(rp, subpass_idx)
+        ==> has_self_dependency(rp.extended_dependencies, subpass_idx)
+}
+
 /// A render pass is well-formed.
 ///
 /// - At least one subpass.
 /// - All attachments have usable final layouts.
 /// - All subpasses are well-formed.
 /// - All dependencies are well-formed.
+/// - Self-dependency required for input-output overlap.
+/// - Extended dependencies well-formed.
 pub open spec fn render_pass_well_formed(rp: RenderPassState) -> bool {
     // At least one subpass
     rp.subpasses.len() > 0
@@ -221,6 +261,13 @@ pub open spec fn render_pass_well_formed(rp: RenderPassState) -> bool {
     // All dependencies well-formed
     && (forall|d: int| 0 <= d < rp.dependencies.len() ==>
         dependency_well_formed(rp, rp.dependencies[d]))
+
+    // Self-dependency required for input-output overlap
+    && (forall|s: int| 0 <= s < rp.subpasses.len() ==>
+        #[trigger] input_attachment_self_dependency_satisfied(rp, s as nat))
+
+    // Extended dependencies well-formed
+    && all_extended_deps_well_formed(rp.extended_dependencies, rp.subpasses.len())
 }
 
 // ── Accessors ─────────────────────────────────────────────────────────
@@ -513,6 +560,32 @@ pub proof fn lemma_destroy_render_pass_not_alive(rp: RenderPassState)
 /// Destroying a render pass preserves its id.
 pub proof fn lemma_destroy_render_pass_preserves_id(rp: RenderPassState)
     ensures destroy_render_pass_ghost(rp).id == rp.id,
+{
+}
+
+/// A well-formed render pass with input-output overlap at a subpass
+/// guarantees a self-dependency exists for that subpass.
+pub proof fn lemma_well_formed_has_self_dep_for_overlap(
+    rp: RenderPassState,
+    s: nat,
+)
+    requires
+        render_pass_well_formed(rp),
+        s < rp.subpasses.len(),
+        subpass_has_input_output_overlap(rp, s),
+    ensures
+        has_self_dependency(rp.extended_dependencies, s),
+{
+    // render_pass_well_formed includes input_attachment_self_dependency_satisfied
+    // for all subpasses, which is: overlap ==> has_self_dependency
+    let s_int: int = s as int;
+    assert(input_attachment_self_dependency_satisfied(rp, s_int as nat));
+}
+
+/// A well-formed render pass has well-formed extended dependencies.
+pub proof fn lemma_well_formed_extended_deps(rp: RenderPassState)
+    requires render_pass_well_formed(rp),
+    ensures all_extended_deps_well_formed(rp.extended_dependencies, rp.subpasses.len()),
 {
 }
 

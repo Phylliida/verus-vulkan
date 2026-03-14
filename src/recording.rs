@@ -45,6 +45,11 @@ pub struct RecordingState {
     pub push_constants_set: bool,
     /// Dynamic offsets for each descriptor set index: maps set_index → dynamic offsets seq.
     pub bound_dynamic_offsets: Map<nat, Seq<nat>>,
+    /// Set layouts of the currently bound graphics pipeline, if any.
+    /// Used to invalidate incompatible descriptor sets on pipeline rebind.
+    pub bound_graphics_layout: Option<Seq<nat>>,
+    /// Set layouts of the currently bound compute pipeline, if any.
+    pub bound_compute_layout: Option<Seq<nat>>,
 }
 
 // ── Spec Functions ───────────────────────────────────────────────────
@@ -63,27 +68,120 @@ pub open spec fn initial_recording_state() -> RecordingState {
         scissor_set: false,
         push_constants_set: false,
         bound_dynamic_offsets: Map::empty(),
+        bound_graphics_layout: None,
+        bound_compute_layout: None,
     }
 }
 
-/// Ghost update: bind a graphics pipeline.
+/// Find the length of the compatible prefix between two pipeline layouts.
+/// Sets at indices < this value have matching set layouts; sets at or above
+/// this index are incompatible and must be invalidated (Vulkan spec 14.2.2).
+pub open spec fn compatible_prefix_len(
+    old_layouts: Seq<nat>,
+    new_layouts: Seq<nat>,
+) -> nat
+    decreases old_layouts.len(),
+{
+    compatible_prefix_len_rec(old_layouts, new_layouts, 0)
+}
+
+/// Recursive helper: find first index >= start where layouts diverge.
+pub open spec fn compatible_prefix_len_rec(
+    old_layouts: Seq<nat>,
+    new_layouts: Seq<nat>,
+    start: nat,
+) -> nat
+    decreases old_layouts.len() - start,
+{
+    if start >= old_layouts.len() || start >= new_layouts.len() {
+        start
+    } else if old_layouts[start as int] != new_layouts[start as int] {
+        start
+    } else {
+        compatible_prefix_len_rec(old_layouts, new_layouts, start + 1)
+    }
+}
+
+/// Invalidate descriptor sets at indices >= the compatible prefix.
+/// Vulkan spec 14.2.2: on pipeline rebind, sets whose layout doesn't match
+/// the new pipeline's layout at that index are disturbed.
+pub open spec fn invalidate_incompatible_sets(
+    sets: Map<nat, nat>,
+    layouts: Map<nat, nat>,
+    offsets: Map<nat, Seq<nat>>,
+    old_pipeline_layouts: Option<Seq<nat>>,
+    new_pipeline_layouts: Seq<nat>,
+) -> (Map<nat, nat>, Map<nat, nat>, Map<nat, Seq<nat>>) {
+    match old_pipeline_layouts {
+        None => {
+            // No previous pipeline: invalidate all sets
+            (Map::empty(), Map::empty(), Map::empty())
+        },
+        Some(old_layouts) => {
+            let prefix = compatible_prefix_len(old_layouts, new_pipeline_layouts);
+            // Keep only sets at indices < prefix
+            (
+                Map::new(
+                    |k: nat| sets.contains_key(k) && k < prefix,
+                    |k: nat| sets[k],
+                ),
+                Map::new(
+                    |k: nat| layouts.contains_key(k) && k < prefix,
+                    |k: nat| layouts[k],
+                ),
+                Map::new(
+                    |k: nat| offsets.contains_key(k) && k < prefix,
+                    |k: nat| offsets[k],
+                ),
+            )
+        },
+    }
+}
+
+/// Ghost update: bind a graphics pipeline. Invalidates descriptor sets
+/// at indices incompatible with the new pipeline's layout (Vulkan 14.2.2).
 pub open spec fn bind_graphics_pipeline(
     state: RecordingState,
     pipeline_id: nat,
+    pipeline_layouts: Seq<nat>,
 ) -> RecordingState {
+    let (new_sets, new_layouts, new_offsets) = invalidate_incompatible_sets(
+        state.bound_descriptor_sets,
+        state.bound_set_layouts,
+        state.bound_dynamic_offsets,
+        state.bound_graphics_layout,
+        pipeline_layouts,
+    );
     RecordingState {
         bound_graphics_pipeline: Some(pipeline_id),
+        bound_descriptor_sets: new_sets,
+        bound_set_layouts: new_layouts,
+        bound_dynamic_offsets: new_offsets,
+        bound_graphics_layout: Some(pipeline_layouts),
         ..state
     }
 }
 
-/// Ghost update: bind a compute pipeline.
+/// Ghost update: bind a compute pipeline. Invalidates descriptor sets
+/// at indices incompatible with the new pipeline's layout (Vulkan 14.2.2).
 pub open spec fn bind_compute_pipeline(
     state: RecordingState,
     pipeline_id: nat,
+    pipeline_layouts: Seq<nat>,
 ) -> RecordingState {
+    let (new_sets, new_layouts, new_offsets) = invalidate_incompatible_sets(
+        state.bound_descriptor_sets,
+        state.bound_set_layouts,
+        state.bound_dynamic_offsets,
+        state.bound_compute_layout,
+        pipeline_layouts,
+    );
     RecordingState {
         bound_compute_pipeline: Some(pipeline_id),
+        bound_descriptor_sets: new_sets,
+        bound_set_layouts: new_layouts,
+        bound_dynamic_offsets: new_offsets,
+        bound_compute_layout: Some(pipeline_layouts),
         ..state
     }
 }
@@ -316,20 +414,21 @@ pub proof fn lemma_dispatch_requires_no_render_pass(
 pub proof fn lemma_bind_pipeline_preserves_render_pass(
     state: RecordingState,
     id: nat,
+    layouts: Seq<nat>,
 )
     ensures
-        in_render_pass(bind_graphics_pipeline(state, id)) == in_render_pass(state),
-        bind_graphics_pipeline(state, id).active_render_pass == state.active_render_pass,
+        in_render_pass(bind_graphics_pipeline(state, id, layouts)) == in_render_pass(state),
+        bind_graphics_pipeline(state, id, layouts).active_render_pass == state.active_render_pass,
 {
 }
 
 /// Binding a compute pipeline does not change the render pass state.
 pub proof fn lemma_bind_compute_preserves_render_pass(
-    state: RecordingState, id: nat,
+    state: RecordingState, id: nat, layouts: Seq<nat>,
 )
     ensures
-        in_render_pass(bind_compute_pipeline(state, id)) == in_render_pass(state),
-        bind_compute_pipeline(state, id).active_render_pass == state.active_render_pass,
+        in_render_pass(bind_compute_pipeline(state, id, layouts)) == in_render_pass(state),
+        bind_compute_pipeline(state, id, layouts).active_render_pass == state.active_render_pass,
 {
 }
 
@@ -356,16 +455,83 @@ pub proof fn lemma_end_render_pass_inactive(state: RecordingState)
 {
 }
 
-/// Binding a graphics pipeline preserves the bound descriptor sets.
-pub proof fn lemma_bind_graphics_preserves_descriptors(
-    state: RecordingState, pipeline_id: nat,
+/// Binding a graphics pipeline with no previously bound layout invalidates all descriptors.
+pub proof fn lemma_bind_graphics_invalidates_all_when_none(
+    state: RecordingState, pipeline_id: nat, layouts: Seq<nat>,
+)
+    requires
+        state.bound_graphics_layout.is_none(),
+    ensures
+        bind_graphics_pipeline(state, pipeline_id, layouts)
+            .bound_descriptor_sets == Map::<nat, nat>::empty(),
+{
+}
+
+/// The compatible prefix length is always >= start.
+proof fn lemma_compatible_prefix_len_rec_lower_bound(
+    old_layouts: Seq<nat>,
+    new_layouts: Seq<nat>,
+    start: nat,
 )
     ensures
-        bind_graphics_pipeline(state, pipeline_id).bound_descriptor_sets
-            == state.bound_descriptor_sets,
-        bind_graphics_pipeline(state, pipeline_id).bound_set_layouts
-            == state.bound_set_layouts,
+        compatible_prefix_len_rec(old_layouts, new_layouts, start) >= start,
+    decreases old_layouts.len() - start,
 {
+    if start >= old_layouts.len() || start >= new_layouts.len() {
+        // Returns start
+    } else if old_layouts[start as int] != new_layouts[start as int] {
+        // Returns start
+    } else {
+        lemma_compatible_prefix_len_rec_lower_bound(old_layouts, new_layouts, start + 1);
+    }
+}
+
+/// Compatible prefix length is at least as large as the index when layouts match.
+proof fn lemma_compatible_prefix_len_rec_ge(
+    old_layouts: Seq<nat>,
+    new_layouts: Seq<nat>,
+    start: nat,
+    idx: nat,
+)
+    requires
+        start <= idx,
+        idx < old_layouts.len(),
+        idx < new_layouts.len(),
+        forall|k: int| start <= k <= idx as int ==> old_layouts[k] == new_layouts[k],
+    ensures
+        compatible_prefix_len_rec(old_layouts, new_layouts, start) > idx,
+    decreases idx - start,
+{
+    // old_layouts[start] == new_layouts[start], so compatible_prefix_len_rec recurses
+    assert(old_layouts[start as int] == new_layouts[start as int]);
+    if start == idx {
+        // After matching at start, compatible_prefix_len_rec recurses to start+1.
+        // We need: compatible_prefix_len_rec(_, _, start+1) >= start+1 > idx
+        lemma_compatible_prefix_len_rec_lower_bound(old_layouts, new_layouts, start + 1);
+    } else {
+        // start < idx: recurse on start+1
+        lemma_compatible_prefix_len_rec_ge(old_layouts, new_layouts, start + 1, idx);
+    }
+}
+
+/// Binding a graphics pipeline with the same layouts preserves compatible
+/// descriptor sets (sets at indices within the compatible prefix are kept).
+pub proof fn lemma_bind_graphics_preserves_compatible_descriptors(
+    state: RecordingState, pipeline_id: nat, layouts: Seq<nat>,
+    set_idx: nat,
+)
+    requires
+        state.bound_graphics_layout == Some(layouts),
+        state.bound_descriptor_sets.contains_key(set_idx),
+        set_idx < layouts.len(),
+    ensures
+        bind_graphics_pipeline(state, pipeline_id, layouts)
+            .bound_descriptor_sets.contains_key(set_idx),
+        bind_graphics_pipeline(state, pipeline_id, layouts)
+            .bound_descriptor_sets[set_idx] == state.bound_descriptor_sets[set_idx],
+{
+    // When old == new layouts, every index matches, so prefix >= layouts.len()
+    lemma_compatible_prefix_len_rec_ge(layouts, layouts, 0, set_idx);
 }
 
 /// Beginning a render pass preserves bound pipelines and descriptors.
