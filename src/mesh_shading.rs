@@ -178,6 +178,14 @@ pub proof fn lemma_mesh_dispatch_positive_size(
     requires mesh_dispatch_valid(state, params, limits),
     ensures mesh_dispatch_size(params) > 0,
 {
+    vstd::arithmetic::mul::lemma_mul_strictly_positive(
+        params.group_count_x as int,
+        params.group_count_y as int,
+    );
+    vstd::arithmetic::mul::lemma_mul_strictly_positive(
+        (params.group_count_x * params.group_count_y) as int,
+        params.group_count_z as int,
+    );
 }
 
 /// Created pipeline is alive.

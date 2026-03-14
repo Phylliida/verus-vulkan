@@ -22,6 +22,9 @@ pub open spec fn STAGE_TASK_SHADER() -> nat { 12 }
 pub open spec fn STAGE_MESH_SHADER() -> nat { 13 }
 pub open spec fn STAGE_RAY_TRACING_SHADER() -> nat { 14 }
 pub open spec fn STAGE_FRAGMENT_SHADING_RATE_ATTACHMENT() -> nat { 15 }
+pub open spec fn STAGE_TESSELLATION_CONTROL_SHADER() -> nat { 16 }
+pub open spec fn STAGE_TESSELLATION_EVALUATION_SHADER() -> nat { 17 }
+pub open spec fn STAGE_GEOMETRY_SHADER() -> nat { 18 }
 
 /// A set of pipeline stages.
 pub struct PipelineStageFlags {

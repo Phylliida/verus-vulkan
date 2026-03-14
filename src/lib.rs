@@ -298,4 +298,49 @@ pub mod memory_domain;
 pub mod queue_family_ownership;
 
 #[cfg(verus_keep_ghost)]
+pub mod mesh_shading;
+
+#[cfg(verus_keep_ghost)]
+pub mod device_generated_commands;
+
+#[cfg(verus_keep_ghost)]
+pub mod pipeline_library;
+
+#[cfg(verus_keep_ghost)]
+pub mod descriptor_buffer;
+
+#[cfg(verus_keep_ghost)]
+pub mod host_image_copy;
+
+#[cfg(verus_keep_ghost)]
+pub mod video_decode;
+
+#[cfg(verus_keep_ghost)]
+pub mod cooperative_matrix;
+
+#[cfg(verus_keep_ghost)]
+pub mod maintenance;
+
+#[cfg(verus_keep_ghost)]
+pub mod dynamic_rendering_local_read;
+
+#[cfg(verus_keep_ghost)]
+pub mod end_to_end_workflows;
+
+#[cfg(verus_keep_ghost)]
+pub mod depth_clamp_control;
+
+#[cfg(verus_keep_ghost)]
+pub mod ray_tracing_maintenance;
+
+#[cfg(verus_keep_ghost)]
+pub mod fragment_shading_rate;
+
+#[cfg(verus_keep_ghost)]
+pub mod nested_command_buffers;
+
+#[cfg(verus_keep_ghost)]
+pub mod round3_composition_proofs;
+
+#[cfg(verus_keep_ghost)]
 pub mod runtime;

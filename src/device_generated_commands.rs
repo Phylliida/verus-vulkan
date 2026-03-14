@@ -78,13 +78,13 @@ pub open spec fn tokens_non_overlapping(
     stride: nat,
 ) -> bool {
     forall|i: int, j: int|
+        #![trigger tokens[i], tokens[j]]
         0 <= i < tokens.len() && 0 <= j < tokens.len() && i != j
         ==> {
             let ti = tokens[i];
             let tj = tokens[j];
             let si = token_size(ti.token_type);
             let sj = token_size(tj.token_type);
-            // Non-overlapping: one ends before the other starts
             ti.offset + si <= tj.offset || tj.offset + sj <= ti.offset
         }
 }
@@ -304,6 +304,10 @@ pub proof fn lemma_memory_requirement_positive(
         max_sequences > 0,
     ensures generated_commands_memory_requirement(layout, max_sequences) > 0,
 {
+    vstd::arithmetic::mul::lemma_mul_strictly_positive(
+        max_sequences as int,
+        layout.stride as int,
+    );
 }
 
 } // verus!
