@@ -602,7 +602,7 @@ pub open spec fn descriptor_set_safe_to_update(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> bool {
-    holds_exclusive(reg, set_id, thread)
+    holds_exclusive(reg, SyncObjectId::Handle(set_id), thread)
 }
 
 /// A descriptor set is not referenced by any in-flight (uncompleted) submission.
@@ -634,7 +634,7 @@ pub proof fn lemma_exclusive_access_enables_update(
     pending: Seq<SubmissionRecord>,
 )
     requires
-        holds_exclusive(reg, set_id, thread),
+        holds_exclusive(reg, SyncObjectId::Handle(set_id), thread),
         descriptor_set_not_in_flight(set_id, pending),
     ensures update_descriptor_safe(set_id, thread, reg, pending),
 {
@@ -649,7 +649,7 @@ pub proof fn lemma_idle_device_safe_to_update(
     pending: Seq<SubmissionRecord>,
 )
     requires
-        holds_exclusive(reg, set_id, thread),
+        holds_exclusive(reg, SyncObjectId::Handle(set_id), thread),
         forall|i: int| 0 <= i < pending.len() ==> (#[trigger] pending[i]).completed,
     ensures update_descriptor_safe(set_id, thread, reg, pending),
 {

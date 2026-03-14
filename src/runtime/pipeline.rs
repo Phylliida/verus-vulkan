@@ -91,7 +91,7 @@ pub fn destroy_graphics_pipeline_exec(
         // All pending submissions must be completed (pipeline may be referenced by any CB)
         forall|i: int| 0 <= i < dev@.pending_submissions.len()
             ==> (#[trigger] dev@.pending_submissions[i]).completed,
-        holds_exclusive(reg@, old(pipe)@.id, thread@),
+        holds_exclusive(reg@, SyncObjectId::Handle(old(pipe)@.id), thread@),
     ensures
         !pipe@.alive,
         pipe@.id == old(pipe)@.id,
@@ -116,7 +116,7 @@ pub fn destroy_compute_pipeline_exec(
         // All pending submissions must be completed (pipeline may be referenced by any CB)
         forall|i: int| 0 <= i < dev@.pending_submissions.len()
             ==> (#[trigger] dev@.pending_submissions[i]).completed,
-        holds_exclusive(reg@, old(pipe)@.id, thread@),
+        holds_exclusive(reg@, SyncObjectId::Handle(old(pipe)@.id), thread@),
     ensures
         !pipe@.alive,
         pipe@.id == old(pipe)@.id,
@@ -237,7 +237,7 @@ pub fn destroy_pipeline_layout_exec(
         runtime_pipeline_layout_wf(&*old(layout)),
         forall|i: int| 0 <= i < dev@.pending_submissions.len()
             ==> (#[trigger] dev@.pending_submissions[i]).completed,
-        holds_exclusive(reg@, old(layout)@.id, thread@),
+        holds_exclusive(reg@, SyncObjectId::Handle(old(layout)@.id), thread@),
     ensures
         !layout@.alive,
         layout@.id == old(layout)@.id,

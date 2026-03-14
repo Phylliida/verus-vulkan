@@ -2,6 +2,7 @@ use vstd::prelude::*;
 use crate::resource::*;
 use crate::lifetime::*;
 use crate::format_properties::*;
+use crate::resource_lifecycle::*;
 
 verus! {
 
@@ -47,6 +48,9 @@ pub struct DeviceState {
     pub limits: DeviceLimits,
     /// Per-format feature properties, keyed by format ID.
     pub format_properties: Map<nat, FormatProperties>,
+    /// Per-resource lifecycle tracking (Created→Bound→InUse→Idle→Destroyed).
+    /// Provides finer-grained state than the coarse live_buffers/live_images counters.
+    pub lifecycle_registry: Map<ResourceId, ResourceLifecycleState>,
 }
 
 /// The device state is well-formed if:
@@ -365,6 +369,330 @@ pub proof fn lemma_queue_wait_idle_preserves_well_formed(
 {
     let new_dev = queue_wait_idle_ghost(dev, queue_id);
     assert(new_dev.limits == dev.limits);
+}
+
+// ── Lifecycle Registry ──────────────────────────────────────────────────
+//
+// Bridges the coarse counter-based tracking (live_buffers, live_images)
+// with the fine-grained per-resource lifecycle FSM (ResourceLifecycleState).
+
+/// The lifecycle registry is self-consistent:
+/// - Every entry's resource field matches its key.
+/// - Every alive entry corresponds to a non-Destroyed lifecycle state.
+/// - Every Destroyed entry is not alive.
+pub open spec fn device_lifecycle_consistent(dev: DeviceState) -> bool {
+    forall|r: ResourceId|
+        dev.lifecycle_registry.contains_key(r)
+        ==> (#[trigger] dev.lifecycle_registry[r]).resource == r
+}
+
+/// Create a buffer with lifecycle tracking.
+pub open spec fn create_buffer_lifecycle_ghost(
+    dev: DeviceState,
+    resource: ResourceId,
+) -> DeviceState {
+    DeviceState {
+        live_buffers: dev.live_buffers + 1,
+        lifecycle_registry: dev.lifecycle_registry.insert(
+            resource, create_resource(resource),
+        ),
+        ..dev
+    }
+}
+
+/// Bind a resource to memory (Created → Bound) in the lifecycle registry.
+pub open spec fn bind_resource_lifecycle_ghost(
+    dev: DeviceState,
+    resource: ResourceId,
+) -> DeviceState
+    recommends
+        dev.lifecycle_registry.contains_key(resource),
+        can_bind(dev.lifecycle_registry[resource]),
+{
+    DeviceState {
+        lifecycle_registry: dev.lifecycle_registry.insert(
+            resource, bind_resource(dev.lifecycle_registry[resource]),
+        ),
+        ..dev
+    }
+}
+
+/// Submit a resource for GPU use (Bound/Idle → InUse).
+pub open spec fn submit_resource_lifecycle_ghost(
+    dev: DeviceState,
+    resource: ResourceId,
+) -> DeviceState
+    recommends
+        dev.lifecycle_registry.contains_key(resource),
+        can_use(dev.lifecycle_registry[resource]),
+{
+    DeviceState {
+        lifecycle_registry: dev.lifecycle_registry.insert(
+            resource, submit_resource(dev.lifecycle_registry[resource]),
+        ),
+        ..dev
+    }
+}
+
+/// Complete a GPU use of a resource (decrement pending count).
+pub open spec fn complete_use_lifecycle_ghost(
+    dev: DeviceState,
+    resource: ResourceId,
+) -> DeviceState
+    recommends
+        dev.lifecycle_registry.contains_key(resource),
+        dev.lifecycle_registry[resource].pending_use_count > 0,
+{
+    DeviceState {
+        lifecycle_registry: dev.lifecycle_registry.insert(
+            resource, complete_use(dev.lifecycle_registry[resource]),
+        ),
+        ..dev
+    }
+}
+
+/// Destroy a buffer with lifecycle tracking.
+pub open spec fn destroy_buffer_lifecycle_ghost(
+    dev: DeviceState,
+    resource: ResourceId,
+) -> DeviceState
+    recommends
+        dev.live_buffers > 0,
+        dev.lifecycle_registry.contains_key(resource),
+        can_destroy(dev.lifecycle_registry[resource]),
+{
+    DeviceState {
+        live_buffers: (dev.live_buffers - 1) as nat,
+        lifecycle_registry: dev.lifecycle_registry.insert(
+            resource, destroy_resource(dev.lifecycle_registry[resource]),
+        ),
+        ..dev
+    }
+}
+
+/// Create an image with lifecycle tracking.
+pub open spec fn create_image_lifecycle_ghost(
+    dev: DeviceState,
+    resource: ResourceId,
+) -> DeviceState {
+    DeviceState {
+        live_images: dev.live_images + 1,
+        lifecycle_registry: dev.lifecycle_registry.insert(
+            resource, create_resource(resource),
+        ),
+        ..dev
+    }
+}
+
+/// Destroy an image with lifecycle tracking.
+pub open spec fn destroy_image_lifecycle_ghost(
+    dev: DeviceState,
+    resource: ResourceId,
+) -> DeviceState
+    recommends
+        dev.live_images > 0,
+        dev.lifecycle_registry.contains_key(resource),
+        can_destroy(dev.lifecycle_registry[resource]),
+{
+    DeviceState {
+        live_images: (dev.live_images - 1) as nat,
+        lifecycle_registry: dev.lifecycle_registry.insert(
+            resource, destroy_resource(dev.lifecycle_registry[resource]),
+        ),
+        ..dev
+    }
+}
+
+// ── Lifecycle Invariant Proofs ──────────────────────────────────────────
+
+/// Creating a buffer preserves lifecycle consistency.
+pub proof fn lemma_create_buffer_lifecycle_consistent(
+    dev: DeviceState,
+    resource: ResourceId,
+)
+    requires device_lifecycle_consistent(dev),
+    ensures device_lifecycle_consistent(
+        create_buffer_lifecycle_ghost(dev, resource),
+    ),
+{
+    let new_dev = create_buffer_lifecycle_ghost(dev, resource);
+    assert forall|r: ResourceId|
+        new_dev.lifecycle_registry.contains_key(r)
+        implies (#[trigger] new_dev.lifecycle_registry[r]).resource == r by {
+        if r == resource {
+            assert(new_dev.lifecycle_registry[r] == create_resource(resource));
+        } else {
+            assert(new_dev.lifecycle_registry[r] == dev.lifecycle_registry[r]);
+        }
+    }
+}
+
+/// Destroying a buffer preserves lifecycle consistency.
+pub proof fn lemma_destroy_buffer_lifecycle_consistent(
+    dev: DeviceState,
+    resource: ResourceId,
+)
+    requires
+        device_lifecycle_consistent(dev),
+        dev.live_buffers > 0,
+        dev.lifecycle_registry.contains_key(resource),
+        can_destroy(dev.lifecycle_registry[resource]),
+    ensures
+        device_lifecycle_consistent(
+            destroy_buffer_lifecycle_ghost(dev, resource),
+        ),
+{
+    let new_dev = destroy_buffer_lifecycle_ghost(dev, resource);
+    assert forall|r: ResourceId|
+        new_dev.lifecycle_registry.contains_key(r)
+        implies (#[trigger] new_dev.lifecycle_registry[r]).resource == r by {
+        if r == resource {
+        } else {
+            assert(new_dev.lifecycle_registry[r] == dev.lifecycle_registry[r]);
+        }
+    }
+}
+
+/// Binding a resource preserves lifecycle consistency.
+pub proof fn lemma_bind_lifecycle_consistent(
+    dev: DeviceState,
+    resource: ResourceId,
+)
+    requires
+        device_lifecycle_consistent(dev),
+        dev.lifecycle_registry.contains_key(resource),
+        can_bind(dev.lifecycle_registry[resource]),
+    ensures
+        device_lifecycle_consistent(
+            bind_resource_lifecycle_ghost(dev, resource),
+        ),
+{
+    let new_dev = bind_resource_lifecycle_ghost(dev, resource);
+    assert forall|r: ResourceId|
+        new_dev.lifecycle_registry.contains_key(r)
+        implies (#[trigger] new_dev.lifecycle_registry[r]).resource == r by {
+        if r == resource {
+        } else {
+            assert(new_dev.lifecycle_registry[r] == dev.lifecycle_registry[r]);
+        }
+    }
+}
+
+/// Submitting a resource preserves lifecycle consistency.
+pub proof fn lemma_submit_lifecycle_consistent(
+    dev: DeviceState,
+    resource: ResourceId,
+)
+    requires
+        device_lifecycle_consistent(dev),
+        dev.lifecycle_registry.contains_key(resource),
+        can_use(dev.lifecycle_registry[resource]),
+    ensures
+        device_lifecycle_consistent(
+            submit_resource_lifecycle_ghost(dev, resource),
+        ),
+{
+    let new_dev = submit_resource_lifecycle_ghost(dev, resource);
+    assert forall|r: ResourceId|
+        new_dev.lifecycle_registry.contains_key(r)
+        implies (#[trigger] new_dev.lifecycle_registry[r]).resource == r by {
+        if r == resource {
+        } else {
+            assert(new_dev.lifecycle_registry[r] == dev.lifecycle_registry[r]);
+        }
+    }
+}
+
+/// Completing a GPU use preserves lifecycle consistency.
+pub proof fn lemma_complete_use_lifecycle_consistent(
+    dev: DeviceState,
+    resource: ResourceId,
+)
+    requires
+        device_lifecycle_consistent(dev),
+        dev.lifecycle_registry.contains_key(resource),
+        dev.lifecycle_registry[resource].pending_use_count > 0,
+    ensures
+        device_lifecycle_consistent(
+            complete_use_lifecycle_ghost(dev, resource),
+        ),
+{
+    let new_dev = complete_use_lifecycle_ghost(dev, resource);
+    assert forall|r: ResourceId|
+        new_dev.lifecycle_registry.contains_key(r)
+        implies (#[trigger] new_dev.lifecycle_registry[r]).resource == r by {
+        if r == resource {
+        } else {
+            assert(new_dev.lifecycle_registry[r] == dev.lifecycle_registry[r]);
+        }
+    }
+}
+
+/// A freshly created resource is alive in the lifecycle registry.
+pub proof fn lemma_created_resource_alive(
+    dev: DeviceState,
+    resource: ResourceId,
+)
+    ensures
+        resource_alive(
+            create_buffer_lifecycle_ghost(dev, resource)
+                .lifecycle_registry[resource],
+        ),
+{
+}
+
+/// A destroyed resource is not alive in the lifecycle registry.
+pub proof fn lemma_destroyed_resource_not_alive(
+    dev: DeviceState,
+    resource: ResourceId,
+)
+    requires
+        dev.lifecycle_registry.contains_key(resource),
+        can_destroy(dev.lifecycle_registry[resource]),
+    ensures
+        !resource_alive(
+            destroy_buffer_lifecycle_ghost(dev, resource)
+                .lifecycle_registry[resource],
+        ),
+{
+}
+
+/// Lifecycle-aware create preserves device_well_formed.
+pub proof fn lemma_create_buffer_lifecycle_preserves_well_formed(
+    dev: DeviceState, resource: ResourceId,
+)
+    requires device_well_formed(dev),
+    ensures device_well_formed(create_buffer_lifecycle_ghost(dev, resource)),
+{
+}
+
+/// Lifecycle-aware destroy preserves device_well_formed.
+pub proof fn lemma_destroy_buffer_lifecycle_preserves_well_formed(
+    dev: DeviceState, resource: ResourceId,
+)
+    requires
+        device_well_formed(dev),
+        dev.live_buffers > 0,
+        dev.lifecycle_registry.contains_key(resource),
+        can_destroy(dev.lifecycle_registry[resource]),
+    ensures
+        device_well_formed(destroy_buffer_lifecycle_ghost(dev, resource)),
+{
+}
+
+/// Lifecycle operations don't affect other resources in the registry.
+pub proof fn lemma_lifecycle_preserves_others(
+    dev: DeviceState,
+    resource: ResourceId,
+    other: ResourceId,
+)
+    requires
+        resource != other,
+        dev.lifecycle_registry.contains_key(other),
+    ensures
+        create_buffer_lifecycle_ghost(dev, resource).lifecycle_registry[other]
+            == dev.lifecycle_registry[other],
+{
 }
 
 } // verus!

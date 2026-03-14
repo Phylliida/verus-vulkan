@@ -50,7 +50,7 @@ pub fn destroy_rt_pipeline_exec(
         runtime_rt_pipeline_wf(&*old(pipe)),
         forall|i: int| 0 <= i < dev@.pending_submissions.len()
             ==> (#[trigger] dev@.pending_submissions[i]).completed,
-        holds_exclusive(reg@, old(pipe)@.id, thread@),
+        holds_exclusive(reg@, SyncObjectId::Handle(old(pipe)@.id), thread@),
     ensures
         pipe@ == destroy_rt_pipeline_ghost(old(pipe)@),
         !pipe@.alive,

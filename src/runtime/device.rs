@@ -52,6 +52,7 @@ pub open spec fn create_device_spec(
         live_descriptor_pools: 0,
         limits: limits,
         format_properties: format_properties,
+        lifecycle_registry: Map::empty(),
     }
 }
 
@@ -64,7 +65,7 @@ pub fn create_buffer_exec(
 )
     requires
         runtime_device_wf(&*old(dev)),
-        holds_exclusive(reg@, old(dev).device_id@, thread@),
+        holds_exclusive(reg@, SyncObjectId::Handle(old(dev).device_id@), thread@),
     ensures
         dev@ == create_buffer_ghost(old(dev)@),
         dev.device_id@ == old(dev).device_id@,
@@ -82,7 +83,7 @@ pub fn destroy_buffer_exec(
     requires
         runtime_device_wf(&*old(dev)),
         old(dev)@.live_buffers > 0,
-        holds_exclusive(reg@, old(dev).device_id@, thread@),
+        holds_exclusive(reg@, SyncObjectId::Handle(old(dev).device_id@), thread@),
     ensures
         dev@ == destroy_buffer_ghost(old(dev)@),
         dev.device_id@ == old(dev).device_id@,
@@ -99,7 +100,7 @@ pub fn create_image_exec(
 )
     requires
         runtime_device_wf(&*old(dev)),
-        holds_exclusive(reg@, old(dev).device_id@, thread@),
+        holds_exclusive(reg@, SyncObjectId::Handle(old(dev).device_id@), thread@),
     ensures
         dev@ == create_image_ghost(old(dev)@),
         dev.device_id@ == old(dev).device_id@,
@@ -117,7 +118,7 @@ pub fn destroy_image_exec(
     requires
         runtime_device_wf(&*old(dev)),
         old(dev)@.live_images > 0,
-        holds_exclusive(reg@, old(dev).device_id@, thread@),
+        holds_exclusive(reg@, SyncObjectId::Handle(old(dev).device_id@), thread@),
     ensures
         dev@ == destroy_image_ghost(old(dev)@),
         dev.device_id@ == old(dev).device_id@,
@@ -137,7 +138,7 @@ pub fn allocate_memory_exec(
     requires
         runtime_device_wf(&*old(dev)),
         heap_fits(old(dev)@, heap_idx as nat, size as nat),
-        holds_exclusive(reg@, old(dev).device_id@, thread@),
+        holds_exclusive(reg@, SyncObjectId::Handle(old(dev).device_id@), thread@),
     ensures
         dev@ == allocate_memory_ghost(old(dev)@, heap_idx as nat, size as nat),
         dev.device_id@ == old(dev).device_id@,
@@ -159,7 +160,7 @@ pub fn free_memory_exec(
         (heap_idx as nat) < old(dev)@.num_heaps,
         old(dev)@.heap_usage.contains_key(heap_idx as nat),
         size as nat <= old(dev)@.heap_usage[heap_idx as nat],
-        holds_exclusive(reg@, old(dev).device_id@, thread@),
+        holds_exclusive(reg@, SyncObjectId::Handle(old(dev).device_id@), thread@),
     ensures
         dev@ == free_memory_ghost(old(dev)@, heap_idx as nat, size as nat),
         dev.device_id@ == old(dev).device_id@,
@@ -176,7 +177,7 @@ pub fn device_wait_idle_exec(
 )
     requires
         runtime_device_wf(&*old(dev)),
-        holds_exclusive(reg@, old(dev).device_id@, thread@),
+        holds_exclusive(reg@, SyncObjectId::Handle(old(dev).device_id@), thread@),
     ensures
         dev@ == device_wait_idle_ghost(old(dev)@),
         dev.device_id@ == old(dev).device_id@,

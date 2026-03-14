@@ -49,7 +49,7 @@ pub fn signal_semaphore_exec(
 )
     requires
         runtime_semaphore_wf(&*old(sem)),
-        holds_exclusive(reg@, old(sem)@.id, thread@),
+        holds_exclusive(reg@, SyncObjectId::Handle(old(sem)@.id), thread@),
         // States must only cover referenced resources
         forall|r: ResourceId| states@.contains_key(r)
             ==> referenced_resources@.contains(r),
@@ -72,7 +72,7 @@ pub fn wait_semaphore_exec(
     requires
         runtime_semaphore_wf(&*old(sem)),
         old(sem)@.signaled,
-        holds_exclusive(reg@, old(sem)@.id, thread@),
+        holds_exclusive(reg@, SyncObjectId::Handle(old(sem)@.id), thread@),
     ensures
         sem@ == wait_semaphore_ghost(old(sem)@),
 {
@@ -91,7 +91,7 @@ pub fn destroy_semaphore_exec(
     requires
         runtime_semaphore_wf(&*old(sem)),
         semaphore_not_pending(old(sem)@.id, dev@.pending_submissions),
-        holds_exclusive(reg@, old(sem)@.id, thread@),
+        holds_exclusive(reg@, SyncObjectId::Handle(old(sem)@.id), thread@),
     ensures
         sem@ == destroy_semaphore_ghost(old(sem)@),
         !sem@.alive,

@@ -214,4 +214,161 @@ pub proof fn lemma_write_cover_implies_read_cover(
 {
 }
 
+// ── Barrier Chain Support ──────────────────────────────────────────────
+//
+// Vulkan allows synchronization through chains of barriers:
+// barrier A (src→mid) + barrier B (mid→dst) = valid sync from src to dst.
+// The specs below model 2-hop chains; single barriers are a special case.
+
+/// A 2-barrier chain for read synchronization.
+/// Barrier at index `i` covers write→mid, barrier at index `j` covers mid→dst.
+pub open spec fn barrier_chain_read_2(
+    log: BarrierLog,
+    state: SyncState,
+    dst_stage: nat,
+    dst_access: nat,
+    i: nat,
+    j: nat,
+    mid_stage: nat,
+    mid_access: nat,
+) -> bool {
+    i < log.len() && j < log.len()
+    && resource_overlap(log[i as int].resource, state.resource)
+    && resource_overlap(log[j as int].resource, state.resource)
+    // First barrier: write → mid
+    && stages_subset(state.write_stages, log[i as int].src_stages)
+    && access_subset(state.write_accesses, log[i as int].src_accesses)
+    && log[i as int].dst_stages.stages.contains(mid_stage)
+    && log[i as int].dst_accesses.accesses.contains(mid_access)
+    // Second barrier: mid → dst
+    && log[j as int].src_stages.stages.contains(mid_stage)
+    && log[j as int].src_accesses.accesses.contains(mid_access)
+    && log[j as int].dst_stages.stages.contains(dst_stage)
+    && log[j as int].dst_accesses.accesses.contains(dst_access)
+}
+
+/// Whether a 2-barrier chain exists for a read.
+pub open spec fn barrier_chain_exists_for_read_2(
+    log: BarrierLog,
+    state: SyncState,
+    dst_stage: nat,
+    dst_access: nat,
+) -> bool {
+    exists|i: nat, j: nat, mid_stage: nat, mid_access: nat|
+        #[trigger] barrier_chain_read_2(log, state, dst_stage, dst_access, i, j, mid_stage, mid_access)
+}
+
+/// A 2-barrier chain for write synchronization.
+/// Must cover both WAW (last write→mid→dst) and WAR (all reads→mid→dst).
+pub open spec fn barrier_chain_write_2(
+    log: BarrierLog,
+    state: SyncState,
+    dst_stage: nat,
+    dst_access: nat,
+    i: nat,
+    j: nat,
+    mid_stage: nat,
+    mid_access: nat,
+) -> bool {
+    i < log.len() && j < log.len()
+    && resource_overlap(log[i as int].resource, state.resource)
+    && resource_overlap(log[j as int].resource, state.resource)
+    // First barrier covers last writer AND all readers → mid
+    && stages_subset(state.write_stages, log[i as int].src_stages)
+    && access_subset(state.write_accesses, log[i as int].src_accesses)
+    && stages_subset(state.read_stages, log[i as int].src_stages)
+    && access_subset(state.read_accesses, log[i as int].src_accesses)
+    && log[i as int].dst_stages.stages.contains(mid_stage)
+    && log[i as int].dst_accesses.accesses.contains(mid_access)
+    // Second barrier: mid → dst
+    && log[j as int].src_stages.stages.contains(mid_stage)
+    && log[j as int].src_accesses.accesses.contains(mid_access)
+    && log[j as int].dst_stages.stages.contains(dst_stage)
+    && log[j as int].dst_accesses.accesses.contains(dst_access)
+}
+
+/// Whether a 2-barrier chain exists for a write.
+pub open spec fn barrier_chain_exists_for_write_2(
+    log: BarrierLog,
+    state: SyncState,
+    dst_stage: nat,
+    dst_access: nat,
+) -> bool {
+    exists|i: nat, j: nat, mid_stage: nat, mid_access: nat|
+        #[trigger] barrier_chain_write_2(log, state, dst_stage, dst_access, i, j, mid_stage, mid_access)
+}
+
+/// A resource is readable via chain: either never written, single barrier,
+/// or 2-barrier chain.
+pub open spec fn readable_chained(
+    log: BarrierLog,
+    state: SyncState,
+    dst_stage: nat,
+    dst_access: nat,
+) -> bool {
+    state.last_write.is_none()
+    || barrier_chain_exists_for_read(log, state, dst_stage, dst_access)
+    || barrier_chain_exists_for_read_2(log, state, dst_stage, dst_access)
+}
+
+/// A resource is writable via chain: either fresh with no readers,
+/// single barrier, or 2-barrier chain.
+pub open spec fn writable_chained(
+    log: BarrierLog,
+    state: SyncState,
+    dst_stage: nat,
+    dst_access: nat,
+) -> bool {
+    (state.last_write.is_none() && state.last_reads.len() == 0)
+    || barrier_chain_exists_for_write(log, state, dst_stage, dst_access)
+    || barrier_chain_exists_for_write_2(log, state, dst_stage, dst_access)
+}
+
+/// Single-barrier readable implies chain-readable (backward compatibility).
+pub proof fn lemma_single_implies_chain_read(
+    log: BarrierLog,
+    state: SyncState,
+    dst_stage: nat,
+    dst_access: nat,
+)
+    requires readable(log, state, dst_stage, dst_access),
+    ensures readable_chained(log, state, dst_stage, dst_access),
+{
+}
+
+/// Single-barrier writable implies chain-writable (backward compatibility).
+pub proof fn lemma_single_implies_chain_write(
+    log: BarrierLog,
+    state: SyncState,
+    dst_stage: nat,
+    dst_access: nat,
+)
+    requires writable(log, state, dst_stage, dst_access),
+    ensures writable_chained(log, state, dst_stage, dst_access),
+{
+}
+
+/// Chain-writable implies chain-readable.
+pub proof fn lemma_chain_writable_implies_chain_readable(
+    log: BarrierLog,
+    state: SyncState,
+    dst_stage: nat,
+    dst_access: nat,
+)
+    requires writable_chained(log, state, dst_stage, dst_access),
+    ensures readable_chained(log, state, dst_stage, dst_access),
+{
+    if state.last_write.is_none() && state.last_reads.len() == 0 {
+        // No writes → readable by first disjunct
+    } else if barrier_chain_exists_for_write(log, state, dst_stage, dst_access) {
+        let i: nat = choose|i: nat| barrier_covers_write(log, state, dst_stage, dst_access, i);
+        assert(barrier_covers_read(log, state, dst_stage, dst_access, i));
+    } else {
+        // 2-barrier chain: write chain subsumes read chain
+        let (i, j, ms, ma): (nat, nat, nat, nat) = choose|i: nat, j: nat, ms: nat, ma: nat|
+            barrier_chain_write_2(log, state, dst_stage, dst_access, i, j, ms, ma);
+        assert(barrier_chain_read_2(log, state, dst_stage, dst_access, i, j, ms, ma));
+    }
+}
+
 } // verus!

@@ -50,7 +50,7 @@ pub fn destroy_as_exec(
         runtime_as_wf(&*old(as_obj)),
         forall|i: int| 0 <= i < dev@.pending_submissions.len()
             ==> (#[trigger] dev@.pending_submissions[i]).completed,
-        holds_exclusive(reg@, old(as_obj)@.id, thread@),
+        holds_exclusive(reg@, SyncObjectId::Handle(old(as_obj)@.id), thread@),
     ensures
         as_obj@ == destroy_as_ghost(old(as_obj)@),
         !as_obj@.alive,

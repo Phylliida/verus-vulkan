@@ -150,7 +150,7 @@ pub fn release_ownership_exec(
         old(tracker)@.contains_key(resource@),
         old(tracker)@[resource@].owner == Some(src_family@),
         !old(tracker)@[resource@].release_pending,
-        holds_exclusive(reg@, queue_id@, thread@),
+        holds_exclusive(reg@, SyncObjectId::Queue(queue_id@), thread@),
     ensures
         tracker@ == old(tracker)@.insert(
             resource@,
@@ -179,7 +179,7 @@ pub fn acquire_ownership_exec(
     requires
         old(tracker)@.contains_key(resource@),
         transfer_valid(old(tracker)@[resource@], dst_family@),
-        holds_exclusive(reg@, queue_id@, thread@),
+        holds_exclusive(reg@, SyncObjectId::Queue(queue_id@), thread@),
     ensures
         tracker@ == old(tracker)@.insert(
             resource@,

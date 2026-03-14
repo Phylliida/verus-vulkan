@@ -49,7 +49,7 @@ pub open spec fn can_access_child(
     pool.children.contains(child_id)
     && (
         // Direct exclusive access to the child
-        holds_exclusive(reg, child_id, thread)
+        holds_exclusive(reg, SyncObjectId::Handle(child_id), thread)
         // Or implicit access via pool ownership
         || pool.owner == thread
     )
@@ -62,7 +62,7 @@ pub open spec fn can_mutate_pool(
     reg: TokenRegistry,
 ) -> bool {
     pool.owner == thread
-    && holds_exclusive(reg, pool.pool_id, thread)
+    && holds_exclusive(reg, SyncObjectId::CommandPool(pool.pool_id), thread)
 }
 
 /// Allocate a new child from the pool.
@@ -94,7 +94,7 @@ pub open spec fn pool_reset_safe(
 ) -> bool {
     // No child is exclusively held by any thread
     forall|child: nat| pool.children.contains(child)
-        ==> object_available(reg, child)
+        ==> object_available(reg, SyncObjectId::Handle(child))
 }
 
 /// After reset, the pool has no children.
@@ -185,11 +185,11 @@ pub open spec fn submit_from_pools_safe(
     reg: TokenRegistry,
 ) -> bool {
     // Submitter has exclusive queue access
-    holds_exclusive(reg, queue_id, submitter)
+    holds_exclusive(reg, SyncObjectId::Queue(queue_id), submitter)
     // All submitted CBs are not exclusively held by other threads
     && (forall|i: int| #![trigger cb_ids[i]]
         0 <= i < cb_ids.len() ==>
-        not_held_by_other(reg, cb_ids[i], submitter))
+        not_held_by_other(reg, SyncObjectId::Handle(cb_ids[i]), submitter))
 }
 
 // ── Proofs ──────────────────────────────────────────────────────────────
@@ -218,7 +218,7 @@ pub proof fn lemma_pool_mutate_requires_token(
     requires
         can_mutate_pool(pool, thread, reg),
     ensures
-        holds_exclusive(reg, pool.pool_id, thread),
+        holds_exclusive(reg, SyncObjectId::CommandPool(pool.pool_id), thread),
 {
 }
 
@@ -327,7 +327,7 @@ pub proof fn lemma_reset_safe_means_available(
         pool_reset_safe(pool, reg),
         pool.children.contains(child),
     ensures
-        object_available(reg, child),
+        object_available(reg, SyncObjectId::Handle(child)),
 {
 }
 
@@ -344,7 +344,7 @@ pub proof fn lemma_submit_exclusive_queue(
         submit_from_pools_safe(state, queue_id, submitter, cb_ids, reg),
         other != submitter,
     ensures
-        !holds_exclusive(reg, queue_id, other),
+        !holds_exclusive(reg, SyncObjectId::Queue(queue_id), other),
 {
 }
 

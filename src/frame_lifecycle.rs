@@ -70,7 +70,7 @@ pub open spec fn frame_lifecycle_valid(
             && inv.fence_states.contains_key(inv.frame.frame_fence)
             && !inv.fence_states[inv.frame.frame_fence].signaled
             // Thread holds exclusive queue access
-            && holds_exclusive(inv.reg, inv.queue.queue_id, inv.thread)
+            && holds_exclusive(inv.reg, SyncObjectId::Queue(inv.queue.queue_id), inv.thread)
         },
         FrameLifecycleState::Acquired => {
             // Image is now Acquired
@@ -78,13 +78,13 @@ pub open spec fn frame_lifecycle_valid(
             && inv.frame.image_index < inv.swapchain.image_states.len()
             && inv.swapchain.image_states[inv.frame.image_index as int]
                 == SwapchainImageState::Acquired
-            && holds_exclusive(inv.reg, inv.queue.queue_id, inv.thread)
+            && holds_exclusive(inv.reg, SyncObjectId::Queue(inv.queue.queue_id), inv.thread)
         },
         FrameLifecycleState::Recorded => {
             // Commands recorded, ready to submit
             frame_submission_well_formed(inv.frame)
             && inv.frame.image_index < inv.swapchain.image_states.len()
-            && holds_exclusive(inv.reg, inv.queue.queue_id, inv.thread)
+            && holds_exclusive(inv.reg, SyncObjectId::Queue(inv.queue.queue_id), inv.thread)
         },
         FrameLifecycleState::Submitted => {
             // Work submitted, fence associated
@@ -159,7 +159,7 @@ pub proof fn lemma_fence_wait_enables_cleanup(
         forall|i: int| 0 <= i < inv.dev.pending_submissions.len()
             ==> !inv.dev.pending_submissions[i].referenced_resources.contains(resource),
         // Thread still holds exclusive queue access
-        holds_exclusive(inv.reg, inv.queue.queue_id, inv.thread),
+        holds_exclusive(inv.reg, SyncObjectId::Queue(inv.queue.queue_id), inv.thread),
     ensures ({
         // After submit + fence wait, resource is safe to destroy
         let submit_result = submit_ghost(inv.queue, inv.frame.submit_info, inv.thread, inv.reg);

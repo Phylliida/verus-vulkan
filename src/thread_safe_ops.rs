@@ -163,14 +163,14 @@ pub open spec fn ts_submit(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<(QueueState, SubmissionRecord)> {
-    if holds_exclusive(reg, queue.queue_id, thread)
+    if holds_exclusive(reg, SyncObjectId::Queue(queue.queue_id), thread)
        // If a fence is specified, thread must have exclusive access to it
        && (info.fence_id.is_none()
-           || holds_exclusive(reg, info.fence_id.unwrap(), thread))
+           || holds_exclusive(reg, SyncObjectId::Handle(info.fence_id.unwrap()), thread))
        // All submitted CBs must not be held by another thread
        && (forall|i: int| #![trigger info.command_buffers[i]]
            0 <= i < info.command_buffers.len() ==>
-           not_held_by_other(reg, info.command_buffers[i], thread))
+           not_held_by_other(reg, SyncObjectId::Handle(info.command_buffers[i]), thread))
        // Base validation must pass (now includes resource liveness + threading checks)
        && submission_valid(info, cb_states, sem_states, fence_states, lifecycle_states, queue.queue_id, thread, reg)
     {
@@ -276,7 +276,7 @@ pub open spec fn ts_release_ownership(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<QueueFamilyOwnership> {
-    if holds_exclusive(reg, queue_id, thread) {
+    if holds_exclusive(reg, SyncObjectId::Queue(queue_id), thread) {
         Some(release_ownership(ownership, src_family, dst_family))
     } else {
         None
@@ -292,7 +292,7 @@ pub open spec fn ts_acquire_ownership(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<QueueFamilyOwnership> {
-    if holds_exclusive(reg, queue_id, thread)
+    if holds_exclusive(reg, SyncObjectId::Queue(queue_id), thread)
        && transfer_valid(ownership, dst_family)
     {
         Some(acquire_ownership(ownership, dst_family))
@@ -314,7 +314,7 @@ pub proof fn lemma_ts_begin_requires_exclusive_cb(
     reg: TokenRegistry,
 )
     requires ts_begin_recording(cb_state, cb_id, pool, thread, reg).is_some(),
-    ensures holds_exclusive(reg, cb_id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(cb_id), thread),
 {
 }
 
@@ -343,7 +343,7 @@ pub proof fn lemma_ts_submit_requires_queue_exclusive(
     reg: TokenRegistry,
 )
     requires ts_submit(queue, info, cb_states, sem_states, fence_states, lifecycle_states, thread, reg).is_some(),
-    ensures holds_exclusive(reg, queue.queue_id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Queue(queue.queue_id), thread),
 {
 }
 
@@ -363,7 +363,7 @@ pub proof fn lemma_ts_submit_blocks_others(
         ts_submit(queue, info, cb_states, sem_states, fence_states, lifecycle_states, thread, reg).is_some(),
         other != thread,
     ensures
-        !holds_exclusive(reg, queue.queue_id, other),
+        !holds_exclusive(reg, SyncObjectId::Queue(queue.queue_id), other),
 {
 }
 
@@ -383,7 +383,7 @@ pub proof fn lemma_ts_submit_cbs_not_held(
         ts_submit(queue, info, cb_states, sem_states, fence_states, lifecycle_states, thread, reg).is_some(),
         0 <= i < info.command_buffers.len(),
     ensures
-        not_held_by_other(reg, info.command_buffers[i], thread),
+        not_held_by_other(reg, SyncObjectId::Handle(info.command_buffers[i]), thread),
 {
 }
 
@@ -464,7 +464,7 @@ pub proof fn lemma_ts_release_requires_queue(
     requires
         ts_release_ownership(ownership, src_family, dst_family, queue_id, thread, reg).is_some(),
     ensures
-        holds_exclusive(reg, queue_id, thread),
+        holds_exclusive(reg, SyncObjectId::Queue(queue_id), thread),
 {
 }
 
@@ -482,12 +482,12 @@ pub proof fn lemma_parallel_recording_safe(
         thread1 != thread2,
         pool1.pool_id != pool2.pool_id,
         // Both threads hold exclusive access to their own pool
-        holds_exclusive(reg, pool1.pool_id, thread1),
-        holds_exclusive(reg, pool2.pool_id, thread2),
+        holds_exclusive(reg, SyncObjectId::CommandPool(pool1.pool_id), thread1),
+        holds_exclusive(reg, SyncObjectId::CommandPool(pool2.pool_id), thread2),
     ensures
         // Neither thread holds the other's pool
-        !holds_exclusive(reg, pool1.pool_id, thread2),
-        !holds_exclusive(reg, pool2.pool_id, thread1),
+        !holds_exclusive(reg, SyncObjectId::CommandPool(pool1.pool_id), thread2),
+        !holds_exclusive(reg, SyncObjectId::CommandPool(pool2.pool_id), thread1),
 {
     // pool1.pool_id: holder is thread1, so thread2 can't hold it
     // pool2.pool_id: holder is thread2, so thread1 can't hold it
@@ -521,7 +521,7 @@ pub open spec fn ts_reset_fence(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<FenceState> {
-    if holds_exclusive(reg, fence.id, thread) {
+    if holds_exclusive(reg, SyncObjectId::Handle(fence.id), thread) {
         Some(reset_fence_ghost(fence))
     } else {
         None
@@ -534,7 +534,7 @@ pub open spec fn ts_destroy_fence(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<FenceState> {
-    if holds_exclusive(reg, fence.id, thread) {
+    if holds_exclusive(reg, SyncObjectId::Handle(fence.id), thread) {
         Some(destroy_fence_ghost(fence))
     } else {
         None
@@ -549,7 +549,7 @@ pub open spec fn ts_destroy_semaphore(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<SemaphoreState> {
-    if holds_exclusive(reg, sem.id, thread) {
+    if holds_exclusive(reg, SyncObjectId::Handle(sem.id), thread) {
         Some(destroy_semaphore_ghost(sem))
     } else {
         None
@@ -565,7 +565,7 @@ pub open spec fn ts_set_event(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<EventState> {
-    if holds_exclusive(reg, event.id, thread) {
+    if holds_exclusive(reg, SyncObjectId::Handle(event.id), thread) {
         Some(set_event(event, stages))
     } else {
         None
@@ -578,7 +578,7 @@ pub open spec fn ts_reset_event(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<EventState> {
-    if holds_exclusive(reg, event.id, thread) {
+    if holds_exclusive(reg, SyncObjectId::Handle(event.id), thread) {
         Some(reset_event(event))
     } else {
         None
@@ -591,7 +591,7 @@ pub open spec fn ts_destroy_event(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<EventState> {
-    if holds_exclusive(reg, event.id, thread) {
+    if holds_exclusive(reg, SyncObjectId::Handle(event.id), thread) {
         Some(destroy_event(event))
     } else {
         None
@@ -608,7 +608,7 @@ pub open spec fn ts_reset_queries(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<QueryPoolState> {
-    if holds_exclusive(reg, pool.id, thread) {
+    if holds_exclusive(reg, SyncObjectId::Handle(pool.id), thread) {
         Some(reset_queries(pool, first, count))
     } else {
         None
@@ -625,7 +625,7 @@ pub open spec fn ts_map_memory(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<MemoryMapState> {
-    if holds_exclusive(reg, state.allocation_id, thread) {
+    if holds_exclusive(reg, SyncObjectId::Handle(state.allocation_id), thread) {
         Some(map_memory(state, offset, size))
     } else {
         None
@@ -638,7 +638,7 @@ pub open spec fn ts_unmap_memory(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<MemoryMapState> {
-    if holds_exclusive(reg, state.allocation_id, thread) {
+    if holds_exclusive(reg, SyncObjectId::Handle(state.allocation_id), thread) {
         Some(unmap_memory(state))
     } else {
         None
@@ -651,7 +651,7 @@ pub open spec fn ts_flush_memory(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<MemoryMapState> {
-    if holds_exclusive(reg, state.allocation_id, thread) {
+    if holds_exclusive(reg, SyncObjectId::Handle(state.allocation_id), thread) {
         Some(flush_memory(state))
     } else {
         None
@@ -664,7 +664,7 @@ pub open spec fn ts_invalidate_memory(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<MemoryMapState> {
-    if holds_exclusive(reg, state.allocation_id, thread) {
+    if holds_exclusive(reg, SyncObjectId::Handle(state.allocation_id), thread) {
         Some(invalidate_memory(state))
     } else {
         None
@@ -684,7 +684,7 @@ pub proof fn lemma_ts_reset_fence_requires_exclusive(
     reg: TokenRegistry,
 )
     requires ts_reset_fence(fence, thread, reg).is_some(),
-    ensures holds_exclusive(reg, fence.id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(fence.id), thread),
 {
 }
 
@@ -706,7 +706,7 @@ pub proof fn lemma_ts_destroy_fence_requires_exclusive(
     reg: TokenRegistry,
 )
     requires ts_destroy_fence(fence, thread, reg).is_some(),
-    ensures holds_exclusive(reg, fence.id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(fence.id), thread),
 {
 }
 
@@ -721,7 +721,7 @@ pub proof fn lemma_ts_reset_fence_blocks_others(
         ts_reset_fence(fence, thread, reg).is_some(),
         other != thread,
     ensures
-        !holds_exclusive(reg, fence.id, other),
+        !holds_exclusive(reg, SyncObjectId::Handle(fence.id), other),
 {
 }
 
@@ -734,7 +734,7 @@ pub proof fn lemma_ts_destroy_semaphore_requires_exclusive(
     reg: TokenRegistry,
 )
     requires ts_destroy_semaphore(sem, thread, reg).is_some(),
-    ensures holds_exclusive(reg, sem.id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(sem.id), thread),
 {
 }
 
@@ -748,7 +748,7 @@ pub proof fn lemma_ts_set_event_requires_exclusive(
     reg: TokenRegistry,
 )
     requires ts_set_event(event, stages, thread, reg).is_some(),
-    ensures holds_exclusive(reg, event.id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(event.id), thread),
 {
 }
 
@@ -759,7 +759,7 @@ pub proof fn lemma_ts_reset_event_requires_exclusive(
     reg: TokenRegistry,
 )
     requires ts_reset_event(event, thread, reg).is_some(),
-    ensures holds_exclusive(reg, event.id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(event.id), thread),
 {
 }
 
@@ -770,7 +770,7 @@ pub proof fn lemma_ts_destroy_event_requires_exclusive(
     reg: TokenRegistry,
 )
     requires ts_destroy_event(event, thread, reg).is_some(),
-    ensures holds_exclusive(reg, event.id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(event.id), thread),
 {
 }
 
@@ -781,7 +781,7 @@ pub proof fn lemma_ts_set_then_reset_unsignaled(
     thread: ThreadId,
     reg: TokenRegistry,
 )
-    requires holds_exclusive(reg, event.id, thread),
+    requires holds_exclusive(reg, SyncObjectId::Handle(event.id), thread),
     ensures ({
         let after_set = ts_set_event(event, stages, thread, reg).unwrap();
         ts_reset_event(after_set, thread, reg).is_some()
@@ -801,7 +801,7 @@ pub proof fn lemma_ts_reset_queries_requires_exclusive(
     reg: TokenRegistry,
 )
     requires ts_reset_queries(pool, first, count, thread, reg).is_some(),
-    ensures holds_exclusive(reg, pool.id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(pool.id), thread),
 {
 }
 
@@ -829,7 +829,7 @@ pub proof fn lemma_ts_map_memory_requires_exclusive(
     reg: TokenRegistry,
 )
     requires ts_map_memory(state, offset, size, thread, reg).is_some(),
-    ensures holds_exclusive(reg, state.allocation_id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(state.allocation_id), thread),
 {
 }
 
@@ -840,7 +840,7 @@ pub proof fn lemma_ts_unmap_memory_requires_exclusive(
     reg: TokenRegistry,
 )
     requires ts_unmap_memory(state, thread, reg).is_some(),
-    ensures holds_exclusive(reg, state.allocation_id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(state.allocation_id), thread),
 {
 }
 
@@ -851,7 +851,7 @@ pub proof fn lemma_ts_flush_memory_requires_exclusive(
     reg: TokenRegistry,
 )
     requires ts_flush_memory(state, thread, reg).is_some(),
-    ensures holds_exclusive(reg, state.allocation_id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(state.allocation_id), thread),
 {
 }
 
@@ -862,7 +862,7 @@ pub proof fn lemma_ts_invalidate_memory_requires_exclusive(
     reg: TokenRegistry,
 )
     requires ts_invalidate_memory(state, thread, reg).is_some(),
-    ensures holds_exclusive(reg, state.allocation_id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(state.allocation_id), thread),
 {
 }
 
@@ -874,7 +874,7 @@ pub proof fn lemma_ts_map_unmap_roundtrip(
     thread: ThreadId,
     reg: TokenRegistry,
 )
-    requires holds_exclusive(reg, state.allocation_id, thread),
+    requires holds_exclusive(reg, SyncObjectId::Handle(state.allocation_id), thread),
     ensures ({
         let mapped = ts_map_memory(state, offset, size, thread, reg).unwrap();
         ts_unmap_memory(mapped, thread, reg).is_some()
@@ -889,7 +889,7 @@ pub proof fn lemma_ts_flush_makes_visible(
     thread: ThreadId,
     reg: TokenRegistry,
 )
-    requires holds_exclusive(reg, state.allocation_id, thread),
+    requires holds_exclusive(reg, SyncObjectId::Handle(state.allocation_id), thread),
     ensures host_writes_visible(ts_flush_memory(state, thread, reg).unwrap()),
 {
 }
@@ -938,7 +938,7 @@ pub open spec fn ts_bind_resource(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<ResourceLifecycleState> {
-    if holds_exclusive(reg, resource_sync_id(state.resource), thread)
+    if holds_exclusive(reg, SyncObjectId::Resource(state.resource), thread)
        && can_bind(state)
     {
         Some(bind_resource(state))
@@ -953,7 +953,7 @@ pub open spec fn ts_submit_resource(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<ResourceLifecycleState> {
-    if holds_exclusive(reg, resource_sync_id(state.resource), thread)
+    if holds_exclusive(reg, SyncObjectId::Resource(state.resource), thread)
        && can_use(state)
     {
         Some(submit_resource(state))
@@ -968,7 +968,7 @@ pub open spec fn ts_complete_use(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<ResourceLifecycleState> {
-    if holds_exclusive(reg, resource_sync_id(state.resource), thread)
+    if holds_exclusive(reg, SyncObjectId::Resource(state.resource), thread)
        && state.pending_use_count > 0
     {
         Some(complete_use(state))
@@ -983,7 +983,7 @@ pub open spec fn ts_destroy_resource(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<ResourceLifecycleState> {
-    if holds_exclusive(reg, resource_sync_id(state.resource), thread)
+    if holds_exclusive(reg, SyncObjectId::Resource(state.resource), thread)
        && can_destroy(state)
     {
         Some(destroy_resource(state))
@@ -998,7 +998,7 @@ pub proof fn lemma_ts_bind_resource_requires_exclusive(
     state: ResourceLifecycleState, thread: ThreadId, reg: TokenRegistry,
 )
     requires ts_bind_resource(state, thread, reg).is_some(),
-    ensures holds_exclusive(reg, resource_sync_id(state.resource), thread),
+    ensures holds_exclusive(reg, SyncObjectId::Resource(state.resource), thread),
 {
 }
 
@@ -1006,7 +1006,7 @@ pub proof fn lemma_ts_submit_resource_requires_exclusive(
     state: ResourceLifecycleState, thread: ThreadId, reg: TokenRegistry,
 )
     requires ts_submit_resource(state, thread, reg).is_some(),
-    ensures holds_exclusive(reg, resource_sync_id(state.resource), thread),
+    ensures holds_exclusive(reg, SyncObjectId::Resource(state.resource), thread),
 {
 }
 
@@ -1014,7 +1014,7 @@ pub proof fn lemma_ts_complete_use_requires_exclusive(
     state: ResourceLifecycleState, thread: ThreadId, reg: TokenRegistry,
 )
     requires ts_complete_use(state, thread, reg).is_some(),
-    ensures holds_exclusive(reg, resource_sync_id(state.resource), thread),
+    ensures holds_exclusive(reg, SyncObjectId::Resource(state.resource), thread),
 {
 }
 
@@ -1022,7 +1022,7 @@ pub proof fn lemma_ts_destroy_resource_requires_exclusive(
     state: ResourceLifecycleState, thread: ThreadId, reg: TokenRegistry,
 )
     requires ts_destroy_resource(state, thread, reg).is_some(),
-    ensures holds_exclusive(reg, resource_sync_id(state.resource), thread),
+    ensures holds_exclusive(reg, SyncObjectId::Resource(state.resource), thread),
 {
 }
 
@@ -1037,7 +1037,7 @@ pub open spec fn ts_acquire_image(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<SwapchainState> {
-    if holds_exclusive(reg, swapchain.id, thread) {
+    if holds_exclusive(reg, SyncObjectId::Handle(swapchain.id), thread) {
         acquire_image(swapchain, idx)
     } else {
         None
@@ -1051,7 +1051,7 @@ pub open spec fn ts_present_image(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<SwapchainState> {
-    if holds_exclusive(reg, swapchain.id, thread) {
+    if holds_exclusive(reg, SyncObjectId::Handle(swapchain.id), thread) {
         present_image(swapchain, idx)
     } else {
         None
@@ -1064,7 +1064,7 @@ pub proof fn lemma_ts_acquire_image_requires_exclusive(
     swapchain: SwapchainState, idx: nat, thread: ThreadId, reg: TokenRegistry,
 )
     requires ts_acquire_image(swapchain, idx, thread, reg).is_some(),
-    ensures holds_exclusive(reg, swapchain.id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(swapchain.id), thread),
 {
 }
 
@@ -1072,7 +1072,7 @@ pub proof fn lemma_ts_present_image_requires_exclusive(
     swapchain: SwapchainState, idx: nat, thread: ThreadId, reg: TokenRegistry,
 )
     requires ts_present_image(swapchain, idx, thread, reg).is_some(),
-    ensures holds_exclusive(reg, swapchain.id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(swapchain.id), thread),
 {
 }
 
@@ -1089,7 +1089,7 @@ pub open spec fn ts_allocate_memory(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<DeviceState> {
-    if holds_exclusive(reg, device_id, thread) {
+    if holds_exclusive(reg, SyncObjectId::Handle(device_id), thread) {
         Some(allocate_memory_ghost(dev, heap_idx, size))
     } else {
         None
@@ -1105,7 +1105,7 @@ pub open spec fn ts_free_memory(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<DeviceState> {
-    if holds_exclusive(reg, device_id, thread) {
+    if holds_exclusive(reg, SyncObjectId::Handle(device_id), thread) {
         Some(free_memory_ghost(dev, heap_idx, size))
     } else {
         None
@@ -1119,7 +1119,7 @@ pub open spec fn ts_create_buffer(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<DeviceState> {
-    if holds_exclusive(reg, device_id, thread) {
+    if holds_exclusive(reg, SyncObjectId::Handle(device_id), thread) {
         Some(create_buffer_ghost(dev))
     } else {
         None
@@ -1133,7 +1133,7 @@ pub open spec fn ts_destroy_buffer(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<DeviceState> {
-    if holds_exclusive(reg, device_id, thread) {
+    if holds_exclusive(reg, SyncObjectId::Handle(device_id), thread) {
         Some(destroy_buffer_ghost(dev))
     } else {
         None
@@ -1147,7 +1147,7 @@ pub open spec fn ts_create_image(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<DeviceState> {
-    if holds_exclusive(reg, device_id, thread) {
+    if holds_exclusive(reg, SyncObjectId::Handle(device_id), thread) {
         Some(create_image_ghost(dev))
     } else {
         None
@@ -1161,7 +1161,7 @@ pub open spec fn ts_destroy_image(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<DeviceState> {
-    if holds_exclusive(reg, device_id, thread) {
+    if holds_exclusive(reg, SyncObjectId::Handle(device_id), thread) {
         Some(destroy_image_ghost(dev))
     } else {
         None
@@ -1174,7 +1174,7 @@ pub proof fn lemma_ts_allocate_memory_requires_exclusive(
     dev: DeviceState, heap_idx: nat, size: nat, device_id: nat, thread: ThreadId, reg: TokenRegistry,
 )
     requires ts_allocate_memory(dev, heap_idx, size, device_id, thread, reg).is_some(),
-    ensures holds_exclusive(reg, device_id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(device_id), thread),
 {
 }
 
@@ -1182,7 +1182,7 @@ pub proof fn lemma_ts_free_memory_requires_exclusive(
     dev: DeviceState, heap_idx: nat, size: nat, device_id: nat, thread: ThreadId, reg: TokenRegistry,
 )
     requires ts_free_memory(dev, heap_idx, size, device_id, thread, reg).is_some(),
-    ensures holds_exclusive(reg, device_id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(device_id), thread),
 {
 }
 
@@ -1190,7 +1190,7 @@ pub proof fn lemma_ts_create_buffer_requires_exclusive(
     dev: DeviceState, device_id: nat, thread: ThreadId, reg: TokenRegistry,
 )
     requires ts_create_buffer(dev, device_id, thread, reg).is_some(),
-    ensures holds_exclusive(reg, device_id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(device_id), thread),
 {
 }
 
@@ -1198,7 +1198,7 @@ pub proof fn lemma_ts_destroy_buffer_requires_exclusive(
     dev: DeviceState, device_id: nat, thread: ThreadId, reg: TokenRegistry,
 )
     requires ts_destroy_buffer(dev, device_id, thread, reg).is_some(),
-    ensures holds_exclusive(reg, device_id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(device_id), thread),
 {
 }
 
@@ -1206,7 +1206,7 @@ pub proof fn lemma_ts_create_image_requires_exclusive(
     dev: DeviceState, device_id: nat, thread: ThreadId, reg: TokenRegistry,
 )
     requires ts_create_image(dev, device_id, thread, reg).is_some(),
-    ensures holds_exclusive(reg, device_id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(device_id), thread),
 {
 }
 
@@ -1214,7 +1214,7 @@ pub proof fn lemma_ts_destroy_image_requires_exclusive(
     dev: DeviceState, device_id: nat, thread: ThreadId, reg: TokenRegistry,
 )
     requires ts_destroy_image(dev, device_id, thread, reg).is_some(),
-    ensures holds_exclusive(reg, device_id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(device_id), thread),
 {
 }
 
@@ -1230,7 +1230,7 @@ pub open spec fn ts_bind_buffer_memory(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<BufferState> {
-    if holds_exclusive(reg, buf.id, thread) {
+    if holds_exclusive(reg, SyncObjectId::Handle(buf.id), thread) {
         Some(bind_buffer_memory(buf, allocation_id, offset))
     } else {
         None
@@ -1245,7 +1245,7 @@ pub open spec fn ts_bind_image_memory(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<ImageState> {
-    if holds_exclusive(reg, img.id, thread) {
+    if holds_exclusive(reg, SyncObjectId::Handle(img.id), thread) {
         Some(bind_image_memory(img, allocation_id, offset))
     } else {
         None
@@ -1260,7 +1260,7 @@ pub open spec fn ts_transition_image_layout(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<ImageState> {
-    if holds_exclusive(reg, img.id, thread) {
+    if holds_exclusive(reg, SyncObjectId::Handle(img.id), thread) {
         Some(transition_image_layout(img, sub, new_layout))
     } else {
         None
@@ -1273,7 +1273,7 @@ pub proof fn lemma_ts_bind_buffer_memory_requires_exclusive(
     buf: BufferState, allocation_id: nat, offset: nat, thread: ThreadId, reg: TokenRegistry,
 )
     requires ts_bind_buffer_memory(buf, allocation_id, offset, thread, reg).is_some(),
-    ensures holds_exclusive(reg, buf.id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(buf.id), thread),
 {
 }
 
@@ -1281,7 +1281,7 @@ pub proof fn lemma_ts_bind_image_memory_requires_exclusive(
     img: ImageState, allocation_id: nat, offset: nat, thread: ThreadId, reg: TokenRegistry,
 )
     requires ts_bind_image_memory(img, allocation_id, offset, thread, reg).is_some(),
-    ensures holds_exclusive(reg, img.id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(img.id), thread),
 {
 }
 
@@ -1289,7 +1289,7 @@ pub proof fn lemma_ts_transition_image_layout_requires_exclusive(
     img: ImageState, sub: ImageSubresource, new_layout: ImageLayout, thread: ThreadId, reg: TokenRegistry,
 )
     requires ts_transition_image_layout(img, sub, new_layout, thread, reg).is_some(),
-    ensures holds_exclusive(reg, img.id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(img.id), thread),
 {
 }
 
@@ -1303,7 +1303,7 @@ pub open spec fn ts_ring_acquire(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<RingBufferState> {
-    if holds_exclusive(reg, ring.id, thread)
+    if holds_exclusive(reg, SyncObjectId::Handle(ring.id), thread)
        && ring_well_formed(ring)
        && frames_in_flight(ring) + 1 < ring.capacity
     {
@@ -1319,7 +1319,7 @@ pub open spec fn ts_ring_retire(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<RingBufferState> {
-    if holds_exclusive(reg, ring.id, thread)
+    if holds_exclusive(reg, SyncObjectId::Handle(ring.id), thread)
        && ring_well_formed(ring)
        && frames_in_flight(ring) > 0
     {
@@ -1335,7 +1335,7 @@ pub proof fn lemma_ts_ring_acquire_requires_exclusive(
     ring: RingBufferState, thread: ThreadId, reg: TokenRegistry,
 )
     requires ts_ring_acquire(ring, thread, reg).is_some(),
-    ensures holds_exclusive(reg, ring.id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(ring.id), thread),
 {
 }
 
@@ -1343,7 +1343,7 @@ pub proof fn lemma_ts_ring_retire_requires_exclusive(
     ring: RingBufferState, thread: ThreadId, reg: TokenRegistry,
 )
     requires ts_ring_retire(ring, thread, reg).is_some(),
-    ensures holds_exclusive(reg, ring.id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(ring.id), thread),
 {
 }
 
@@ -1358,7 +1358,7 @@ pub open spec fn ts_timeline_submit_signal(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<TimelineSemaphoreState> {
-    if holds_exclusive(reg, sem.id, thread)
+    if holds_exclusive(reg, SyncObjectId::Handle(sem.id), thread)
        && signal_value_valid(sem, value)
     {
         Some(submit_signal(sem, value))
@@ -1374,7 +1374,7 @@ pub open spec fn ts_timeline_submit_wait(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<TimelineSemaphoreState> {
-    if holds_exclusive(reg, sem.id, thread) {
+    if holds_exclusive(reg, SyncObjectId::Handle(sem.id), thread) {
         Some(submit_wait(sem, value))
     } else {
         None
@@ -1388,7 +1388,7 @@ pub open spec fn ts_timeline_host_wait(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<TimelineSemaphoreState> {
-    if holds_exclusive(reg, sem.id, thread)
+    if holds_exclusive(reg, SyncObjectId::Handle(sem.id), thread)
        && wait_satisfied(sem, value)
     {
         Some(host_wait(sem, value))
@@ -1403,7 +1403,7 @@ pub proof fn lemma_ts_timeline_submit_signal_requires_exclusive(
     sem: TimelineSemaphoreState, value: nat, thread: ThreadId, reg: TokenRegistry,
 )
     requires ts_timeline_submit_signal(sem, value, thread, reg).is_some(),
-    ensures holds_exclusive(reg, sem.id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(sem.id), thread),
 {
 }
 
@@ -1411,7 +1411,7 @@ pub proof fn lemma_ts_timeline_submit_wait_requires_exclusive(
     sem: TimelineSemaphoreState, value: nat, thread: ThreadId, reg: TokenRegistry,
 )
     requires ts_timeline_submit_wait(sem, value, thread, reg).is_some(),
-    ensures holds_exclusive(reg, sem.id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(sem.id), thread),
 {
 }
 
@@ -1419,7 +1419,7 @@ pub proof fn lemma_ts_timeline_host_wait_requires_exclusive(
     sem: TimelineSemaphoreState, value: nat, thread: ThreadId, reg: TokenRegistry,
 )
     requires ts_timeline_host_wait(sem, value, thread, reg).is_some(),
-    ensures holds_exclusive(reg, sem.id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(sem.id), thread),
 {
 }
 
@@ -1433,7 +1433,7 @@ pub open spec fn ts_allocate_from_pool(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<DescriptorPoolState> {
-    if holds_exclusive(reg, pool.id, thread)
+    if holds_exclusive(reg, SyncObjectId::Handle(pool.id), thread)
        && pool_can_allocate(pool)
     {
         Some(allocate_from_pool(pool))
@@ -1448,7 +1448,7 @@ pub open spec fn ts_free_to_pool(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<DescriptorPoolState> {
-    if holds_exclusive(reg, pool.id, thread)
+    if holds_exclusive(reg, SyncObjectId::Handle(pool.id), thread)
        && pool.allocated_sets > 0
     {
         Some(free_to_pool(pool))
@@ -1463,7 +1463,7 @@ pub proof fn lemma_ts_allocate_from_pool_requires_exclusive(
     pool: DescriptorPoolState, thread: ThreadId, reg: TokenRegistry,
 )
     requires ts_allocate_from_pool(pool, thread, reg).is_some(),
-    ensures holds_exclusive(reg, pool.id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(pool.id), thread),
 {
 }
 
@@ -1471,7 +1471,7 @@ pub proof fn lemma_ts_free_to_pool_requires_exclusive(
     pool: DescriptorPoolState, thread: ThreadId, reg: TokenRegistry,
 )
     requires ts_free_to_pool(pool, thread, reg).is_some(),
-    ensures holds_exclusive(reg, pool.id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(pool.id), thread),
 {
 }
 
@@ -2034,7 +2034,7 @@ pub open spec fn ts_execute_secondary(
     if can_access_child(pool, cb_id, thread, reg)
        && secondary.executable
        && assumptions_satisfied(secondary.assumptions, primary_ctx, rp)
-       && not_held_by_other(reg, secondary_cb_id, thread)
+       && not_held_by_other(reg, SyncObjectId::Handle(secondary_cb_id), thread)
     {
         Some(execute_secondary(primary_ctx, secondary))
     } else {
@@ -2060,7 +2060,7 @@ pub open spec fn ts_execute_n_secondaries(
         0 <= i < secondaries.len() ==>
         secondaries[i].executable
         && assumptions_satisfied(secondaries[i].assumptions, primary_ctx, rp)
-        && not_held_by_other(reg, secondary_cb_ids[i], thread))
+        && not_held_by_other(reg, SyncObjectId::Handle(secondary_cb_ids[i]), thread))
 }
 
 /// Executing a secondary requires the secondary to be executable.
@@ -2122,7 +2122,7 @@ pub open spec fn ts_device_wait_idle(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<DeviceState> {
-    if holds_exclusive(reg, device_id, thread) {
+    if holds_exclusive(reg, SyncObjectId::Handle(device_id), thread) {
         Some(device_wait_idle_ghost(dev))
     } else {
         None
@@ -2136,7 +2136,7 @@ pub open spec fn ts_queue_wait_idle(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<DeviceState> {
-    if holds_exclusive(reg, queue_id, thread) {
+    if holds_exclusive(reg, SyncObjectId::Queue(queue_id), thread) {
         Some(queue_wait_idle_ghost(dev, queue_id))
     } else {
         None
@@ -2190,7 +2190,7 @@ pub proof fn lemma_ts_device_wait_idle_requires_exclusive(
     reg: TokenRegistry,
 )
     requires ts_device_wait_idle(dev, device_id, thread, reg).is_some(),
-    ensures holds_exclusive(reg, device_id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(device_id), thread),
 {
 }
 
@@ -3021,7 +3021,7 @@ pub open spec fn ts_check_resource_budget(
     device_id: nat,
     thread: ThreadId, reg: TokenRegistry,
 ) -> Option<()> {
-    if holds_exclusive(reg, device_id, thread)
+    if holds_exclusive(reg, SyncObjectId::Handle(device_id), thread)
         && within_budget(dev, budget)
     {
         Some(())
@@ -3090,7 +3090,7 @@ pub open spec fn ts_hot_reload(
     device_id: nat,
     thread: ThreadId, reg: TokenRegistry,
 ) -> Option<()> {
-    if holds_exclusive(reg, device_id, thread)
+    if holds_exclusive(reg, SyncObjectId::Handle(device_id), thread)
         && hot_reload_valid(request, old_vertex_interface, old_fragment_interface)
         && safe_to_swap(submissions, request.old_pipeline_id)
     {
@@ -3240,7 +3240,7 @@ pub open spec fn ts_destroy_graphics_pipeline(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<GraphicsPipelineState> {
-    if holds_exclusive(reg, pipeline.id, thread) {
+    if holds_exclusive(reg, SyncObjectId::Handle(pipeline.id), thread) {
         Some(destroy_graphics_pipeline_ghost(pipeline))
     } else {
         None
@@ -3254,7 +3254,7 @@ pub proof fn lemma_ts_destroy_graphics_pipeline_requires_exclusive(
     reg: TokenRegistry,
 )
     requires ts_destroy_graphics_pipeline(pipeline, thread, reg).is_some(),
-    ensures holds_exclusive(reg, pipeline.id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(pipeline.id), thread),
 {
 }
 
@@ -3277,7 +3277,7 @@ pub open spec fn ts_destroy_compute_pipeline(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<ComputePipelineState> {
-    if holds_exclusive(reg, pipeline.id, thread) {
+    if holds_exclusive(reg, SyncObjectId::Handle(pipeline.id), thread) {
         Some(destroy_compute_pipeline_ghost(pipeline))
     } else {
         None
@@ -3291,7 +3291,7 @@ pub proof fn lemma_ts_destroy_compute_pipeline_requires_exclusive(
     reg: TokenRegistry,
 )
     requires ts_destroy_compute_pipeline(pipeline, thread, reg).is_some(),
-    ensures holds_exclusive(reg, pipeline.id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(pipeline.id), thread),
 {
 }
 
@@ -3314,7 +3314,7 @@ pub open spec fn ts_destroy_framebuffer(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<FramebufferState> {
-    if holds_exclusive(reg, fb.id, thread) {
+    if holds_exclusive(reg, SyncObjectId::Handle(fb.id), thread) {
         Some(destroy_framebuffer_ghost(fb))
     } else {
         None
@@ -3328,7 +3328,7 @@ pub proof fn lemma_ts_destroy_framebuffer_requires_exclusive(
     reg: TokenRegistry,
 )
     requires ts_destroy_framebuffer(fb, thread, reg).is_some(),
-    ensures holds_exclusive(reg, fb.id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(fb.id), thread),
 {
 }
 
@@ -3351,7 +3351,7 @@ pub open spec fn ts_destroy_image_view(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<ImageViewState> {
-    if holds_exclusive(reg, view.id, thread) {
+    if holds_exclusive(reg, SyncObjectId::Handle(view.id), thread) {
         Some(destroy_image_view_ghost(view))
     } else {
         None
@@ -3365,7 +3365,7 @@ pub proof fn lemma_ts_destroy_image_view_requires_exclusive(
     reg: TokenRegistry,
 )
     requires ts_destroy_image_view(view, thread, reg).is_some(),
-    ensures holds_exclusive(reg, view.id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(view.id), thread),
 {
 }
 
@@ -3388,7 +3388,7 @@ pub open spec fn ts_destroy_descriptor_pool(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<DescriptorPoolState> {
-    if holds_exclusive(reg, pool.id, thread) {
+    if holds_exclusive(reg, SyncObjectId::Handle(pool.id), thread) {
         Some(destroy_descriptor_pool_ghost(pool))
     } else {
         None
@@ -3402,7 +3402,7 @@ pub proof fn lemma_ts_destroy_descriptor_pool_requires_exclusive(
     reg: TokenRegistry,
 )
     requires ts_destroy_descriptor_pool(pool, thread, reg).is_some(),
-    ensures holds_exclusive(reg, pool.id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(pool.id), thread),
 {
 }
 
@@ -3425,7 +3425,7 @@ pub open spec fn ts_destroy_descriptor_set_layout(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<DescriptorSetLayoutState> {
-    if holds_exclusive(reg, layout.id, thread) {
+    if holds_exclusive(reg, SyncObjectId::Handle(layout.id), thread) {
         Some(destroy_descriptor_set_layout_ghost(layout))
     } else {
         None
@@ -3439,7 +3439,7 @@ pub proof fn lemma_ts_destroy_descriptor_set_layout_requires_exclusive(
     reg: TokenRegistry,
 )
     requires ts_destroy_descriptor_set_layout(layout, thread, reg).is_some(),
-    ensures holds_exclusive(reg, layout.id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(layout.id), thread),
 {
 }
 
@@ -3462,7 +3462,7 @@ pub open spec fn ts_destroy_sampler(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<SamplerState> {
-    if holds_exclusive(reg, sampler.id, thread) {
+    if holds_exclusive(reg, SyncObjectId::Handle(sampler.id), thread) {
         Some(destroy_sampler_ghost(sampler))
     } else {
         None
@@ -3476,7 +3476,7 @@ pub proof fn lemma_ts_destroy_sampler_requires_exclusive(
     reg: TokenRegistry,
 )
     requires ts_destroy_sampler(sampler, thread, reg).is_some(),
-    ensures holds_exclusive(reg, sampler.id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(sampler.id), thread),
 {
 }
 
@@ -3500,7 +3500,7 @@ pub open spec fn ts_destroy_command_pool(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<CommandPoolState> {
-    if holds_exclusive(reg, pool.id, thread) && pool_empty(pool) {
+    if holds_exclusive(reg, SyncObjectId::CommandPool(pool.id), thread) && pool_empty(pool) {
         Some(destroy_command_pool_ghost(pool))
     } else {
         None
@@ -3514,7 +3514,7 @@ pub proof fn lemma_ts_destroy_command_pool_requires_exclusive(
     reg: TokenRegistry,
 )
     requires ts_destroy_command_pool(pool, thread, reg).is_some(),
-    ensures holds_exclusive(reg, pool.id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::CommandPool(pool.id), thread),
 {
 }
 

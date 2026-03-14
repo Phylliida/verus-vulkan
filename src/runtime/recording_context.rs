@@ -435,8 +435,8 @@ pub fn record_draw_indirect_ctx_exec(
         draw_indirect_valid(old(rctx).cb.recording_state@, pipeline@, rp@, indirect_params@, buffer@),
         buffer@.usage.contains(USAGE_INDIRECT_BUFFER()),
         readable(old(rctx).cb.barrier_log@, buffer_sync@,
-            crate::stage_access::STAGE_DRAW_INDIRECT(),
-            crate::stage_access::ACCESS_INDIRECT_COMMAND_READ()),
+            crate::flags::STAGE_DRAW_INDIRECT(),
+            crate::flags::ACCESS_INDIRECT_COMMAND_READ()),
     ensures
         recording_context_wf(rctx),
         rctx.ctx@ == record_draw_indirect(old(rctx).ctx@, indirect_params@.buffer_id, indirect_params@.offset, indirect_params@.draw_count, resources@),
@@ -473,8 +473,8 @@ pub fn record_draw_indexed_indirect_ctx_exec(
         draw_indexed_indirect_valid(old(rctx).cb.recording_state@, pipeline@, rp@, indirect_params@, buffer@),
         buffer@.usage.contains(USAGE_INDIRECT_BUFFER()),
         readable(old(rctx).cb.barrier_log@, buffer_sync@,
-            crate::stage_access::STAGE_DRAW_INDIRECT(),
-            crate::stage_access::ACCESS_INDIRECT_COMMAND_READ()),
+            crate::flags::STAGE_DRAW_INDIRECT(),
+            crate::flags::ACCESS_INDIRECT_COMMAND_READ()),
     ensures
         recording_context_wf(rctx),
         rctx.ctx@ == record_draw_indexed_indirect(old(rctx).ctx@, indirect_params@.buffer_id, indirect_params@.offset, indirect_params@.draw_count, resources@),
@@ -507,8 +507,8 @@ pub fn record_dispatch_indirect_ctx_exec(
         dispatch_indirect_valid(old(rctx).cb.recording_state@, pipeline@, buffer_id@, offset@, buffer@),
         buffer@.usage.contains(USAGE_INDIRECT_BUFFER()),
         readable(old(rctx).cb.barrier_log@, buffer_sync@,
-            crate::stage_access::STAGE_DRAW_INDIRECT(),
-            crate::stage_access::ACCESS_INDIRECT_COMMAND_READ()),
+            crate::flags::STAGE_DRAW_INDIRECT(),
+            crate::flags::ACCESS_INDIRECT_COMMAND_READ()),
     ensures
         recording_context_wf(rctx),
         rctx.ctx@ == record_dispatch_indirect(old(rctx).ctx@, buffer_id@, offset@, resources@),

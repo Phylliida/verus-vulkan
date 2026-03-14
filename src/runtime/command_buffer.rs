@@ -953,8 +953,8 @@ pub fn cmd_draw_indirect_exec(
         draw_indirect_valid(old(cb).recording_state@, pipeline@, rp@, indirect_params@, buffer@),
         buffer@.usage.contains(USAGE_INDIRECT_BUFFER()),
         readable(old(cb).barrier_log@, buffer_sync@,
-            crate::stage_access::STAGE_DRAW_INDIRECT(),
-            crate::stage_access::ACCESS_INDIRECT_COMMAND_READ()),
+            crate::flags::STAGE_DRAW_INDIRECT(),
+            crate::flags::ACCESS_INDIRECT_COMMAND_READ()),
     ensures
         is_recording(cb),
         cb.barrier_log@ == old(cb).barrier_log@,
@@ -994,8 +994,8 @@ pub fn cmd_draw_indexed_indirect_exec(
         draw_indexed_indirect_valid(old(cb).recording_state@, pipeline@, rp@, indirect_params@, buffer@),
         buffer@.usage.contains(USAGE_INDIRECT_BUFFER()),
         readable(old(cb).barrier_log@, buffer_sync@,
-            crate::stage_access::STAGE_DRAW_INDIRECT(),
-            crate::stage_access::ACCESS_INDIRECT_COMMAND_READ()),
+            crate::flags::STAGE_DRAW_INDIRECT(),
+            crate::flags::ACCESS_INDIRECT_COMMAND_READ()),
     ensures
         is_recording(cb),
         cb.barrier_log@ == old(cb).barrier_log@,
@@ -1031,8 +1031,8 @@ pub fn cmd_dispatch_indirect_exec(
         dispatch_indirect_valid(old(cb).recording_state@, pipeline@, buffer_id@, offset@, buffer@),
         buffer@.usage.contains(USAGE_INDIRECT_BUFFER()),
         readable(old(cb).barrier_log@, buffer_sync@,
-            crate::stage_access::STAGE_DRAW_INDIRECT(),
-            crate::stage_access::ACCESS_INDIRECT_COMMAND_READ()),
+            crate::flags::STAGE_DRAW_INDIRECT(),
+            crate::flags::ACCESS_INDIRECT_COMMAND_READ()),
     ensures
         is_recording(cb),
         cb.barrier_log@ == old(cb).barrier_log@,

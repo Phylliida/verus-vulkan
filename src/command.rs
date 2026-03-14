@@ -27,7 +27,7 @@ pub open spec fn begin_recording(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<CommandBufferState> {
-    if !holds_exclusive(reg, cb_id, thread) {
+    if !holds_exclusive(reg, SyncObjectId::Handle(cb_id), thread) {
         None
     } else {
         match state {
@@ -48,7 +48,7 @@ pub open spec fn end_recording(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<CommandBufferState> {
-    if !holds_exclusive(reg, cb_id, thread) {
+    if !holds_exclusive(reg, SyncObjectId::Handle(cb_id), thread) {
         None
     } else {
         match state {
@@ -86,7 +86,7 @@ pub open spec fn reset(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<CommandBufferState> {
-    if !holds_exclusive(reg, cb_id, thread) {
+    if !holds_exclusive(reg, SyncObjectId::Handle(cb_id), thread) {
         None
     } else {
         match state {
@@ -104,7 +104,7 @@ pub proof fn lemma_record_submit_complete_cycle(
     thread: ThreadId,
     reg: TokenRegistry,
 )
-    requires holds_exclusive(reg, cb_id, thread),
+    requires holds_exclusive(reg, SyncObjectId::Handle(cb_id), thread),
     ensures ({
         let s0 = CommandBufferState::Initial;
         let s1 = begin_recording(s0, cb_id, thread, reg);
@@ -126,7 +126,7 @@ pub proof fn lemma_reset_produces_initial(
     requires
         state != CommandBufferState::Initial,
         state != CommandBufferState::Pending,
-        holds_exclusive(reg, cb_id, thread),
+        holds_exclusive(reg, SyncObjectId::Handle(cb_id), thread),
     ensures
         reset(state, cb_id, thread, reg) == Some(CommandBufferState::Initial),
 {
@@ -140,7 +140,7 @@ pub proof fn lemma_begin_requires_exclusive(
     reg: TokenRegistry,
 )
     requires begin_recording(state, cb_id, thread, reg).is_some(),
-    ensures holds_exclusive(reg, cb_id, thread),
+    ensures holds_exclusive(reg, SyncObjectId::Handle(cb_id), thread),
 {
 }
 
@@ -151,7 +151,7 @@ pub proof fn lemma_no_exclusive_no_recording(
     thread: ThreadId,
     reg: TokenRegistry,
 )
-    requires !holds_exclusive(reg, cb_id, thread),
+    requires !holds_exclusive(reg, SyncObjectId::Handle(cb_id), thread),
     ensures begin_recording(state, cb_id, thread, reg).is_none(),
 {
 }

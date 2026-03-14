@@ -49,7 +49,7 @@ pub open spec fn allocate_cb(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<CommandPoolState> {
-    if !holds_exclusive(reg, pool.id, thread) {
+    if !holds_exclusive(reg, SyncObjectId::CommandPool(pool.id), thread) {
         None
     } else {
         Some(CommandPoolState {
@@ -69,7 +69,7 @@ pub open spec fn free_cb(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<CommandPoolState> {
-    if !holds_exclusive(reg, pool.id, thread) {
+    if !holds_exclusive(reg, SyncObjectId::CommandPool(pool.id), thread) {
         None
     } else {
         Some(CommandPoolState {
@@ -89,7 +89,7 @@ pub open spec fn reset_pool_cbs(
     thread: ThreadId,
     reg: TokenRegistry,
 ) -> Option<Set<nat>> {
-    if !holds_exclusive(reg, pool.id, thread) {
+    if !holds_exclusive(reg, SyncObjectId::CommandPool(pool.id), thread) {
         None
     } else {
         Some(pool.allocated_cbs)
@@ -164,7 +164,7 @@ pub proof fn lemma_allocate_adds_cb(
     thread: ThreadId,
     reg: TokenRegistry,
 )
-    requires holds_exclusive(reg, pool.id, thread),
+    requires holds_exclusive(reg, SyncObjectId::CommandPool(pool.id), thread),
     ensures cb_from_pool(allocate_cb(pool, cb_id, thread, reg).unwrap(), cb_id),
 {
 }
@@ -176,7 +176,7 @@ pub proof fn lemma_free_removes_cb(
     thread: ThreadId,
     reg: TokenRegistry,
 )
-    requires holds_exclusive(reg, pool.id, thread),
+    requires holds_exclusive(reg, SyncObjectId::CommandPool(pool.id), thread),
     ensures !cb_from_pool(free_cb(pool, cb_id, thread, reg).unwrap(), cb_id),
 {
 }
@@ -191,7 +191,7 @@ pub proof fn lemma_allocate_preserves_existing(
 )
     requires
         cb_from_pool(pool, other),
-        holds_exclusive(reg, pool.id, thread),
+        holds_exclusive(reg, SyncObjectId::CommandPool(pool.id), thread),
     ensures cb_from_pool(allocate_cb(pool, cb_id, thread, reg).unwrap(), other),
 {
 }
@@ -207,7 +207,7 @@ pub proof fn lemma_free_preserves_others(
     requires
         cb_from_pool(pool, other),
         other != cb_id,
-        holds_exclusive(reg, pool.id, thread),
+        holds_exclusive(reg, SyncObjectId::CommandPool(pool.id), thread),
     ensures cb_from_pool(free_cb(pool, cb_id, thread, reg).unwrap(), other),
 {
 }
@@ -221,7 +221,7 @@ pub proof fn lemma_reset_returns_all(
 )
     requires
         cb_from_pool(pool, cb_id),
-        holds_exclusive(reg, pool.id, thread),
+        holds_exclusive(reg, SyncObjectId::CommandPool(pool.id), thread),
     ensures reset_pool_cbs(pool, thread, reg).unwrap().contains(cb_id),
 {
 }
@@ -245,7 +245,7 @@ pub proof fn lemma_no_access_no_allocate(
     thread: ThreadId,
     reg: TokenRegistry,
 )
-    requires !holds_exclusive(reg, pool.id, thread),
+    requires !holds_exclusive(reg, SyncObjectId::CommandPool(pool.id), thread),
     ensures allocate_cb(pool, cb_id, thread, reg).is_none(),
 {
 }
@@ -256,7 +256,7 @@ pub proof fn lemma_no_access_no_reset(
     thread: ThreadId,
     reg: TokenRegistry,
 )
-    requires !holds_exclusive(reg, pool.id, thread),
+    requires !holds_exclusive(reg, SyncObjectId::CommandPool(pool.id), thread),
     ensures reset_pool_cbs(pool, thread, reg).is_none(),
 {
 }
