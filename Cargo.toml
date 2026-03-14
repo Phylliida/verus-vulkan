@@ -7,6 +7,27 @@ edition = "2021"
 vstd = { path = "../verus/source/vstd" }
 ash = { version = "0.38", default-features = true }
 
+# Windowing (shared by both backends)
+winit = { version = "0.30", optional = true }
+
+# Vulkan backend
+ash-window = { version = "0.13", optional = true }
+raw-window-handle = { version = "0.6", optional = true }
+
+# WebGPU backend
+wgpu = { version = "24", optional = true }
+pollster = { version = "0.4", optional = true }
+
+[features]
+windowing = ["winit"]
+vulkan-backend = ["windowing", "ash-window", "raw-window-handle"]
+webgpu-backend = ["windowing", "wgpu", "pollster"]
+
+[[bin]]
+name = "triangle"
+path = "src/bin/triangle.rs"
+required-features = ["windowing"]
+
 [package.metadata.verus]
 verify = true
 

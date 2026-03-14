@@ -3,6 +3,7 @@ use crate::command_pool::*;
 use crate::lifetime::*;
 use crate::sync_token::*;
 use super::device::RuntimeDevice;
+#[cfg(verus_keep_ghost)]
 use super::command_buffer::cb_no_pending_work;
 
 verus! {

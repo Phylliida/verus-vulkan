@@ -7,7 +7,9 @@ use crate::sync_token::*;
 use crate::pool_ownership::*;
 use crate::pipeline::*;
 use crate::render_pass::*;
-use crate::draw_state::{DrawCallState, dynamic_states_satisfied,
+use crate::draw_state::DrawCallState;
+#[cfg(verus_keep_ghost)]
+use crate::draw_state::{dynamic_states_satisfied,
     vertex_draw_in_bounds, indexed_draw_in_bounds};
 use crate::image_layout::ImageLayout;
 use crate::image_layout_fsm::*;
