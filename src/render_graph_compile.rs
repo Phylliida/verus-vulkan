@@ -299,21 +299,80 @@ pub open spec fn total_barrier_count(cg: CompiledGraph) -> nat
     }
 }
 
+// ── Pass Type → Stage/Access Mapping ────────────────────────────────────
+//
+// Default pipeline stages and access flags for each pass type.
+// These map PassType to the appropriate Vulkan sync scope.
+
+/// Default write stages for a pass type.
+pub open spec fn pass_type_write_stages(pt: PassType) -> PipelineStageFlags {
+    PipelineStageFlags {
+        stages: Set::empty().insert(match pt {
+            PassType::Graphics => STAGE_COLOR_ATTACHMENT_OUTPUT(),
+            PassType::Compute => STAGE_COMPUTE_SHADER(),
+            PassType::Transfer => STAGE_TRANSFER(),
+        }),
+    }
+}
+
+/// Default write accesses for a pass type.
+pub open spec fn pass_type_write_accesses(pt: PassType) -> AccessFlags {
+    AccessFlags {
+        accesses: Set::empty().insert(match pt {
+            PassType::Graphics => ACCESS_COLOR_ATTACHMENT_WRITE(),
+            PassType::Compute => ACCESS_SHADER_WRITE(),
+            PassType::Transfer => ACCESS_TRANSFER_WRITE(),
+        }),
+    }
+}
+
+/// Default read stages for a pass type.
+pub open spec fn pass_type_read_stages(pt: PassType) -> PipelineStageFlags {
+    PipelineStageFlags {
+        stages: Set::empty().insert(match pt {
+            PassType::Graphics => STAGE_FRAGMENT_SHADER(),
+            PassType::Compute => STAGE_COMPUTE_SHADER(),
+            PassType::Transfer => STAGE_TRANSFER(),
+        }),
+    }
+}
+
+/// Default read accesses for a pass type.
+pub open spec fn pass_type_read_accesses(pt: PassType) -> AccessFlags {
+    AccessFlags {
+        accesses: Set::empty().insert(match pt {
+            PassType::Graphics => ACCESS_SHADER_READ(),
+            PassType::Compute => ACCESS_SHADER_READ(),
+            PassType::Transfer => ACCESS_TRANSFER_READ(),
+        }),
+    }
+}
+
 /// Compile barriers for a given pass (all dependency edges targeting it).
+/// Uses pass types to determine proper pipeline stages and access flags.
 pub open spec fn compile_barriers_for_pass(
     graph: RenderGraph,
     pass_idx: nat,
-) -> Seq<BarrierAction> {
+) -> Seq<BarrierAction>
+    recommends
+        has_pass(graph, pass_idx),
+        edges_reference_valid_passes(graph),
+{
     Seq::new(
         graph.edges.len(),
-        |e: int| BarrierAction {
-            resource: graph.edges[e].resource,
-            src_stages: PipelineStageFlags { stages: Set::empty().insert(0) },
-            src_accesses: AccessFlags { accesses: Set::empty().insert(0) },
-            dst_stages: PipelineStageFlags { stages: Set::empty().insert(0) },
-            dst_accesses: AccessFlags { accesses: Set::empty().insert(0) },
-            old_layout: 0,
-            new_layout: 0,
+        |e: int| {
+            let edge = graph.edges[e];
+            let src_pass = get_pass(graph, edge.from_pass);
+            let dst_pass = get_pass(graph, pass_idx);
+            BarrierAction {
+                resource: edge.resource,
+                src_stages: pass_type_write_stages(src_pass.pass_type),
+                src_accesses: pass_type_write_accesses(src_pass.pass_type),
+                dst_stages: pass_type_read_stages(dst_pass.pass_type),
+                dst_accesses: pass_type_read_accesses(dst_pass.pass_type),
+                old_layout: 0,
+                new_layout: 0,
+            }
         },
     ).filter(|ba: BarrierAction|
         exists|e: nat|
@@ -322,6 +381,106 @@ pub open spec fn compile_barriers_for_pass(
             && graph.edges[e as int].to_pass == pass_idx
             && graph.edges[e as int].resource == ba.resource
     )
+}
+
+// ── Subpass Resource Tracking ───────────────────────────────────────────
+//
+// Per-subpass resource state within a render pass.
+// Enables tracking which subpass reads/writes which resources.
+
+/// Per-subpass resource state within a render pass.
+pub struct SubpassResourceState {
+    /// Subpass index within the render pass.
+    pub subpass_index: nat,
+    /// Resources read by this subpass.
+    pub reads: Set<ResourceId>,
+    /// Resources written by this subpass.
+    pub writes: Set<ResourceId>,
+}
+
+/// Decomposition of a render pass into subpasses with their dependencies.
+pub struct PassSubpassDecomposition {
+    /// Per-subpass resource state.
+    pub subpass_resources: Seq<SubpassResourceState>,
+    /// Subpass dependencies (indices into subpass_resources).
+    pub subpass_deps: Seq<SubpassDepEdge>,
+}
+
+/// A dependency edge between two subpasses.
+pub struct SubpassDepEdge {
+    /// Source subpass index.
+    pub src_subpass: nat,
+    /// Destination subpass index.
+    pub dst_subpass: nat,
+    /// Resource being transferred.
+    pub resource: ResourceId,
+    /// Source stages.
+    pub src_stages: PipelineStageFlags,
+    /// Destination stages.
+    pub dst_stages: PipelineStageFlags,
+}
+
+/// A subpass decomposition is valid: all indices are in bounds
+/// and the union of subpass reads/writes matches the pass reads/writes.
+pub open spec fn subpass_decomposition_valid(
+    decomp: PassSubpassDecomposition,
+    pass: RenderPassNode,
+) -> bool {
+    // Non-empty
+    decomp.subpass_resources.len() > 0
+    // Subpass indices match their position
+    && (forall|i: nat|
+        #![trigger decomp.subpass_resources[i as int]]
+        i < decomp.subpass_resources.len()
+        ==> decomp.subpass_resources[i as int].subpass_index == i)
+    // Dependencies reference valid subpasses
+    && (forall|d: nat|
+        #![trigger decomp.subpass_deps[d as int]]
+        d < decomp.subpass_deps.len()
+        ==> decomp.subpass_deps[d as int].src_subpass < decomp.subpass_resources.len()
+            && decomp.subpass_deps[d as int].dst_subpass < decomp.subpass_resources.len()
+            && decomp.subpass_deps[d as int].src_subpass < decomp.subpass_deps[d as int].dst_subpass)
+    // Union of subpass reads covers pass reads
+    && (forall|r: ResourceId|
+        pass.reads.contains(r)
+        ==> exists|i: nat|
+            i < decomp.subpass_resources.len()
+            && (#[trigger] decomp.subpass_resources[i as int]).reads.contains(r))
+    // Union of subpass writes covers pass writes
+    && (forall|r: ResourceId|
+        pass.writes.contains(r)
+        ==> exists|i: nat|
+            i < decomp.subpass_resources.len()
+            && (#[trigger] decomp.subpass_resources[i as int]).writes.contains(r))
+}
+
+/// A subpass dependency covers a resource transfer within the pass.
+pub open spec fn subpass_dep_covers(
+    dep: SubpassDepEdge,
+    decomp: PassSubpassDecomposition,
+) -> bool {
+    dep.src_subpass < decomp.subpass_resources.len()
+    && dep.dst_subpass < decomp.subpass_resources.len()
+    && decomp.subpass_resources[dep.src_subpass as int].writes.contains(dep.resource)
+    && decomp.subpass_resources[dep.dst_subpass as int].reads.contains(dep.resource)
+}
+
+/// All intra-pass resource transfers are covered by subpass dependencies.
+pub open spec fn intra_pass_deps_satisfied(
+    decomp: PassSubpassDecomposition,
+) -> bool {
+    forall|src: nat, dst: nat, r: ResourceId|
+        src < decomp.subpass_resources.len()
+        && dst < decomp.subpass_resources.len()
+        && src < dst
+        && decomp.subpass_resources[src as int].writes.contains(r)
+        && decomp.subpass_resources[dst as int].reads.contains(r)
+        ==> exists|d: nat|
+            #![trigger decomp.subpass_deps[d as int]]
+            d < decomp.subpass_deps.len()
+            && decomp.subpass_deps[d as int].resource == r
+            && decomp.subpass_deps[d as int].src_subpass <= src
+            && decomp.subpass_deps[d as int].dst_subpass >= dst
 }
 
 // ── Proofs ──────────────────────────────────────────────────────────
@@ -784,6 +943,106 @@ pub proof fn lemma_post_barrier_implies_nonempty(
     requires pass_has_post_barrier(plan, r),
     ensures plan.post_barriers.len() > 0,
 {
+}
+
+// ── Subpass Proofs ────────────────────────────────────────────────
+
+/// A single-subpass decomposition is trivially valid if it matches the pass.
+pub proof fn lemma_single_subpass_valid(
+    pass: RenderPassNode,
+)
+    ensures subpass_decomposition_valid(
+        PassSubpassDecomposition {
+            subpass_resources: seq![SubpassResourceState {
+                subpass_index: 0,
+                reads: pass.reads,
+                writes: pass.writes,
+            }],
+            subpass_deps: Seq::empty(),
+        },
+        pass,
+    ),
+{
+    let decomp = PassSubpassDecomposition {
+        subpass_resources: seq![SubpassResourceState {
+            subpass_index: 0,
+            reads: pass.reads,
+            writes: pass.writes,
+        }],
+        subpass_deps: Seq::empty(),
+    };
+    // Non-empty
+    assert(decomp.subpass_resources.len() > 0);
+    // Subpass indices match position
+    assert(decomp.subpass_resources[0].subpass_index == 0);
+    // Reads covered
+    assert forall|r: ResourceId|
+        pass.reads.contains(r)
+        implies exists|i: nat|
+            i < decomp.subpass_resources.len()
+            && (#[trigger] decomp.subpass_resources[i as int]).reads.contains(r) by {
+        assert(decomp.subpass_resources[0].reads.contains(r));
+    }
+    // Writes covered
+    assert forall|r: ResourceId|
+        pass.writes.contains(r)
+        implies exists|i: nat|
+            i < decomp.subpass_resources.len()
+            && (#[trigger] decomp.subpass_resources[i as int]).writes.contains(r) by {
+        assert(decomp.subpass_resources[0].writes.contains(r));
+    }
+}
+
+/// A single-subpass decomposition has trivially satisfied intra-pass deps
+/// (no subpass pairs with src < dst).
+pub proof fn lemma_single_subpass_deps_trivial(
+    pass: RenderPassNode,
+)
+    ensures intra_pass_deps_satisfied(
+        PassSubpassDecomposition {
+            subpass_resources: seq![SubpassResourceState {
+                subpass_index: 0,
+                reads: pass.reads,
+                writes: pass.writes,
+            }],
+            subpass_deps: Seq::empty(),
+        },
+    ),
+{
+}
+
+/// Pass-level barriers imply write stages/accesses are non-empty for proper pass types.
+pub proof fn lemma_pass_type_write_stages_nonempty(pt: PassType)
+    ensures !pass_type_write_stages(pt).stages.is_empty(),
+{
+    match pt {
+        PassType::Graphics => {
+            assert(pass_type_write_stages(pt).stages.contains(STAGE_COLOR_ATTACHMENT_OUTPUT()));
+        },
+        PassType::Compute => {
+            assert(pass_type_write_stages(pt).stages.contains(STAGE_COMPUTE_SHADER()));
+        },
+        PassType::Transfer => {
+            assert(pass_type_write_stages(pt).stages.contains(STAGE_TRANSFER()));
+        },
+    }
+}
+
+/// Pass-level barriers imply read stages/accesses are non-empty for proper pass types.
+pub proof fn lemma_pass_type_read_stages_nonempty(pt: PassType)
+    ensures !pass_type_read_stages(pt).stages.is_empty(),
+{
+    match pt {
+        PassType::Graphics => {
+            assert(pass_type_read_stages(pt).stages.contains(STAGE_FRAGMENT_SHADER()));
+        },
+        PassType::Compute => {
+            assert(pass_type_read_stages(pt).stages.contains(STAGE_COMPUTE_SHADER()));
+        },
+        PassType::Transfer => {
+            assert(pass_type_read_stages(pt).stages.contains(STAGE_TRANSFER()));
+        },
+    }
 }
 
 } // verus!

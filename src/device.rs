@@ -664,6 +664,10 @@ pub proof fn lemma_create_buffer_lifecycle_preserves_well_formed(
     requires device_well_formed(dev),
     ensures device_well_formed(create_buffer_lifecycle_ghost(dev, resource)),
 {
+    let new_dev = create_buffer_lifecycle_ghost(dev, resource);
+    assert(new_dev.heap_usage == dev.heap_usage);
+    assert(new_dev.heap_capacity == dev.heap_capacity);
+    assert(new_dev.limits == dev.limits);
 }
 
 /// Lifecycle-aware destroy preserves device_well_formed.
@@ -678,6 +682,10 @@ pub proof fn lemma_destroy_buffer_lifecycle_preserves_well_formed(
     ensures
         device_well_formed(destroy_buffer_lifecycle_ghost(dev, resource)),
 {
+    let new_dev = destroy_buffer_lifecycle_ghost(dev, resource);
+    assert(new_dev.heap_usage == dev.heap_usage);
+    assert(new_dev.heap_capacity == dev.heap_capacity);
+    assert(new_dev.limits == dev.limits);
 }
 
 /// Lifecycle operations don't affect other resources in the registry.

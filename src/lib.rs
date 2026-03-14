@@ -286,4 +286,16 @@ pub mod external_memory;
 pub mod multi_plane_image;
 
 #[cfg(verus_keep_ghost)]
+pub mod end_to_end;
+
+#[cfg(verus_keep_ghost)]
+pub mod sync2;
+
+#[cfg(verus_keep_ghost)]
+pub mod memory_domain;
+
+#[cfg(verus_keep_ghost)]
+pub mod queue_family_ownership;
+
+#[cfg(verus_keep_ghost)]
 pub mod runtime;
