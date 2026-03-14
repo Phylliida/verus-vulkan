@@ -92,7 +92,9 @@ pub open spec fn allocate_memory_ghost(
     dev: DeviceState,
     heap_idx: nat,
     size: nat,
-) -> DeviceState {
+) -> DeviceState
+    recommends heap_fits(dev, heap_idx, size),
+{
     DeviceState {
         heap_usage: dev.heap_usage.insert(heap_idx, dev.heap_usage[heap_idx] + size),
         ..dev
@@ -104,7 +106,12 @@ pub open spec fn free_memory_ghost(
     dev: DeviceState,
     heap_idx: nat,
     size: nat,
-) -> DeviceState {
+) -> DeviceState
+    recommends
+        heap_idx < dev.num_heaps,
+        dev.heap_usage.contains_key(heap_idx),
+        size <= dev.heap_usage[heap_idx],
+{
     DeviceState {
         heap_usage: dev.heap_usage.insert(heap_idx, (dev.heap_usage[heap_idx] - size) as nat),
         ..dev
@@ -120,7 +127,9 @@ pub open spec fn create_buffer_ghost(dev: DeviceState) -> DeviceState {
 }
 
 /// Ghost update: decrement live buffer count.
-pub open spec fn destroy_buffer_ghost(dev: DeviceState) -> DeviceState {
+pub open spec fn destroy_buffer_ghost(dev: DeviceState) -> DeviceState
+    recommends dev.live_buffers > 0,
+{
     DeviceState {
         live_buffers: (dev.live_buffers - 1) as nat,
         ..dev
@@ -136,7 +145,9 @@ pub open spec fn create_image_ghost(dev: DeviceState) -> DeviceState {
 }
 
 /// Ghost update: decrement live image count.
-pub open spec fn destroy_image_ghost(dev: DeviceState) -> DeviceState {
+pub open spec fn destroy_image_ghost(dev: DeviceState) -> DeviceState
+    recommends dev.live_images > 0,
+{
     DeviceState {
         live_images: (dev.live_images - 1) as nat,
         ..dev

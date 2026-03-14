@@ -46,7 +46,9 @@ pub open spec fn map_memory(
 }
 
 /// Unmap memory.
-pub open spec fn unmap_memory(state: MemoryMapState) -> MemoryMapState {
+pub open spec fn unmap_memory(state: MemoryMapState) -> MemoryMapState
+    recommends state.mapped,
+{
     MemoryMapState {
         mapped: false,
         ..state
@@ -54,7 +56,9 @@ pub open spec fn unmap_memory(state: MemoryMapState) -> MemoryMapState {
 }
 
 /// Host write to mapped memory (marks flush as pending for non-coherent).
-pub open spec fn host_write(state: MemoryMapState) -> MemoryMapState {
+pub open spec fn host_write(state: MemoryMapState) -> MemoryMapState
+    recommends state.mapped,
+{
     MemoryMapState {
         flush_pending: !state.host_coherent,
         ..state
@@ -62,7 +66,9 @@ pub open spec fn host_write(state: MemoryMapState) -> MemoryMapState {
 }
 
 /// Flush mapped memory range (makes host writes visible to device).
-pub open spec fn flush_memory(state: MemoryMapState) -> MemoryMapState {
+pub open spec fn flush_memory(state: MemoryMapState) -> MemoryMapState
+    recommends state.mapped,
+{
     MemoryMapState {
         flush_pending: false,
         ..state
@@ -70,7 +76,9 @@ pub open spec fn flush_memory(state: MemoryMapState) -> MemoryMapState {
 }
 
 /// Invalidate mapped memory range (makes device writes visible to host).
-pub open spec fn invalidate_memory(state: MemoryMapState) -> MemoryMapState {
+pub open spec fn invalidate_memory(state: MemoryMapState) -> MemoryMapState
+    recommends state.mapped,
+{
     MemoryMapState {
         invalidated: true,
         ..state
@@ -185,6 +193,13 @@ pub proof fn lemma_non_host_visible_cannot_map(state: MemoryMapState)
 pub proof fn lemma_map_range_within_allocation(state: MemoryMapState, offset: nat, size: nat)
     requires map_range_valid(state, offset, size),
     ensures offset + size <= state.allocation_size,
+{
+}
+
+/// Double-mapping is invalid.
+pub proof fn lemma_double_map_invalid(state: MemoryMapState)
+    requires state.mapped,
+    ensures !can_map(state),
 {
 }
 

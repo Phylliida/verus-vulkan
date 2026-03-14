@@ -51,7 +51,9 @@ pub open spec fn create_resource(resource: ResourceId) -> ResourceLifecycleState
 }
 
 /// Bind resource to memory (Created → Bound).
-pub open spec fn bind_resource(state: ResourceLifecycleState) -> ResourceLifecycleState {
+pub open spec fn bind_resource(state: ResourceLifecycleState) -> ResourceLifecycleState
+    recommends can_bind(state),
+{
     ResourceLifecycleState {
         lifecycle: ResourceLifecycle::Bound,
         ..state
@@ -59,7 +61,9 @@ pub open spec fn bind_resource(state: ResourceLifecycleState) -> ResourceLifecyc
 }
 
 /// Resource is submitted for GPU use (Bound/Idle → InUse).
-pub open spec fn submit_resource(state: ResourceLifecycleState) -> ResourceLifecycleState {
+pub open spec fn submit_resource(state: ResourceLifecycleState) -> ResourceLifecycleState
+    recommends can_use(state),
+{
     ResourceLifecycleState {
         lifecycle: ResourceLifecycle::InUse,
         pending_use_count: state.pending_use_count + 1,
@@ -80,7 +84,9 @@ pub open spec fn complete_use(state: ResourceLifecycleState) -> ResourceLifecycl
 }
 
 /// Destroy resource (Idle → Destroyed).
-pub open spec fn destroy_resource(state: ResourceLifecycleState) -> ResourceLifecycleState {
+pub open spec fn destroy_resource(state: ResourceLifecycleState) -> ResourceLifecycleState
+    recommends can_destroy(state),
+{
     ResourceLifecycleState {
         lifecycle: ResourceLifecycle::Destroyed,
         pending_use_count: 0,
@@ -210,6 +216,13 @@ pub proof fn lemma_use_and_destroy_exclusive(state: ResourceLifecycleState)
 pub proof fn lemma_in_use_cannot_bind(state: ResourceLifecycleState)
     requires state.lifecycle == ResourceLifecycle::InUse,
     ensures !can_bind(state),
+{
+}
+
+/// A resource with pending uses cannot be destroyed.
+pub proof fn lemma_pending_uses_prevent_destroy(state: ResourceLifecycleState)
+    requires state.pending_use_count > 0,
+    ensures !can_destroy(state),
 {
 }
 

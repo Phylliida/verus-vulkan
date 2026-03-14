@@ -43,7 +43,9 @@ pub open spec fn signal_fence_ghost(fence: FenceState, sub_id: nat) -> FenceStat
 }
 
 /// Ghost update: reset the fence to unsignaled.
-pub open spec fn reset_fence_ghost(fence: FenceState) -> FenceState {
+pub open spec fn reset_fence_ghost(fence: FenceState) -> FenceState
+    recommends fence.signaled,
+{
     FenceState {
         signaled: false,
         submission_id: None,
@@ -52,7 +54,9 @@ pub open spec fn reset_fence_ghost(fence: FenceState) -> FenceState {
 }
 
 /// Ghost update: destroy the fence.
-pub open spec fn destroy_fence_ghost(fence: FenceState) -> FenceState {
+pub open spec fn destroy_fence_ghost(fence: FenceState) -> FenceState
+    recommends fence.alive,
+{
     FenceState {
         alive: false,
         ..fence
