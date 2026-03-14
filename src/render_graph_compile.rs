@@ -270,7 +270,9 @@ pub open spec fn barrier_plan_covers_deps(
 }
 
 /// All barrier plans cover their dependencies.
-pub open spec fn all_barriers_cover_deps(cg: CompiledGraph) -> bool {
+pub open spec fn all_barriers_cover_deps(cg: CompiledGraph) -> bool
+    recommends compiled_graph_well_formed(cg),
+{
     forall|i: nat|
         #![trigger cg.barrier_plans[i as int]]
         i < cg.barrier_plans.len()

@@ -45,6 +45,7 @@ pub open spec fn collect_pre_barriers(
     cg: CompiledGraph,
     step: nat,
 ) -> BarrierLog
+    recommends step <= cg.barrier_plans.len(),
     decreases step,
 {
     if step == 0 {

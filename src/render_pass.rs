@@ -544,7 +544,9 @@ pub proof fn lemma_formats_supported_depth(
 // ── Ghost Destroy ────────────────────────────────────────────────────
 
 /// Ghost update: destroy a render pass.
-pub open spec fn destroy_render_pass_ghost(rp: RenderPassState) -> RenderPassState {
+pub open spec fn destroy_render_pass_ghost(rp: RenderPassState) -> RenderPassState
+    recommends rp.alive,
+{
     RenderPassState {
         alive: false,
         ..rp
@@ -552,7 +554,9 @@ pub open spec fn destroy_render_pass_ghost(rp: RenderPassState) -> RenderPassSta
 }
 
 /// After destroying, a render pass is not alive.
+/// Caller must prove the render pass is alive before destroying.
 pub proof fn lemma_destroy_render_pass_not_alive(rp: RenderPassState)
+    requires rp.alive,
     ensures !destroy_render_pass_ghost(rp).alive,
 {
 }

@@ -175,7 +175,9 @@ pub open spec fn create_transient_pool_spec(id: nat, size: nat) -> TransientMemo
 }
 
 /// Destroy a transient memory pool.
-pub open spec fn destroy_transient_pool_spec(pool: TransientMemoryPool) -> TransientMemoryPool {
+pub open spec fn destroy_transient_pool_spec(pool: TransientMemoryPool) -> TransientMemoryPool
+    recommends pool.alive,
+{
     TransientMemoryPool {
         alive: false,
         ..pool

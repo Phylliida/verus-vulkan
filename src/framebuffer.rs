@@ -48,7 +48,9 @@ pub struct FramebufferState {
 /// Ghost update: destroy a framebuffer.
 pub open spec fn destroy_framebuffer_ghost(
     fb: FramebufferState,
-) -> FramebufferState {
+) -> FramebufferState
+    recommends fb.alive,
+{
     FramebufferState {
         alive: false,
         ..fb
@@ -58,7 +60,9 @@ pub open spec fn destroy_framebuffer_ghost(
 /// Ghost update: destroy an image view.
 pub open spec fn destroy_image_view_ghost(
     view: ImageViewState,
-) -> ImageViewState {
+) -> ImageViewState
+    recommends view.alive,
+{
     ImageViewState {
         alive: false,
         ..view
@@ -160,13 +164,17 @@ pub proof fn lemma_compatible_matches_rp_id(
 }
 
 /// After destroying, a framebuffer is not alive.
+/// Caller must prove the framebuffer is alive before destroying.
 pub proof fn lemma_destroy_framebuffer_not_alive(fb: FramebufferState)
+    requires fb.alive,
     ensures !destroy_framebuffer_ghost(fb).alive,
 {
 }
 
 /// After destroying, an image view is not alive.
+/// Caller must prove the image view is alive before destroying.
 pub proof fn lemma_destroy_image_view_not_alive(view: ImageViewState)
+    requires view.alive,
     ensures !destroy_image_view_ghost(view).alive,
 {
 }
