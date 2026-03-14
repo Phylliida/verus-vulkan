@@ -145,10 +145,11 @@ pub open spec fn destroy_library_ghost(
     PipelineLibraryState { alive: false, ..state }
 }
 
-/// A linked pipeline is well-formed: complete + all parts well-formed.
+/// A linked pipeline is well-formed: complete, all parts well-formed, covers all types.
 pub open spec fn linked_pipeline_well_formed(lp: LinkedPipeline) -> bool {
     lp.complete
     && all_libraries_well_formed(lp.libraries)
+    && libraries_cover_all_types(lp.libraries)
 }
 
 // ── Proofs ──────────────────────────────────────────────────────────────
@@ -165,13 +166,6 @@ pub proof fn lemma_complete_has_all_types(lp: LinkedPipeline)
     requires linked_pipeline_well_formed(lp),
     ensures libraries_cover_all_types(lp.libraries),
 {
-    // linked_pipeline_well_formed → complete → link_valid was true at link time
-    // But we can't recover link_valid from the stored bool alone.
-    // This lemma is valid because linked_pipeline_well_formed checks complete
-    // and link_libraries_ghost sets complete = link_valid(libs).
-    // For a standalone proof, we note that well_formed requires complete,
-    // and any complete pipeline was created via link_libraries_ghost with link_valid.
-    assume(false); // abstract: requires tracking link provenance
 }
 
 /// Created library is alive.

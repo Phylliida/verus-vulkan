@@ -67,7 +67,8 @@ pub open spec fn descriptor_buffer_state_well_formed(
 ) -> bool {
     state.bindings.len() == state.max_bindings
     && state.max_bindings <= limits.max_descriptor_buffer_bindings
-    && (forall|i: int| 0 <= i < state.bindings.len() ==>
+    && (forall|i: int| #![trigger state.bindings[i]]
+        0 <= i < state.bindings.len() ==>
         match state.bindings[i] {
             Some(b) => descriptor_buffer_binding_valid(b, limits),
             None => true,
@@ -153,7 +154,8 @@ pub proof fn lemma_fresh_state_well_formed(limits: DescriptorBufferLimits)
         ),
 {
     let state = create_descriptor_buffer_state(limits);
-    assert forall|i: int| 0 <= i < state.bindings.len() implies
+    assert forall|i: int| #![trigger state.bindings[i]]
+        0 <= i < state.bindings.len() implies
         match state.bindings[i] {
             Some(b) => descriptor_buffer_binding_valid(b, limits),
             None => true,
@@ -232,22 +234,19 @@ pub proof fn lemma_offset_alignment_transitive(a: nat, n: nat, m: nat)
         n % m == 0,
     ensures a % m == 0,
 {
-    // a = k*n for some k, n = j*m for some j, so a = k*j*m
-    let k = a / n;
-    let j = n / m;
-    assert(a == k * n) by {
-        vstd::arithmetic::div_mod::lemma_fundamental_div_mod(a as int, n as int);
-    }
-    assert(n == j * m) by {
-        vstd::arithmetic::div_mod::lemma_fundamental_div_mod(n as int, m as int);
-    }
-    assert(a == k * j * m) by {
-        vstd::arithmetic::mul::lemma_mul_is_associative(k as int, j as int, m as int);
-    }
-    assert(a % m == 0) by {
-        vstd::arithmetic::div_mod::lemma_fundamental_div_mod(a as int, m as int);
-        assert(a == (k * j) * m);
-    }
+    // a = (a/n) * n since a%n==0, n = (n/m) * m since n%m==0
+    // so a = (a/n) * (n/m) * m, hence a%m==0
+    vstd::arithmetic::div_mod::lemma_fundamental_div_mod(a as int, n as int);
+    // gives: a == n * (a/n) + a%n == n * (a/n)
+    let k = (a / n) as int;
+    assert(a as int == (n as int) * k);
+    vstd::arithmetic::div_mod::lemma_fundamental_div_mod(n as int, m as int);
+    let j = (n / m) as int;
+    assert(n as int == (m as int) * j);
+    // a == (m*j) * k == m * (j*k)
+    vstd::arithmetic::mul::lemma_mul_is_associative(m as int, j, k);
+    assert(a as int == (m as int) * (j * k));
+    vstd::arithmetic::div_mod::lemma_mod_multiples_basic(j * k, m as int);
 }
 
 /// Valid binding has at least one descriptor buffer usage flag.
