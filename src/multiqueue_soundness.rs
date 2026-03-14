@@ -53,7 +53,11 @@ pub open spec fn cross_queue_sync_via_semaphore(
     signal_pass: nat,
     wait_pass: nat,
     sem: SemaphoreState,
-) -> bool {
+) -> bool
+    recommends
+        signal_pass < mq.queue_assignments.len(),
+        wait_pass < mq.queue_assignments.len(),
+{
     // Semaphore is signaled (signal pass has completed on its queue)
     sem.signaled
     // Signal and wait are on different queues

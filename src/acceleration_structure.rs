@@ -115,7 +115,9 @@ pub open spec fn all_blas_references_valid(
 pub open spec fn build_as_ghost(
     as_state: AccelerationStructureState,
     mode: ASBuildMode,
-) -> AccelerationStructureState {
+) -> AccelerationStructureState
+    recommends as_state.alive,
+{
     AccelerationStructureState {
         built: true,
         generation: as_state.generation + 1,
@@ -126,7 +128,9 @@ pub open spec fn build_as_ghost(
 /// Ghost update: destroy an acceleration structure.
 pub open spec fn destroy_as_ghost(
     as_state: AccelerationStructureState,
-) -> AccelerationStructureState {
+) -> AccelerationStructureState
+    recommends as_state.alive,
+{
     AccelerationStructureState {
         alive: false,
         ..as_state
@@ -198,9 +202,11 @@ pub proof fn lemma_build_makes_built(
 }
 
 /// Destroying an AS sets alive to false.
+/// Caller must prove the AS is alive before destroying.
 pub proof fn lemma_destroy_invalidates(
     as_state: AccelerationStructureState,
 )
+    requires as_state.alive,
     ensures !destroy_as_ghost(as_state).alive,
 {
 }
@@ -416,7 +422,9 @@ pub open spec fn as_instance_count(as_state: AccelerationStructureState) -> nat 
 /// Ghost update: compact an AS (keeps all state, just marks as compact).
 pub open spec fn compact_as_ghost(
     as_state: AccelerationStructureState,
-) -> AccelerationStructureState {
+) -> AccelerationStructureState
+    recommends as_state.alive, as_state.built,
+{
     AccelerationStructureState {
         generation: as_state.generation + 1,
         ..as_state

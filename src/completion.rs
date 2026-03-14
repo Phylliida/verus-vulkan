@@ -36,6 +36,7 @@ pub open spec fn signal_semaphores_ghost(
     sem_states: Map<nat, SemaphoreState>,
     resource_states: Map<ResourceId, SyncState>,
 ) -> Map<nat, SemaphoreState>
+    recommends forall|j: int| 0 <= j < sems.len() ==> sem_states.contains_key(#[trigger] sems[j]),
     decreases sems.len(),
 {
     if sems.len() == 0 {
@@ -58,7 +59,12 @@ pub open spec fn complete_submission_ghost(
     sem_states: Map<nat, SemaphoreState>,
     fence_states: Map<nat, FenceState>,
     resource_states: Map<ResourceId, SyncState>,
-) -> (Map<nat, CommandBufferState>, Map<nat, SemaphoreState>, Map<nat, FenceState>) {
+) -> (Map<nat, CommandBufferState>, Map<nat, SemaphoreState>, Map<nat, FenceState>)
+    recommends
+        record.fence_id.is_some() ==> fence_states.contains_key(record.fence_id.unwrap()),
+        forall|j: int| 0 <= j < record.signal_semaphores.len()
+            ==> sem_states.contains_key(#[trigger] record.signal_semaphores[j]),
+{
     let new_cbs = transition_cbs_to_executable(record.command_buffers, cb_states);
     let new_sems = signal_semaphores_ghost(record.signal_semaphores, sem_states, resource_states);
     let new_fences = match record.fence_id {
@@ -92,7 +98,9 @@ pub open spec fn fence_wait_ghost(
     dev: DeviceState,
     fence_id: nat,
     fence_states: Map<nat, FenceState>,
-) -> (DeviceState, Map<nat, FenceState>) {
+) -> (DeviceState, Map<nat, FenceState>)
+    recommends fence_states.contains_key(fence_id),
+{
     let marked = mark_fence_completed(dev.pending_submissions, fence_id);
     let cleaned = remove_completed(marked);
     let new_dev = DeviceState {

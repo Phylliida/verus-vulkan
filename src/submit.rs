@@ -44,6 +44,7 @@ pub open spec fn consume_wait_semaphores(
     waits: Seq<nat>,
     sem_states: Map<nat, SemaphoreState>,
 ) -> Map<nat, SemaphoreState>
+    recommends forall|j: int| 0 <= j < waits.len() ==> sem_states.contains_key(waits[j]),
     decreases waits.len(),
 {
     if waits.len() == 0 {

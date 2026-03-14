@@ -36,7 +36,9 @@ pub open spec fn create_event(id: nat) -> EventState {
 pub open spec fn set_event(
     event: EventState,
     stages: Set<nat>,
-) -> EventState {
+) -> EventState
+    recommends event.alive,
+{
     EventState {
         signaled: true,
         signal_stages: stages,
@@ -45,7 +47,9 @@ pub open spec fn set_event(
 }
 
 /// Reset an event (make it unsignaled).
-pub open spec fn reset_event(event: EventState) -> EventState {
+pub open spec fn reset_event(event: EventState) -> EventState
+    recommends event.alive,
+{
     EventState {
         signaled: false,
         signal_stages: Set::empty(),
@@ -77,7 +81,9 @@ pub open spec fn event_well_formed(event: EventState) -> bool {
 }
 
 /// Destroy an event.
-pub open spec fn destroy_event(event: EventState) -> EventState {
+pub open spec fn destroy_event(event: EventState) -> EventState
+    recommends event.alive,
+{
     EventState {
         alive: false,
         ..event
@@ -132,7 +138,9 @@ pub proof fn lemma_cross_render_pass_incompatible()
 }
 
 /// Destroying an event makes it not alive.
+/// Caller must prove the event is alive before destroying.
 pub proof fn lemma_destroy_not_alive(event: EventState)
+    requires event.alive,
     ensures !destroy_event(event).alive,
 {
 }

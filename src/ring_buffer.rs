@@ -25,7 +25,9 @@ pub struct RingBufferState {
 // ── Spec Functions ──────────────────────────────────────────────────────
 
 /// Number of frames currently in flight.
-pub open spec fn frames_in_flight(ring: RingBufferState) -> nat {
+pub open spec fn frames_in_flight(ring: RingBufferState) -> nat
+    recommends ring.read_head <= ring.write_head,
+{
     (ring.write_head - ring.read_head) as nat
 }
 

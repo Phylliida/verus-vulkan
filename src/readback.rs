@@ -91,6 +91,8 @@ pub open spec fn copy_to_staging_ghost(
     recommends
         src_offset + copy_size <= gpu.size,
         dst_offset + copy_size <= staging.size,
+        gpu.contents.data.len() >= src_offset + copy_size,
+        staging.contents.data.len() >= dst_offset + copy_size,
 {
     let new_data = Seq::new(
         staging.contents.data.len(),
@@ -124,6 +126,8 @@ pub open spec fn copy_from_staging_ghost(
     recommends
         src_offset + copy_size <= staging.size,
         dst_offset + copy_size <= gpu.size,
+        staging.contents.data.len() >= src_offset + copy_size,
+        gpu.contents.data.len() >= dst_offset + copy_size,
 {
     let new_data = Seq::new(
         gpu.contents.data.len(),

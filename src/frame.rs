@@ -60,7 +60,10 @@ pub open spec fn frame_acquire_and_submit(
     fence_states: Map<nat, FenceState>,
     thread: ThreadId,
     reg: TokenRegistry,
-) -> Option<(SwapchainState, QueueState, DeviceState, Map<nat, CommandBufferState>, Map<nat, SemaphoreState>, Map<nat, FenceState>)> {
+) -> Option<(SwapchainState, QueueState, DeviceState, Map<nat, CommandBufferState>, Map<nat, SemaphoreState>, Map<nat, FenceState>)>
+    recommends
+        frame.submit_info.fence_id.is_some() ==> fence_states.contains_key(frame.submit_info.fence_id.unwrap()),
+{
     // Step 1: Acquire the swapchain image
     match acquire_image(swapchain, frame.image_index) {
         None => None,

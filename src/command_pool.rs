@@ -136,7 +136,9 @@ pub open spec fn pool_empty(pool: CommandPoolState) -> bool {
 /// Per Vulkan spec: pool must have no allocated CBs outstanding.
 pub open spec fn destroy_command_pool_ghost(
     pool: CommandPoolState,
-) -> CommandPoolState {
+) -> CommandPoolState
+    recommends pool.alive,
+{
     CommandPoolState {
         alive: false,
         ..pool
@@ -260,7 +262,9 @@ pub proof fn lemma_no_access_no_reset(
 }
 
 /// After destroying, a command pool is not alive.
+/// Caller must prove the pool is alive before destroying.
 pub proof fn lemma_destroy_command_pool_not_alive(pool: CommandPoolState)
+    requires pool.alive,
     ensures !destroy_command_pool_ghost(pool).alive,
 {
 }

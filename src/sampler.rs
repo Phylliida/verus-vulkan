@@ -44,7 +44,9 @@ pub struct SamplerState {
 // ── Ghost Destroy ──────────────────────────────────────────────────────
 
 /// Ghost update: destroy a sampler.
-pub open spec fn destroy_sampler_ghost(sampler: SamplerState) -> SamplerState {
+pub open spec fn destroy_sampler_ghost(sampler: SamplerState) -> SamplerState
+    recommends sampler.alive,
+{
     SamplerState {
         alive: false,
         ..sampler
@@ -189,7 +191,9 @@ pub proof fn lemma_well_formed_implies_alive(sampler: SamplerState)
 }
 
 /// After destroying, a sampler is not alive.
+/// Caller must prove the sampler is alive before destroying.
 pub proof fn lemma_destroy_sampler_not_alive(sampler: SamplerState)
+    requires sampler.alive,
     ensures !destroy_sampler_ghost(sampler).alive,
 {
 }

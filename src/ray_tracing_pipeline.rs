@@ -378,7 +378,9 @@ pub open spec fn rt_pipeline_total_shaders(pipeline: RayTracingPipelineState) ->
 /// Ghost update: destroy a ray tracing pipeline.
 pub open spec fn destroy_rt_pipeline_ghost(
     pipeline: RayTracingPipelineState,
-) -> RayTracingPipelineState {
+) -> RayTracingPipelineState
+    recommends pipeline.alive,
+{
     RayTracingPipelineState {
         alive: false,
         ..pipeline
@@ -429,9 +431,11 @@ pub open spec fn rt_pipeline_destroyed(pipeline: RayTracingPipelineState) -> boo
 // ── Extended Proofs ────────────────────────────────────────────────
 
 /// Destroying a RT pipeline sets alive to false.
+/// Caller must prove the pipeline is alive before destroying.
 pub proof fn lemma_destroy_rt_pipeline_not_alive(
     pipeline: RayTracingPipelineState,
 )
+    requires pipeline.alive,
     ensures !destroy_rt_pipeline_ghost(pipeline).alive,
 {
 }

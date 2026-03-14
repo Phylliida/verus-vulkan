@@ -129,7 +129,9 @@ pub open spec fn per_queue_order_valid(mq: MultiQueueCompiledGraph, q: nat) -> b
 }
 
 /// Cross-queue dependencies have corresponding barriers.
-pub open spec fn cross_queue_deps_have_barriers(mq: MultiQueueCompiledGraph) -> bool {
+pub open spec fn cross_queue_deps_have_barriers(mq: MultiQueueCompiledGraph) -> bool
+    recommends mq_compiled_well_formed(mq),
+{
     forall|e: int| 0 <= e < mq.source_graph.edges.len() ==> {
         let edge = #[trigger] mq.source_graph.edges[e];
         let src_q = mq.queue_assignments[edge.from_pass as int].queue_family;
@@ -142,7 +144,9 @@ pub open spec fn cross_queue_deps_have_barriers(mq: MultiQueueCompiledGraph) -> 
 }
 
 /// Each cross-queue dependency has a semaphore signal/wait pair.
-pub open spec fn semaphore_signal_for_each_cross_dep(mq: MultiQueueCompiledGraph) -> bool {
+pub open spec fn semaphore_signal_for_each_cross_dep(mq: MultiQueueCompiledGraph) -> bool
+    recommends mq_compiled_well_formed(mq),
+{
     forall|e: int| 0 <= e < mq.source_graph.edges.len() ==> {
         let edge = #[trigger] mq.source_graph.edges[e];
         let src_q = mq.queue_assignments[edge.from_pass as int].queue_family;
@@ -169,7 +173,9 @@ pub open spec fn ownership_transfers_complete(mq: MultiQueueCompiledGraph) -> bo
 
 /// No concurrent write hazard: no resource is written by two
 /// passes on different queues without synchronization.
-pub open spec fn no_concurrent_write_hazard(mq: MultiQueueCompiledGraph) -> bool {
+pub open spec fn no_concurrent_write_hazard(mq: MultiQueueCompiledGraph) -> bool
+    recommends mq_compiled_well_formed(mq),
+{
     forall|i: int, j: int|
         0 <= i < mq.source_graph.passes.len()
         && 0 <= j < mq.source_graph.passes.len()
@@ -203,7 +209,9 @@ pub open spec fn mq_total_barrier_count(mq: MultiQueueCompiledGraph) -> nat {
 }
 
 /// Candidates for async compute: compute passes with no graphics dependencies.
-pub open spec fn async_compute_candidates(mq: MultiQueueCompiledGraph) -> Set<nat> {
+pub open spec fn async_compute_candidates(mq: MultiQueueCompiledGraph) -> Set<nat>
+    recommends mq_compiled_well_formed(mq),
+{
     Set::new(|p: nat| p < mq.source_graph.passes.len()
         && mq.source_graph.passes[p as int].pass_type == PassType::Compute
         && !exists|e: int| 0 <= e < mq.source_graph.edges.len()
@@ -318,7 +326,9 @@ pub open spec fn queue_workload_balanced(
 
 /// Intra-queue barriers are sufficient: for every same-queue edge,
 /// the source pass appears before the destination pass in the queue's order.
-pub open spec fn intra_queue_barriers_sufficient(mq: MultiQueueCompiledGraph) -> bool {
+pub open spec fn intra_queue_barriers_sufficient(mq: MultiQueueCompiledGraph) -> bool
+    recommends mq_compiled_well_formed(mq),
+{
     forall|e: int| 0 <= e < mq.source_graph.edges.len() ==> {
         let edge = #[trigger] mq.source_graph.edges[e];
         let src_q = mq.queue_assignments[edge.from_pass as int].queue_family;

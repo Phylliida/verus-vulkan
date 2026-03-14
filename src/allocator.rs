@@ -362,7 +362,9 @@ pub open spec fn allocate_from_block(
 pub open spec fn free_allocation(
     sub: SubAllocatorState, alloc_id: nat,
 ) -> SubAllocatorState
-    recommends sub.allocations.contains_key(alloc_id),
+    recommends
+        sub.allocations.contains_key(alloc_id),
+        sub.total_alloc_size >= sub.allocations[alloc_id].size,
 {
     let alloc = sub.allocations[alloc_id];
     SubAllocatorState {
@@ -424,7 +426,9 @@ pub open spec fn buddy_free(sub: SubAllocatorState, alloc_id: nat) -> SubAllocat
 }
 
 /// Compute external fragmentation: total free - largest free block.
-pub open spec fn compute_fragmentation(sub: SubAllocatorState) -> nat {
+pub open spec fn compute_fragmentation(sub: SubAllocatorState) -> nat
+    recommends largest_free_block(sub.free_list) <= free_list_total_size(sub.free_list),
+{
     let total_free = free_list_total_size(sub.free_list);
     let largest = largest_free_block(sub.free_list);
     (total_free - largest) as nat

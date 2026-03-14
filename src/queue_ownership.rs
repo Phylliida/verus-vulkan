@@ -56,7 +56,11 @@ pub open spec fn release_ownership(
     ownership: QueueFamilyOwnership,
     src_family: nat,
     dst_family: nat,
-) -> QueueFamilyOwnership {
+) -> QueueFamilyOwnership
+    recommends
+        ownership.owner == Some(src_family),
+        !ownership.release_pending,
+{
     QueueFamilyOwnership {
         owner: ownership.owner,
         release_pending: true,
@@ -69,7 +73,9 @@ pub open spec fn release_ownership(
 pub open spec fn acquire_ownership(
     ownership: QueueFamilyOwnership,
     dst_family: nat,
-) -> QueueFamilyOwnership {
+) -> QueueFamilyOwnership
+    recommends transfer_valid(ownership, dst_family),
+{
     QueueFamilyOwnership {
         owner: Some(dst_family),
         release_pending: false,

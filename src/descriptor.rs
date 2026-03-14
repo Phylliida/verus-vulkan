@@ -75,7 +75,9 @@ pub struct DescriptorPoolState {
 /// Ghost update: destroy a descriptor pool.
 pub open spec fn destroy_descriptor_pool_ghost(
     pool: DescriptorPoolState,
-) -> DescriptorPoolState {
+) -> DescriptorPoolState
+    recommends pool.alive,
+{
     DescriptorPoolState {
         alive: false,
         ..pool
@@ -85,7 +87,9 @@ pub open spec fn destroy_descriptor_pool_ghost(
 /// Ghost update: destroy a descriptor set layout.
 pub open spec fn destroy_descriptor_set_layout_ghost(
     layout: DescriptorSetLayoutState,
-) -> DescriptorSetLayoutState {
+) -> DescriptorSetLayoutState
+    recommends layout.alive,
+{
     DescriptorSetLayoutState {
         alive: false,
         ..layout
@@ -155,7 +159,9 @@ pub open spec fn pool_can_allocate(pool: DescriptorPoolState) -> bool {
 }
 
 /// Ghost update: allocate one set from the pool.
-pub open spec fn allocate_from_pool(pool: DescriptorPoolState) -> DescriptorPoolState {
+pub open spec fn allocate_from_pool(pool: DescriptorPoolState) -> DescriptorPoolState
+    recommends pool_can_allocate(pool),
+{
     DescriptorPoolState {
         allocated_sets: pool.allocated_sets + 1,
         ..pool
@@ -296,15 +302,19 @@ pub proof fn lemma_update_makes_bound(
 }
 
 /// After destroying, a descriptor pool is not alive.
+/// Caller must prove the pool is alive before destroying.
 pub proof fn lemma_destroy_descriptor_pool_not_alive(pool: DescriptorPoolState)
+    requires pool.alive,
     ensures !destroy_descriptor_pool_ghost(pool).alive,
 {
 }
 
 /// After destroying, a descriptor set layout is not alive.
+/// Caller must prove the layout is alive before destroying.
 pub proof fn lemma_destroy_descriptor_set_layout_not_alive(
     layout: DescriptorSetLayoutState,
 )
+    requires layout.alive,
     ensures !destroy_descriptor_set_layout_ghost(layout).alive,
 {
 }

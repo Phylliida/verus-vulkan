@@ -45,6 +45,7 @@ pub open spec fn balanced_creates_buffers(dev: DeviceState, n: nat) -> DeviceSta
 
 /// Destroy n buffers.
 pub open spec fn balanced_destroys_buffers(dev: DeviceState, n: nat) -> DeviceState
+    recommends dev.live_buffers >= n,
     decreases n,
 {
     if n == 0 {

@@ -52,6 +52,9 @@ pub open spec fn n_allocations(
     size: nat,
     count: nat,
 ) -> DeviceState
+    recommends
+        device_well_formed(dev),
+        heap_fits(dev, heap_idx, count * size),
     decreases count,
 {
     if count == 0 {
