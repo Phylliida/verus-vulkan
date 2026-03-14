@@ -42,6 +42,8 @@ pub open spec fn depth_clamp_state_well_formed(state: DepthClampState) -> bool {
     (matches!(state.mode, DepthClampMode::UserDefined) ==> depth_clamp_range_valid(state.range))
     // Disabled mode must not have clamping enabled
     && (matches!(state.mode, DepthClampMode::Disabled) ==> !state.clamp_enabled)
+    // Active modes must have clamping enabled — prevents silent no-op
+    && (!matches!(state.mode, DepthClampMode::Disabled) ==> state.clamp_enabled)
 }
 
 /// Default depth clamp state: disabled, range (0,1), no clamping.

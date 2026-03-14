@@ -343,4 +343,7 @@ pub mod nested_command_buffers;
 pub mod round3_composition_proofs;
 
 #[cfg(verus_keep_ghost)]
+pub mod examples;
+
+#[cfg(verus_keep_ghost)]
 pub mod runtime;

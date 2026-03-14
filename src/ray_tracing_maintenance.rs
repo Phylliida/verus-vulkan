@@ -123,6 +123,16 @@ pub open spec fn create_maintenance1_state(
     }
 }
 
+/// Maintenance1 state is well-formed with respect to an actual pipeline.
+pub open spec fn maintenance1_well_formed(
+    state: TraceRaysMaintenance1State,
+    pipeline: RayTracingPipelineState,
+) -> bool {
+    state.pipeline_id == pipeline.id
+    && pipeline.alive
+    && rt_pipeline_well_formed(pipeline)
+}
+
 /// Ray hit attribute size is within limits.
 pub open spec fn maintenance1_ray_hit_attribute_valid(
     state: TraceRaysMaintenance1State,
@@ -225,6 +235,19 @@ pub proof fn lemma_indirect_offset_aligned(
 )
     requires indirect_trace_rays_valid(pipeline, tlas, buffer_size, params),
     ensures params.indirect_offset % 4 == 0,
+{
+}
+
+/// Maintenance1 well-formed implies pipeline is alive and well-formed.
+pub proof fn lemma_maintenance1_requires_live_pipeline(
+    state: TraceRaysMaintenance1State,
+    pipeline: RayTracingPipelineState,
+)
+    requires maintenance1_well_formed(state, pipeline),
+    ensures
+        pipeline.alive,
+        rt_pipeline_well_formed(pipeline),
+        state.pipeline_id == pipeline.id,
 {
 }
 
