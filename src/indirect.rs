@@ -4,6 +4,7 @@ use crate::recording::*;
 use crate::pipeline::*;
 use crate::render_pass::*;
 use crate::memory::*;
+use crate::flags::*;
 
 verus! {
 
@@ -33,12 +34,16 @@ pub open spec fn DISPATCH_INDIRECT_COMMAND_SIZE() -> nat { 12 }
 // ── Spec Functions ──────────────────────────────────────────────────────
 
 /// The indirect buffer has enough space for all draw commands.
+/// Also validates offset alignment (must be 4-byte aligned) and
+/// that the buffer has USAGE_INDIRECT_BUFFER.
 pub open spec fn indirect_buffer_size_sufficient(
     params: IndirectDrawParams,
     buffer: BufferState,
     command_size: nat,
 ) -> bool {
     buffer.alive
+    && params.offset % 4 == 0
+    && buffer.usage.contains(USAGE_INDIRECT_BUFFER())
     && params.stride >= command_size
     && params.stride % 4 == 0
     && params.draw_count > 0 ==> (
@@ -72,6 +77,7 @@ pub open spec fn draw_indexed_indirect_valid(
 }
 
 /// An indirect dispatch is valid: compute pipeline bound, buffer sufficient.
+/// Buffer must have USAGE_INDIRECT_BUFFER flag.
 pub open spec fn dispatch_indirect_valid(
     state: RecordingState,
     pipeline: ComputePipelineState,
@@ -81,6 +87,7 @@ pub open spec fn dispatch_indirect_valid(
 ) -> bool {
     dispatch_call_valid(state, pipeline)
     && buffer.alive
+    && buffer.usage.contains(USAGE_INDIRECT_BUFFER())
     && offset % 4 == 0
     && offset + DISPATCH_INDIRECT_COMMAND_SIZE() <= buffer.size
 }
@@ -125,6 +132,8 @@ pub proof fn lemma_zero_count_no_buffer_needed(
     requires
         params.draw_count == 0,
         buffer.alive,
+        params.offset % 4 == 0,
+        buffer.usage.contains(USAGE_INDIRECT_BUFFER()),
         params.stride >= command_size,
     ensures
         indirect_buffer_size_sufficient(params, buffer, command_size),
@@ -166,6 +175,8 @@ pub proof fn lemma_single_draw_size(
     requires
         params.draw_count == 1,
         params.stride == DRAW_INDIRECT_COMMAND_SIZE(),
+        params.offset % 4 == 0,
+        buffer.usage.contains(USAGE_INDIRECT_BUFFER()),
         params.offset + DRAW_INDIRECT_COMMAND_SIZE() <= buffer.size,
         buffer.alive,
     ensures

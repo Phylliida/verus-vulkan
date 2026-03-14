@@ -288,6 +288,61 @@ pub proof fn lemma_concat_valid_logs(
     }
 }
 
+// ── Queue Capability Validation ─────────────────────────────────────────
+
+/// Capabilities of a queue family.
+pub struct QueueCapabilities {
+    pub graphics: bool,
+    pub compute: bool,
+    pub transfer: bool,
+}
+
+/// Whether a pipeline stage is supported by a queue with the given capabilities.
+/// TOP_OF_PIPE, BOTTOM_OF_PIPE, TRANSFER, and HOST are always supported.
+/// Graphics stages require graphics capability; compute requires compute capability.
+pub open spec fn stage_supported_by_queue(stage: nat, caps: QueueCapabilities) -> bool {
+    stage == STAGE_TOP_OF_PIPE() || stage == STAGE_BOTTOM_OF_PIPE()
+    || stage == STAGE_TRANSFER() || stage == STAGE_HOST()
+    || (caps.graphics && (
+        stage == STAGE_DRAW_INDIRECT() || stage == STAGE_VERTEX_INPUT()
+        || stage == STAGE_VERTEX_SHADER() || stage == STAGE_FRAGMENT_SHADER()
+        || stage == STAGE_EARLY_FRAGMENT_TESTS() || stage == STAGE_LATE_FRAGMENT_TESTS()
+        || stage == STAGE_COLOR_ATTACHMENT_OUTPUT()
+    ))
+    || (caps.compute && stage == STAGE_COMPUTE_SHADER())
+}
+
+/// All stages in a barrier entry are supported by the queue.
+pub open spec fn barrier_stages_supported(entry: BarrierEntry, caps: QueueCapabilities) -> bool {
+    (forall|s: nat| entry.src_stages.stages.contains(s) ==> stage_supported_by_queue(s, caps))
+    && (forall|s: nat| entry.dst_stages.stages.contains(s) ==> stage_supported_by_queue(s, caps))
+}
+
+/// A transfer-only queue supports only TOP_OF_PIPE, BOTTOM_OF_PIPE, TRANSFER, and HOST.
+pub proof fn lemma_transfer_queue_stages(stage: nat)
+    requires
+        stage_supported_by_queue(stage, QueueCapabilities { graphics: false, compute: false, transfer: true }),
+    ensures
+        stage == STAGE_TOP_OF_PIPE() || stage == STAGE_BOTTOM_OF_PIPE()
+        || stage == STAGE_TRANSFER() || stage == STAGE_HOST(),
+{
+}
+
+/// A graphics+compute+transfer queue supports all defined stages.
+pub proof fn lemma_graphics_queue_all_stages(stage: nat)
+    requires
+        stage == STAGE_TOP_OF_PIPE() || stage == STAGE_BOTTOM_OF_PIPE()
+        || stage == STAGE_TRANSFER() || stage == STAGE_HOST()
+        || stage == STAGE_DRAW_INDIRECT() || stage == STAGE_VERTEX_INPUT()
+        || stage == STAGE_VERTEX_SHADER() || stage == STAGE_FRAGMENT_SHADER()
+        || stage == STAGE_EARLY_FRAGMENT_TESTS() || stage == STAGE_LATE_FRAGMENT_TESTS()
+        || stage == STAGE_COLOR_ATTACHMENT_OUTPUT()
+        || stage == STAGE_COMPUTE_SHADER(),
+    ensures
+        stage_supported_by_queue(stage, QueueCapabilities { graphics: true, compute: true, transfer: true }),
+{
+}
+
 /// Indirect command read at draw indirect stage is valid.
 pub proof fn lemma_indirect_command_read_valid()
     ensures valid_stage_access(STAGE_DRAW_INDIRECT(), ACCESS_INDIRECT_COMMAND_READ()),

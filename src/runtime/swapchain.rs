@@ -63,8 +63,10 @@ pub open spec fn swapchain_id(sc: &RuntimeSwapchain) -> nat {
 }
 
 /// Whether a specific image can be acquired.
+/// Retired swapchains cannot acquire images.
 pub open spec fn can_acquire_image(sc: &RuntimeSwapchain, idx: nat) -> bool {
-    idx < sc@.image_states.len()
+    !sc@.retired
+    && idx < sc@.image_states.len()
     && sc@.image_states[idx as int] == SwapchainImageState::Available
 }
 
@@ -93,6 +95,7 @@ pub fn create_swapchain_exec(
         state: Ghost(SwapchainState {
             id: id@,
             image_states: states,
+            retired: false,
         }),
     }
 }
@@ -204,6 +207,7 @@ pub fn recreate_swapchain_exec(
     sc.state = Ghost(SwapchainState {
         id: sc.state@.id,
         image_states: new_states,
+        retired: false,
     });
     true
 }
@@ -215,7 +219,7 @@ pub proof fn lemma_create_swapchain_wf(id: nat, image_count: nat)
     requires image_count > 0,
     ensures ({
         let states = Seq::new(image_count, |_i: int| SwapchainImageState::Available);
-        let sc = SwapchainState { id, image_states: states };
+        let sc = SwapchainState { id, image_states: states, retired: false };
         sc.image_states.len() > 0
         && all_available(sc)
     }),
@@ -330,7 +334,7 @@ pub proof fn lemma_recreate_preserves_id(
     requires new_image_count > 0,
     ensures ({
         let new_states = Seq::new(new_image_count, |_i: int| SwapchainImageState::Available);
-        let new_sc = SwapchainState { id: old_sc.id, image_states: new_states };
+        let new_sc = SwapchainState { id: old_sc.id, image_states: new_states, retired: false };
         new_sc.id == old_sc.id
         && new_sc.image_states.len() == new_image_count
         && new_sc.image_states.len() > 0

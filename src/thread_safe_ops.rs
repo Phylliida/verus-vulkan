@@ -2029,10 +2029,11 @@ pub open spec fn ts_execute_secondary(
     pool: PoolOwnership,
     thread: ThreadId,
     reg: TokenRegistry,
+    rp: RenderPassState,
 ) -> Option<RecordingContext> {
     if can_access_child(pool, cb_id, thread, reg)
        && secondary.executable
-       && assumptions_satisfied(secondary.assumptions, primary_ctx)
+       && assumptions_satisfied(secondary.assumptions, primary_ctx, rp)
        && not_held_by_other(reg, secondary_cb_id, thread)
     {
         Some(execute_secondary(primary_ctx, secondary))
@@ -2051,13 +2052,14 @@ pub open spec fn ts_execute_n_secondaries(
     pool: PoolOwnership,
     thread: ThreadId,
     reg: TokenRegistry,
+    rp: RenderPassState,
 ) -> bool {
     can_access_child(pool, cb_id, thread, reg)
     && secondaries.len() == secondary_cb_ids.len()
     && (forall|i: int| #![trigger secondaries[i]]
         0 <= i < secondaries.len() ==>
         secondaries[i].executable
-        && assumptions_satisfied(secondaries[i].assumptions, primary_ctx)
+        && assumptions_satisfied(secondaries[i].assumptions, primary_ctx, rp)
         && not_held_by_other(reg, secondary_cb_ids[i], thread))
 }
 
@@ -2070,8 +2072,9 @@ pub proof fn lemma_ts_execute_secondary_requires_executable(
     pool: PoolOwnership,
     thread: ThreadId,
     reg: TokenRegistry,
+    rp: RenderPassState,
 )
-    requires ts_execute_secondary(primary_ctx, secondary, secondary_cb_id, cb_id, pool, thread, reg).is_some(),
+    requires ts_execute_secondary(primary_ctx, secondary, secondary_cb_id, cb_id, pool, thread, reg, rp).is_some(),
     ensures secondary.executable,
 {
 }
@@ -2085,9 +2088,10 @@ pub proof fn lemma_ts_execute_secondary_requires_assumptions(
     pool: PoolOwnership,
     thread: ThreadId,
     reg: TokenRegistry,
+    rp: RenderPassState,
 )
-    requires ts_execute_secondary(primary_ctx, secondary, secondary_cb_id, cb_id, pool, thread, reg).is_some(),
-    ensures assumptions_satisfied(secondary.assumptions, primary_ctx),
+    requires ts_execute_secondary(primary_ctx, secondary, secondary_cb_id, cb_id, pool, thread, reg, rp).is_some(),
+    ensures assumptions_satisfied(secondary.assumptions, primary_ctx, rp),
 {
 }
 
@@ -2100,8 +2104,9 @@ pub proof fn lemma_ts_execute_secondary_requires_access(
     pool: PoolOwnership,
     thread: ThreadId,
     reg: TokenRegistry,
+    rp: RenderPassState,
 )
-    requires ts_execute_secondary(primary_ctx, secondary, secondary_cb_id, cb_id, pool, thread, reg).is_some(),
+    requires ts_execute_secondary(primary_ctx, secondary, secondary_cb_id, cb_id, pool, thread, reg, rp).is_some(),
     ensures can_access_child(pool, cb_id, thread, reg),
 {
 }

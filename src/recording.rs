@@ -230,6 +230,13 @@ pub open spec fn end_render_pass_recording(
     }
 }
 
+/// Whether it is safe to advance to the next subpass:
+/// a render pass is active and the current subpass is not the last.
+pub open spec fn subpass_advance_valid(state: RecordingState, rp: RenderPassState) -> bool {
+    state.active_render_pass.is_some()
+    && state.active_render_pass.unwrap().subpass_index + 1 < rp.subpasses.len()
+}
+
 /// Ghost update: advance to the next subpass.
 pub open spec fn next_subpass_recording(
     state: RecordingState,
@@ -594,6 +601,16 @@ pub proof fn lemma_set_scissor_preserves_render_pass(state: RecordingState)
 /// Setting push constants preserves the render pass state.
 pub proof fn lemma_set_push_constants_preserves_render_pass(state: RecordingState)
     ensures in_render_pass(set_push_constants_recording(state)) == in_render_pass(state),
+{
+}
+
+/// Advancing to the next subpass keeps the subpass index within bounds.
+pub proof fn lemma_next_subpass_stays_in_bounds(state: RecordingState, rp: RenderPassState)
+    requires subpass_advance_valid(state, rp),
+    ensures
+        next_subpass_recording(state).active_render_pass.is_some(),
+        next_subpass_recording(state).active_render_pass.unwrap().subpass_index
+            < rp.subpasses.len(),
 {
 }
 
