@@ -50,6 +50,7 @@ pub open spec fn nest_command_buffer(
 }
 
 /// Ghost update: unnest one level.
+/// Requires nesting_level > 0 — caller must prove they are actually nested.
 pub open spec fn unnest_command_buffer(
     state: NestedCommandBufferState,
 ) -> NestedCommandBufferState
@@ -60,6 +61,19 @@ pub open spec fn unnest_command_buffer(
         state_isolated: false,
         ..state
     }
+}
+
+/// Safe unnest: requires proof that we are nested.
+/// Use this instead of unnest_command_buffer to get a compile-time guarantee.
+pub open spec fn unnest_command_buffer_checked(
+    state: NestedCommandBufferState,
+    limits: NestedCommandBufferLimits,
+) -> NestedCommandBufferState
+    recommends
+        state.nesting_level > 0,
+        nested_cb_well_formed(state, limits),
+{
+    unnest_command_buffer(state)
 }
 
 /// Initial nesting state at the top level.
@@ -150,6 +164,32 @@ pub proof fn lemma_can_nest_implies_well_formed_after(
         nested_cb_well_formed(state, limits),
         can_nest_deeper(state, limits),
     ensures nested_cb_well_formed(nest_command_buffer(state), limits),
+{
+}
+
+/// Unnesting a well-formed state at level > 0 preserves well-formedness.
+pub proof fn lemma_unnest_preserves_well_formed(
+    state: NestedCommandBufferState,
+    limits: NestedCommandBufferLimits,
+)
+    requires
+        nested_cb_well_formed(state, limits),
+        state.nesting_level > 0,
+    ensures nested_cb_well_formed(unnest_command_buffer(state), limits),
+{
+}
+
+/// Checked unnest requires well-formedness and level > 0.
+pub proof fn lemma_checked_unnest_safe(
+    state: NestedCommandBufferState,
+    limits: NestedCommandBufferLimits,
+)
+    requires
+        nested_cb_well_formed(state, limits),
+        state.nesting_level > 0,
+    ensures
+        nested_cb_well_formed(unnest_command_buffer_checked(state, limits), limits),
+        nesting_depth(unnest_command_buffer_checked(state, limits)) == nesting_depth(state) - 1,
 {
 }
 

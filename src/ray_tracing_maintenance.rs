@@ -29,8 +29,10 @@ pub struct TraceRaysMaintenance1State {
 // ── Spec Functions ──────────────────────────────────────────────────────
 
 /// A strided device address region is well-formed.
+/// Requires non-null address, positive stride/size, and size divisible by stride.
 pub open spec fn strided_region_well_formed(region: StridedDeviceAddressRegion) -> bool {
-    region.stride > 0
+    region.device_address > 0  // null address is invalid
+    && region.stride > 0
     && region.size > 0
     && region.size % region.stride == 0
 }
@@ -61,6 +63,7 @@ pub open spec fn indirect_trace_rays_valid(
 }
 
 /// Trace rays with explicit SBT regions is valid.
+/// Requires all regions well-formed, aligned, and raygen is a single entry.
 pub open spec fn trace_rays_with_regions_valid(
     pipeline: RayTracingPipelineState,
     tlas: AccelerationStructureState,
@@ -81,6 +84,25 @@ pub open spec fn trace_rays_with_regions_valid(
     && params.width > 0
     && params.height > 0
     && params.depth > 0
+}
+
+/// Full validation including alignment (shader_group_handle_alignment).
+pub open spec fn trace_rays_with_regions_valid_aligned(
+    pipeline: RayTracingPipelineState,
+    tlas: AccelerationStructureState,
+    raygen: StridedDeviceAddressRegion,
+    miss: StridedDeviceAddressRegion,
+    hit: StridedDeviceAddressRegion,
+    callable: StridedDeviceAddressRegion,
+    params: TraceRaysParams,
+    handle_alignment: nat,
+) -> bool {
+    trace_rays_with_regions_valid(pipeline, tlas, raygen, miss, hit, callable, params)
+    && handle_alignment > 0
+    && strided_region_aligned(raygen, handle_alignment)
+    && strided_region_aligned(miss, handle_alignment)
+    && strided_region_aligned(hit, handle_alignment)
+    && strided_region_aligned(callable, handle_alignment)
 }
 
 /// Whether inline ray tracing is enabled.
@@ -203,6 +225,33 @@ pub proof fn lemma_indirect_offset_aligned(
 )
     requires indirect_trace_rays_valid(pipeline, tlas, buffer_size, params),
     ensures params.indirect_offset % 4 == 0,
+{
+}
+
+/// Well-formed regions have non-null device addresses.
+pub proof fn lemma_well_formed_region_non_null(region: StridedDeviceAddressRegion)
+    requires strided_region_well_formed(region),
+    ensures region.device_address > 0,
+{
+}
+
+/// Aligned validation implies base validation.
+pub proof fn lemma_aligned_implies_base_valid(
+    pipeline: RayTracingPipelineState,
+    tlas: AccelerationStructureState,
+    raygen: StridedDeviceAddressRegion,
+    miss: StridedDeviceAddressRegion,
+    hit: StridedDeviceAddressRegion,
+    callable: StridedDeviceAddressRegion,
+    params: TraceRaysParams,
+    handle_alignment: nat,
+)
+    requires trace_rays_with_regions_valid_aligned(
+        pipeline, tlas, raygen, miss, hit, callable, params, handle_alignment,
+    ),
+    ensures trace_rays_with_regions_valid(
+        pipeline, tlas, raygen, miss, hit, callable, params,
+    ),
 {
 }
 
