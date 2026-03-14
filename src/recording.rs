@@ -209,7 +209,9 @@ pub open spec fn begin_render_pass_recording(
     state: RecordingState,
     rp_id: nat,
     fb_id: nat,
-) -> RecordingState {
+) -> RecordingState
+    recommends !in_render_pass(state),
+{
     RecordingState {
         active_render_pass: Some(RenderPassInstance {
             render_pass_id: rp_id,
@@ -223,7 +225,9 @@ pub open spec fn begin_render_pass_recording(
 /// Ghost update: end the current render pass.
 pub open spec fn end_render_pass_recording(
     state: RecordingState,
-) -> RecordingState {
+) -> RecordingState
+    recommends in_render_pass(state),
+{
     RecordingState {
         active_render_pass: None,
         ..state

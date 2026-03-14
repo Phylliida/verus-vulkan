@@ -540,4 +540,13 @@ pub open spec fn alloc_sizes_sum_correct(sub: SubAllocatorState) -> bool {
     sub.total_alloc_size + free_list_total_size(sub.free_list) == sub.block_size
 }
 
+// ── Safety Lemmas ────────────────────────────────────────────────────
+
+/// Double-free is prevented: after freeing, the allocation is removed.
+pub proof fn lemma_free_removes_allocation(sub: SubAllocatorState, alloc_id: nat)
+    requires sub.allocations.contains_key(alloc_id),
+    ensures !free_allocation(sub, alloc_id).allocations.contains_key(alloc_id),
+{
+}
+
 } // verus!

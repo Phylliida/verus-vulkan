@@ -59,7 +59,9 @@ pub open spec fn wait_semaphore_ghost(sem: SemaphoreState) -> SemaphoreState {
 }
 
 /// Ghost update: destroy the semaphore.
-pub open spec fn destroy_semaphore_ghost(sem: SemaphoreState) -> SemaphoreState {
+pub open spec fn destroy_semaphore_ghost(sem: SemaphoreState) -> SemaphoreState
+    recommends sem.alive,
+{
     SemaphoreState {
         alive: false,
         ..sem
