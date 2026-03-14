@@ -147,6 +147,21 @@ pub open spec fn fsr_rate_is_square(rate: ShadingRate) -> bool {
     shading_rate_width(rate) == shading_rate_height(rate)
 }
 
+/// A shading rate is valid for a device — must be square unless device supports non-square.
+pub open spec fn fsr_rate_device_valid(rate: ShadingRate, props: FragmentShadingRateProperties) -> bool {
+    fsr_rate_is_square(rate) || props.supports_non_square
+}
+
+/// The effective shading rate is valid for the device.
+/// Caller must prove this to ensure the two-stage combiner didn't produce
+/// an unsupported non-square rate (e.g. Mul producing 2x4 on a square-only device).
+pub open spec fn fsr_effective_rate_device_valid(
+    state: ShadingRateState,
+    props: FragmentShadingRateProperties,
+) -> bool {
+    fsr_rate_device_valid(fsr_effective_rate(state), props)
+}
+
 // ── Proofs ──────────────────────────────────────────────────────────────
 
 /// Keep combiner returns the first rate.
@@ -235,6 +250,29 @@ pub proof fn lemma_fsr_mul_1x1_identity(rate: ShadingRate)
     ensures fsr_combine(ShadingRate::Rate1x1, rate, ShadingRateCombinerOp::Mul) == rate,
 {
     // 1x1 has width=1, height=1, so 1*w=w, 1*h=h, clamp preserves valid dims
+}
+
+/// Keep/Keep with a square pipeline rate is always device-valid (no non-square support needed).
+pub proof fn lemma_fsr_keep_keep_square_valid(
+    state: ShadingRateState,
+    props: FragmentShadingRateProperties,
+)
+    requires
+        matches!(state.combiner_op_0, ShadingRateCombinerOp::Keep),
+        matches!(state.combiner_op_1, ShadingRateCombinerOp::Keep),
+        fsr_rate_is_square(state.pipeline_rate),
+    ensures fsr_effective_rate_device_valid(state, props),
+{
+}
+
+/// All square rates are device-valid regardless of non-square support.
+pub proof fn lemma_fsr_square_always_device_valid(
+    rate: ShadingRate,
+    props: FragmentShadingRateProperties,
+)
+    requires fsr_rate_is_square(rate),
+    ensures fsr_rate_device_valid(rate, props),
+{
 }
 
 /// Attachment must actually cover the framebuffer — caller must provide image dimensions.
