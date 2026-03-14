@@ -1086,6 +1086,8 @@ pub fn vk_allocate_command_buffer(
             scissor_set: false,
             push_constants_set: false,
             bound_dynamic_offsets: Map::empty(),
+            bound_graphics_layout: None,
+            bound_compute_layout: None,
         }),
         recording_thread: Ghost(0nat),
     }

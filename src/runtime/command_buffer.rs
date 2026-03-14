@@ -318,14 +318,14 @@ pub fn cmd_bind_graphics_pipeline_exec(
     ensures
         is_recording(cb),
         cb.barrier_log@ == old(cb).barrier_log@,
-        cb.recording_state@ == bind_graphics_pipeline(old(cb).recording_state@, pipeline_id@),
+        cb.recording_state@ == bind_graphics_pipeline(old(cb).recording_state@, pipeline_id@, pipeline@.descriptor_set_layouts),
         cb.in_render_pass@ == old(cb).in_render_pass@,
         cb.recording_thread@ == old(cb).recording_thread@,
         cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
     crate::ffi::ffi_cmd_bind_pipeline(ctx, cb.handle, 0, pipeline_handle);
-    cb.recording_state = Ghost(bind_graphics_pipeline(cb.recording_state@, pipeline_id@));
+    cb.recording_state = Ghost(bind_graphics_pipeline(cb.recording_state@, pipeline_id@, pipeline@.descriptor_set_layouts));
 }
 
 /// Exec: bind a compute pipeline (updates recording state).
@@ -347,14 +347,14 @@ pub fn cmd_bind_compute_pipeline_exec(
     ensures
         is_recording(cb),
         cb.barrier_log@ == old(cb).barrier_log@,
-        cb.recording_state@ == bind_compute_pipeline(old(cb).recording_state@, pipeline_id@),
+        cb.recording_state@ == bind_compute_pipeline(old(cb).recording_state@, pipeline_id@, pipeline@.descriptor_set_layouts),
         cb.in_render_pass@ == old(cb).in_render_pass@,
         cb.recording_thread@ == old(cb).recording_thread@,
         cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
     crate::ffi::ffi_cmd_bind_pipeline(ctx, cb.handle, 1, pipeline_handle);
-    cb.recording_state = Ghost(bind_compute_pipeline(cb.recording_state@, pipeline_id@));
+    cb.recording_state = Ghost(bind_compute_pipeline(cb.recording_state@, pipeline_id@, pipeline@.descriptor_set_layouts));
 }
 
 /// Exec: bind a pipeline (backward compat, delegates to graphics variant).
@@ -376,14 +376,14 @@ pub fn cmd_bind_pipeline_exec(
     ensures
         is_recording(cb),
         cb.barrier_log@ == old(cb).barrier_log@,
-        cb.recording_state@ == bind_graphics_pipeline(old(cb).recording_state@, pipeline_id@),
+        cb.recording_state@ == bind_graphics_pipeline(old(cb).recording_state@, pipeline_id@, pipeline@.descriptor_set_layouts),
         cb.in_render_pass@ == old(cb).in_render_pass@,
         cb.recording_thread@ == old(cb).recording_thread@,
         cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
     crate::ffi::ffi_cmd_bind_pipeline(ctx, cb.handle, 0, pipeline_handle);
-    cb.recording_state = Ghost(bind_graphics_pipeline(cb.recording_state@, pipeline_id@));
+    cb.recording_state = Ghost(bind_graphics_pipeline(cb.recording_state@, pipeline_id@, pipeline@.descriptor_set_layouts));
 }
 
 /// Exec: bind a descriptor set at a given set index.
