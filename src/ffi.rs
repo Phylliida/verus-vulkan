@@ -48,8 +48,10 @@ use crate::runtime::framebuffer::*;
 use crate::runtime::command_pool::*;
 use crate::runtime::surface::*;
 use crate::runtime::shader_module::*;
+use crate::runtime::image::*;
 use crate::pipeline_layout::*;
 use crate::shader_interface::*;
+use crate::window_cleanup::*;
 
 use ash::vk;
 use ash::vk::Handle;
@@ -176,13 +178,10 @@ fn raw_end_command_buffer(ctx: &VulkanContext, cb: u64) {
         .expect("end_command_buffer failed");
 }
 
-fn raw_cmd_begin_render_pass(
+fn raw_cmd_begin_render_pass_general(
     ctx: &VulkanContext, cb: u64, rp: u64, fb: u64, w: u32, h: u32,
-    clear_r: f32, clear_g: f32, clear_b: f32, clear_a: f32,
+    clear_values: &[vk::ClearValue],
 ) {
-    let clear_values = [vk::ClearValue {
-        color: vk::ClearColorValue { float32: [clear_r, clear_g, clear_b, clear_a] },
-    }];
     let bi = vk::RenderPassBeginInfo::default()
         .render_pass(vk::RenderPass::from_raw(rp))
         .framebuffer(vk::Framebuffer::from_raw(fb))
@@ -190,12 +189,34 @@ fn raw_cmd_begin_render_pass(
             offset: vk::Offset2D { x: 0, y: 0 },
             extent: vk::Extent2D { width: w, height: h },
         })
-        .clear_values(&clear_values);
+        .clear_values(clear_values);
     unsafe {
         ctx.device.cmd_begin_render_pass(
             vk::CommandBuffer::from_raw(cb), &bi, vk::SubpassContents::INLINE,
         );
     }
+}
+
+fn raw_cmd_begin_render_pass(
+    ctx: &VulkanContext, cb: u64, rp: u64, fb: u64, w: u32, h: u32,
+    clear_r: f32, clear_g: f32, clear_b: f32, clear_a: f32,
+) {
+    let clear_values = [vk::ClearValue {
+        color: vk::ClearColorValue { float32: [clear_r, clear_g, clear_b, clear_a] },
+    }];
+    raw_cmd_begin_render_pass_general(ctx, cb, rp, fb, w, h, &clear_values);
+}
+
+fn raw_cmd_begin_render_pass_depth(
+    ctx: &VulkanContext, cb: u64, rp: u64, fb: u64, w: u32, h: u32,
+    clear_r: f32, clear_g: f32, clear_b: f32, clear_a: f32,
+    clear_depth: f32, clear_stencil: u32,
+) {
+    let clear_values = [
+        vk::ClearValue { color: vk::ClearColorValue { float32: [clear_r, clear_g, clear_b, clear_a] } },
+        vk::ClearValue { depth_stencil: vk::ClearDepthStencilValue { depth: clear_depth, stencil: clear_stencil } },
+    ];
+    raw_cmd_begin_render_pass_general(ctx, cb, rp, fb, w, h, &clear_values);
 }
 
 fn raw_cmd_end_render_pass(ctx: &VulkanContext, cb: u64) {
@@ -435,8 +456,10 @@ fn raw_queue_present(ctx: &VulkanContext, queue: u64, sc: u64, idx: u32, wait_se
 
 // ── Pipeline helpers ────────────────────────────────────────────────────
 
-fn raw_create_graphics_pipeline(
+fn raw_create_graphics_pipeline_general(
     ctx: &VulkanContext, layout: u64, rp: u64, vert: u64, frag: u64,
+    cull_mode: u32, front_face: u32,
+    depth_test: bool, depth_write: bool, depth_compare_op: u32,
 ) -> u64 {
     let vert_stage = vk::PipelineShaderStageCreateInfo::default()
         .stage(vk::ShaderStageFlags::VERTEX)
@@ -454,8 +477,8 @@ fn raw_create_graphics_pipeline(
         .viewport_count(1).scissor_count(1);
     let rasterization = vk::PipelineRasterizationStateCreateInfo::default()
         .polygon_mode(vk::PolygonMode::FILL)
-        .cull_mode(vk::CullModeFlags::NONE)
-        .front_face(vk::FrontFace::COUNTER_CLOCKWISE)
+        .cull_mode(vk::CullModeFlags::from_raw(cull_mode))
+        .front_face(vk::FrontFace::from_raw(front_face as i32))
         .line_width(1.0);
     let multisample = vk::PipelineMultisampleStateCreateInfo::default()
         .rasterization_samples(vk::SampleCountFlags::TYPE_1);
@@ -464,10 +487,14 @@ fn raw_create_graphics_pipeline(
     let blend_attachments = [blend_attachment];
     let color_blend = vk::PipelineColorBlendStateCreateInfo::default()
         .attachments(&blend_attachments);
+    let depth_stencil = vk::PipelineDepthStencilStateCreateInfo::default()
+        .depth_test_enable(depth_test)
+        .depth_write_enable(depth_write)
+        .depth_compare_op(vk::CompareOp::from_raw(depth_compare_op as i32));
     let dynamic_states = [vk::DynamicState::VIEWPORT, vk::DynamicState::SCISSOR];
     let dynamic_state = vk::PipelineDynamicStateCreateInfo::default()
         .dynamic_states(&dynamic_states);
-    let ci = vk::GraphicsPipelineCreateInfo::default()
+    let mut ci = vk::GraphicsPipelineCreateInfo::default()
         .stages(&stages)
         .vertex_input_state(&vertex_input)
         .input_assembly_state(&input_assembly)
@@ -479,8 +506,34 @@ fn raw_create_graphics_pipeline(
         .layout(vk::PipelineLayout::from_raw(layout))
         .render_pass(vk::RenderPass::from_raw(rp))
         .subpass(0);
+    if depth_test || depth_write {
+        ci = ci.depth_stencil_state(&depth_stencil);
+    }
     unsafe { ctx.device.create_graphics_pipelines(vk::PipelineCache::null(), &[ci], None) }
-        .expect("create_graphics_pipelines failed")[0].as_raw()
+        .expect("create_graphics_pipeline failed")[0].as_raw()
+}
+
+fn raw_create_graphics_pipeline(
+    ctx: &VulkanContext, layout: u64, rp: u64, vert: u64, frag: u64,
+) -> u64 {
+    raw_create_graphics_pipeline_general(
+        ctx, layout, rp, vert, frag,
+        vk::CullModeFlags::NONE.as_raw(),
+        vk::FrontFace::COUNTER_CLOCKWISE.as_raw() as u32,
+        false, false, 0,
+    )
+}
+
+fn raw_create_graphics_pipeline_depth(
+    ctx: &VulkanContext, layout: u64, rp: u64, vert: u64, frag: u64,
+) -> u64 {
+    raw_create_graphics_pipeline_general(
+        ctx, layout, rp, vert, frag,
+        vk::CullModeFlags::BACK.as_raw(),
+        vk::FrontFace::COUNTER_CLOCKWISE.as_raw() as u32,
+        true, true,
+        vk::CompareOp::LESS_OR_EQUAL.as_raw() as u32,
+    )
 }
 
 fn raw_create_compute_pipeline(ctx: &VulkanContext, layout: u64, shader: u64) -> u64 {
@@ -503,6 +556,24 @@ fn raw_create_pipeline_layout(ctx: &VulkanContext, layouts: &[u64]) -> u64 {
     let ci = vk::PipelineLayoutCreateInfo::default().set_layouts(&ls);
     unsafe { ctx.device.create_pipeline_layout(&ci, None) }
         .expect("create_pipeline_layout failed").as_raw()
+}
+
+fn raw_create_pipeline_layout_push(
+    ctx: &VulkanContext, layouts: &[u64],
+    push_stages: u32, push_offset: u32, push_size: u32,
+) -> u64 {
+    let ls: Vec<vk::DescriptorSetLayout> = layouts.iter()
+        .map(|h| vk::DescriptorSetLayout::from_raw(*h)).collect();
+    let push_range = vk::PushConstantRange {
+        stage_flags: vk::ShaderStageFlags::from_raw(push_stages),
+        offset: push_offset,
+        size: push_size,
+    };
+    let ci = vk::PipelineLayoutCreateInfo::default()
+        .set_layouts(&ls)
+        .push_constant_ranges(std::slice::from_ref(&push_range));
+    unsafe { ctx.device.create_pipeline_layout(&ci, None) }
+        .expect("create_pipeline_layout_push failed").as_raw()
 }
 
 fn raw_destroy_pipeline_layout(ctx: &VulkanContext, layout: u64) {
@@ -1023,6 +1094,73 @@ fn raw_create_render_pass(ctx: &VulkanContext, format: u32, load_op: u32, store_
         .expect("create_render_pass failed").as_raw()
 }
 
+fn raw_create_render_pass_depth(
+    ctx: &VulkanContext, color_format: u32, depth_format: u32,
+    load_op: u32, store_op: u32, samples: u32,
+) -> u64 {
+    let color_attachment = vk::AttachmentDescription::default()
+        .format(vk::Format::from_raw(color_format as i32))
+        .samples(vk::SampleCountFlags::from_raw(samples))
+        .load_op(match load_op {
+            0 => vk::AttachmentLoadOp::LOAD,
+            1 => vk::AttachmentLoadOp::CLEAR,
+            2 => vk::AttachmentLoadOp::DONT_CARE,
+            _ => panic!("invalid load_op"),
+        })
+        .store_op(match store_op {
+            0 => vk::AttachmentStoreOp::STORE,
+            1 => vk::AttachmentStoreOp::DONT_CARE,
+            _ => panic!("invalid store_op"),
+        })
+        .stencil_load_op(vk::AttachmentLoadOp::DONT_CARE)
+        .stencil_store_op(vk::AttachmentStoreOp::DONT_CARE)
+        .initial_layout(vk::ImageLayout::UNDEFINED)
+        .final_layout(vk::ImageLayout::PRESENT_SRC_KHR);
+    let depth_attachment = vk::AttachmentDescription::default()
+        .format(vk::Format::from_raw(depth_format as i32))
+        .samples(vk::SampleCountFlags::from_raw(samples))
+        .load_op(vk::AttachmentLoadOp::CLEAR)
+        .store_op(vk::AttachmentStoreOp::DONT_CARE)
+        .stencil_load_op(vk::AttachmentLoadOp::DONT_CARE)
+        .stencil_store_op(vk::AttachmentStoreOp::DONT_CARE)
+        .initial_layout(vk::ImageLayout::UNDEFINED)
+        .final_layout(vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+    let color_ref = vk::AttachmentReference {
+        attachment: 0,
+        layout: vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+    };
+    let depth_ref = vk::AttachmentReference {
+        attachment: 1,
+        layout: vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+    };
+    let color_refs = [color_ref];
+    let subpass = vk::SubpassDescription::default()
+        .pipeline_bind_point(vk::PipelineBindPoint::GRAPHICS)
+        .color_attachments(&color_refs)
+        .depth_stencil_attachment(&depth_ref);
+    let dep_color = vk::SubpassDependency::default()
+        .src_subpass(vk::SUBPASS_EXTERNAL)
+        .dst_subpass(0)
+        .src_stage_mask(vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT)
+        .dst_stage_mask(vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT)
+        .dst_access_mask(vk::AccessFlags::COLOR_ATTACHMENT_WRITE);
+    let dep_depth = vk::SubpassDependency::default()
+        .src_subpass(vk::SUBPASS_EXTERNAL)
+        .dst_subpass(0)
+        .src_stage_mask(vk::PipelineStageFlags::EARLY_FRAGMENT_TESTS | vk::PipelineStageFlags::LATE_FRAGMENT_TESTS)
+        .dst_stage_mask(vk::PipelineStageFlags::EARLY_FRAGMENT_TESTS | vk::PipelineStageFlags::LATE_FRAGMENT_TESTS)
+        .dst_access_mask(vk::AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE);
+    let attachments = [color_attachment, depth_attachment];
+    let subpasses = [subpass];
+    let dependencies = [dep_color, dep_depth];
+    let ci = vk::RenderPassCreateInfo::default()
+        .attachments(&attachments)
+        .subpasses(&subpasses)
+        .dependencies(&dependencies);
+    unsafe { ctx.device.create_render_pass(&ci, None) }
+        .expect("create_render_pass_depth failed").as_raw()
+}
+
 fn raw_destroy_render_pass(ctx: &VulkanContext, handle: u64) {
     unsafe { ctx.device.destroy_render_pass(vk::RenderPass::from_raw(handle), None) }
 }
@@ -1174,22 +1312,25 @@ pub fn vk_destroy_buffer(ctx: &VulkanContext, dev: &mut RuntimeDevice, buffer_ha
 pub fn vk_create_image(
     ctx: &VulkanContext,
     dev: &mut RuntimeDevice,
+    img_state: Ghost<ImageState>,
     width: u32, height: u32, depth: u32, format: u32,
     mip_levels: u32, array_layers: u32, samples: u32, tiling: u32, usage: u32,
-) -> (image_handle: u64)
-    requires runtime_device_wf(&*old(dev)),
-    ensures dev@ == create_image_ghost(old(dev)@),
+) -> (out: RuntimeImage)
+    requires runtime_device_wf(&*old(dev)), img_state@.alive,
+    ensures dev@ == create_image_ghost(old(dev)@), out@ == img_state@, runtime_image_wf(&out),
 {
-    raw_create_image(ctx, width, height, depth, format, mip_levels, array_layers, samples, tiling, usage)
+    let h = raw_create_image(ctx, width, height, depth, format, mip_levels, array_layers, samples, tiling, usage);
+    RuntimeImage { handle: h, state: Ghost(img_state@) }
 }
 
 /// FFI: destroy an image.
 #[verifier::external_body]
-pub fn vk_destroy_image(ctx: &VulkanContext, dev: &mut RuntimeDevice, image_handle: u64)
-    requires runtime_device_wf(&*old(dev)), old(dev)@.live_images > 0,
-    ensures dev@ == destroy_image_ghost(old(dev)@),
+pub fn vk_destroy_image(ctx: &VulkanContext, dev: &mut RuntimeDevice, img: &mut RuntimeImage)
+    requires runtime_device_wf(&*old(dev)), old(dev)@.live_images > 0, runtime_image_wf(&*old(img)),
+    ensures dev@ == destroy_image_ghost(old(dev)@), !img@.alive,
 {
-    raw_destroy_image(ctx, image_handle);
+    raw_destroy_image(ctx, img.handle);
+    img.state = Ghost(ImageState { alive: false, ..img.state@ });
 }
 
 /// FFI: get a queue from the device.
@@ -1572,7 +1713,7 @@ pub fn vk_queue_present(
 // Pipeline
 // ═══════════════════════════════════════════════════════════════════════
 
-/// FFI: create a graphics pipeline.
+/// FFI: create a graphics pipeline with parameterized cull/depth settings.
 #[verifier::external_body]
 pub fn vk_create_graphics_pipeline(
     ctx: &VulkanContext,
@@ -1581,11 +1722,16 @@ pub fn vk_create_graphics_pipeline(
     render_pass_handle: u64,
     vert_module_handle: u64,
     frag_module_handle: u64,
+    cull_mode: u32,
+    front_face: u32,
+    depth_test: bool,
+    depth_write: bool,
+    depth_compare_op: u32,
 ) -> (out: RuntimeGraphicsPipeline)
     requires gps@.alive,
     ensures out@ == gps@, runtime_gfx_pipeline_wf(&out),
 {
-    let h = raw_create_graphics_pipeline(ctx, layout_handle, render_pass_handle, vert_module_handle, frag_module_handle);
+    let h = raw_create_graphics_pipeline_general(ctx, layout_handle, render_pass_handle, vert_module_handle, frag_module_handle, cull_mode, front_face, depth_test, depth_write, depth_compare_op);
     RuntimeGraphicsPipeline { handle: h, state: Ghost(gps@) }
 }
 
@@ -1618,6 +1764,19 @@ pub fn vk_destroy_pipeline(ctx: &VulkanContext, pipe: &mut RuntimeGraphicsPipeli
 pub fn vk_create_pipeline_layout(ctx: &VulkanContext, set_layout_handles: &[u64]) -> (handle: u64)
 {
     raw_create_pipeline_layout(ctx, set_layout_handles)
+}
+
+/// FFI: create a pipeline layout with push constant range.
+#[verifier::external_body]
+pub fn vk_create_pipeline_layout_push(
+    ctx: &VulkanContext,
+    set_layout_handles: &[u64],
+    push_stages: u32,
+    push_offset: u32,
+    push_size: u32,
+) -> (handle: u64)
+{
+    raw_create_pipeline_layout_push(ctx, set_layout_handles, push_stages, push_offset, push_size)
 }
 
 /// FFI: destroy a pipeline layout.
@@ -1812,6 +1971,7 @@ pub fn vk_destroy_swapchain(
     ctx: &VulkanContext,
     sc: &mut RuntimeSwapchain,
     dev: &RuntimeDevice,
+    permit: Ghost<WindowCleanupPermit>,
 )
     requires
         runtime_swapchain_wf(&*old(sc)),
@@ -1820,6 +1980,8 @@ pub fn vk_destroy_swapchain(
         // Device must be idle
         forall|i: int| 0 <= i < dev@.pending_submissions.len()
             ==> (#[trigger] dev@.pending_submissions[i]).completed,
+        // Event loop must have exited — prevents destroy-during-event-loop bug
+        cleanup_permit_valid(permit@),
     ensures
         sc@ == destroy_swapchain_ghost(old(sc)@),
         !sc@.alive,
@@ -2622,6 +2784,7 @@ pub fn vk_destroy_surface(
     dev: &RuntimeDevice,
     // Ghost: caller attests no live swapchain is bound to this surface
     no_live_swapchains: Ghost<bool>,
+    permit: Ghost<WindowCleanupPermit>,
 )
     requires
         runtime_surface_wf(&*old(surface)),
@@ -2630,6 +2793,8 @@ pub fn vk_destroy_surface(
             ==> (#[trigger] dev@.pending_submissions[i]).completed,
         // Caller attests no swapchain is alive on this surface
         no_live_swapchains@,
+        // Event loop must have exited — prevents destroy-during-event-loop bug
+        cleanup_permit_valid(permit@),
     ensures
         surface@ == destroy_surface_ghost(old(surface)@),
         !surface@.alive,
@@ -2691,6 +2856,42 @@ pub fn vk_create_render_pass(
     RuntimeRenderPass { handle: h, state: Ghost(rps@) }
 }
 
+/// Create a render pass with color + depth attachments.
+#[verifier::external_body]
+pub fn vk_create_render_pass_depth(
+    ctx: &VulkanContext,
+    rps: Ghost<RenderPassState>,
+    color_format: u32,
+    depth_format: u32,
+    load_op: u32,
+    store_op: u32,
+    samples: u32,
+) -> (out: RuntimeRenderPass)
+    requires render_pass_well_formed(rps@), rps@.alive,
+    ensures out@ == rps@, runtime_render_pass_wf(&out),
+{
+    let h = raw_create_render_pass_depth(ctx, color_format, depth_format, load_op, store_op, samples);
+    RuntimeRenderPass { handle: h, state: Ghost(rps@) }
+}
+
+/// Begin a render pass with color + depth clear values.
+#[verifier::external_body]
+pub fn vk_cmd_begin_render_pass_depth(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    render_pass_handle: u64,
+    framebuffer_handle: u64,
+    width: u32,
+    height: u32,
+    clear_r: f32, clear_g: f32, clear_b: f32, clear_a: f32,
+    clear_depth: f32, clear_stencil: u32,
+)
+    requires !old(cb).in_render_pass@,
+    ensures cb.in_render_pass@ == true,
+{
+    raw_cmd_begin_render_pass_depth(ctx, cb.handle, render_pass_handle, framebuffer_handle, width, height, clear_r, clear_g, clear_b, clear_a, clear_depth, clear_stencil);
+}
+
 /// Destroy a render pass.
 /// Caller must prove device is idle and no live framebuffers reference this render pass.
 #[verifier::external_body]
@@ -2719,20 +2920,15 @@ pub fn vk_destroy_render_pass(
 // ── Image View FFI ───────────────────────────────────────────────────
 
 /// Create an image view (2D, 1 mip, 1 layer).
-/// Caller must provide a live swapchain that owns the image.
 #[verifier::external_body]
 pub fn vk_create_image_view(
     ctx: &VulkanContext,
     state: Ghost<ImageViewState>,
-    sc: &RuntimeSwapchain,
     image_handle: u64,
     format: u32,
     aspect: u32,
 ) -> (out: RuntimeImageView)
-    requires
-        state@.alive,
-        // Swapchain must be alive — it owns the images
-        runtime_swapchain_wf(sc),
+    requires state@.alive,
     ensures out@ == state@, runtime_image_view_wf(&out),
 {
     let h = raw_create_image_view(ctx, image_handle, format, aspect);
@@ -2938,6 +3134,22 @@ pub fn vk_create_graphics_pipeline_checked(
 {
     let h = raw_create_graphics_pipeline(ctx, layout.handle, rp.handle, vert.handle, frag.handle);
     RuntimeGraphicsPipeline { handle: h, state: Ghost(gps@) }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Window Cleanup Permit
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Create a `WindowCleanupPermit` attesting that the event loop has exited.
+///
+/// Call this **after** `event_loop.run_app()` returns.  The returned ghost
+/// token is required by `vk_destroy_swapchain` and `vk_destroy_surface`,
+/// preventing accidental destruction inside an event handler.
+#[verifier::external_body]
+pub fn create_window_cleanup_permit() -> (out: Ghost<WindowCleanupPermit>)
+    ensures cleanup_permit_valid(out@),
+{
+    Ghost(WindowCleanupPermit { event_loop_exited: true })
 }
 
 } // verus!

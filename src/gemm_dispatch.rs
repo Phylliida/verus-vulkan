@@ -2,6 +2,7 @@ use vstd::prelude::*;
 use crate::parallel_dispatch::*;
 use crate::compute_validation::*;
 use verus_cutedsl::layout::*;
+use verus_cutedsl::shape::*;
 use verus_cutedsl::gemm::*;
 use verus_cutedsl::predication::*;
 use verus_cutedsl::runtime::gemm::gemm_int_mac;
@@ -345,6 +346,133 @@ proof fn lemma_gemm_disjoint_bridge_inner(
 
     assert forall|idx: nat| !(s1.contains(idx) && s2.contains(idx)) by {}
     assert(s1.disjoint(s2));
+}
+
+// ── Write-in-bounds helper ────────────────────────────────────────────
+
+/// For any valid CTA write, the target index is within the C buffer.
+proof fn lemma_valid_cta_write_in_bounds(
+    config: &GemmDispatchConfig,
+    c: &GemmBufferBinding,
+    ti: nat, tj: nat, ei: nat, ej: nat, idx: nat,
+)
+    requires
+        config.bm > 0,
+        config.bn > 0,
+        c.layout.valid(),
+        c.layout.rank() == 2,
+        c.layout.non_negative_strides(),
+        config.m <= c.layout.shape[0],
+        config.n <= c.layout.shape[1],
+        tensor_valid(&TensorSpec { layout: c.layout, data_size: c.data_size }),
+        is_valid_cta_write(config, &c.layout, ti, tj, ei, ej, idx),
+    ensures
+        idx < c.data_size,
+{
+    let gi = ti * config.bm + ei;
+    let gj = tj * config.bn + ej;
+    let coords = seq![gi, gj];
+
+    // From epilogue_predicated_store_safe: gi < m, gj < n
+    // Combined with m <= shape[0], n <= shape[1]: coords in bounds
+    assert(coords_in_bounds(coords, c.layout.shape)) by {
+        assert(coords.len() == c.layout.shape.len());
+        assert forall|i: int| 0 <= i < coords.len()
+            implies #[trigger] coords[i] < c.layout.shape[i]
+        by {
+            if i == 0 { assert(gi < config.m); }
+            else { assert(gj < config.n); }
+        }
+    }
+
+    // linearize in bounds → offset < cosize ≤ data_size
+    verus_cutedsl::proof::shape_lemmas::lemma_linearize_bound(coords, c.layout.shape);
+    let lin = linearize(coords, c.layout.shape);
+    verus_cutedsl::proof::offset_lemmas::lemma_offset_upper_bound(c.layout, lin);
+    // c.layout.offset(lin) < cosize_nonneg() <= data_size
+    // And gemm_c_tile_offset == idx as int == c.layout.offset(lin)
+}
+
+/// All GEMM CTA writes land within the C buffer.
+proof fn lemma_gemm_writes_in_bounds(
+    config: &GemmDispatchConfig,
+    c: &GemmBufferBinding,
+)
+    requires
+        config.bm > 0,
+        config.bn > 0,
+        config.grid_x > 0,
+        c.layout.valid(),
+        c.layout.rank() == 2,
+        c.layout.non_negative_strides(),
+        config.m <= c.layout.shape[0],
+        config.n <= c.layout.shape[1],
+        tensor_valid(&TensorSpec { layout: c.layout, data_size: c.data_size }),
+        grid_matches_tiles(config),
+    ensures
+        forall|w: nat, idx: nat|
+            w < config.grid_x * config.grid_y
+            && #[trigger] gemm_wg_write_set(config, &c.layout, w).contains(idx)
+            ==> idx < c.data_size,
+{
+    // Prove: for any (ti, tj, ei, ej, idx) satisfying is_valid_cta_write, idx < data_size
+    assert forall|ti: nat, tj: nat, ei: nat, ej: nat, idx: nat|
+        #[trigger] is_valid_cta_write(config, &c.layout, ti, tj, ei, ej, idx)
+        implies idx < c.data_size
+    by {
+        lemma_valid_cta_write_in_bounds(config, c, ti, tj, ei, ej, idx);
+    }
+    // Z3 combines this universal with the existential from write_set membership
+}
+
+// ── Master Theorem ───────────────────────────────────────────────────
+
+/// Master theorem: parallel GEMM dispatch equals sequential execution.
+/// When `gemm_dispatch_safe` holds, parallel GPU dispatch (all workgroups
+/// fire simultaneously) produces the same result as sequential execution
+/// (workgroups applied one at a time in order).
+pub proof fn lemma_gemm_parallel_dispatch_correct(
+    config: &GemmDispatchConfig,
+    a: &GemmBufferBinding,
+    b: &GemmBufferBinding,
+    c: &GemmBufferBinding,
+    limits: ComputeLimits,
+    a_data: Seq<i64>,
+    b_data: Seq<i64>,
+    initial_c_data: Seq<int>,
+)
+    requires
+        gemm_dispatch_safe(config, a, b, c, limits),
+        initial_c_data.len() == c.data_size,
+    ensures ({
+        let k = gemm_as_parallel_kernel(config, c, &a.layout, &b.layout, a_data, b_data);
+        parallel_result(k, initial_c_data)
+            =~= sequential_result(k, initial_c_data, k.num_workgroups)
+    }),
+{
+    let k = gemm_as_parallel_kernel(config, c, &a.layout, &b.layout, a_data, b_data);
+
+    // Extract key facts from gemm_dispatch_safe for sub-lemma preconditions
+    // grid_x > 0: num_tiles_ceil(m, bm) >= 1 when m > 0 && bm > 0
+    // grid_x > 0: ceil_div(m, bm) = (m + bm - 1) / bm >= bm / bm = 1
+    let den = config.bm as int;
+    let num = (config.m + config.bm - 1) as int;
+    assert(num >= den);  // m >= 1 implies m + bm - 1 >= bm
+    vstd::arithmetic::div_mod::lemma_div_by_self(den);
+    vstd::arithmetic::div_mod::lemma_div_is_ordered(den, num, den);
+    assert(config.grid_x > 0);
+
+    // 1. CuTe correctness properties
+    lemma_gemm_dispatch_safe_implies_correct(config, a, b, c, limits);
+
+    // 2. Write disjointness: distinct workgroups write disjoint C indices
+    lemma_gemm_disjoint_bridge(config, &c.layout);
+
+    // 3. Write in-bounds: all writes land within C buffer
+    lemma_gemm_writes_in_bounds(config, c);
+
+    // 4. Apply the general parallel ↔ sequential equivalence theorem
+    lemma_parallel_equals_sequential(k, initial_c_data);
 }
 
 } // verus!

@@ -58,6 +58,23 @@ Or verify the entire crate (includes all examples):
 ../verus/source/target/release/cargo-verus verify
 ```
 
+## Demos
+
+| Demo | Description | Run |
+|------|-------------|-----|
+| `triangle` | Hello triangle (Vulkan or WebGPU) | `cargo run --bin triangle --features vulkan-backend` |
+| `cube` | Spinning cube with depth testing + push constants (Vulkan only) | `cargo run --bin cube --features vulkan-backend` |
+
+### macOS (MoltenVK via Nix)
+
+If MoltenVK is installed through Nix, the Vulkan loader won't find it automatically. Set `VK_DRIVER_FILES` before running:
+
+```bash
+export VK_DRIVER_FILES=$(find /nix/store -name "MoltenVK_icd.json" 2>/dev/null | head -1)
+```
+
+Without this you'll get `ERROR_INCOMPATIBLE_DRIVER` at startup.
+
 ## Structure
 
 - `src/` — Spec and proof modules modeling Vulkan API state machines
