@@ -163,13 +163,17 @@ fn raw_end_command_buffer(ctx: &VulkanContext, cb: u64) {
 }
 
 fn raw_cmd_begin_render_pass(ctx: &VulkanContext, cb: u64, rp: u64, fb: u64, w: u32, h: u32) {
+    let clear_values = [vk::ClearValue {
+        color: vk::ClearColorValue { float32: [0.1, 0.1, 0.1, 1.0] },
+    }];
     let bi = vk::RenderPassBeginInfo::default()
         .render_pass(vk::RenderPass::from_raw(rp))
         .framebuffer(vk::Framebuffer::from_raw(fb))
         .render_area(vk::Rect2D {
             offset: vk::Offset2D { x: 0, y: 0 },
             extent: vk::Extent2D { width: w, height: h },
-        });
+        })
+        .clear_values(&clear_values);
     unsafe {
         ctx.device.cmd_begin_render_pass(
             vk::CommandBuffer::from_raw(cb), &bi, vk::SubpassContents::INLINE,
