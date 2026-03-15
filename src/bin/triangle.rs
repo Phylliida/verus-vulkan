@@ -437,8 +437,23 @@ mod vulkan {
 
         pub fn destroy(&mut self) {
             unsafe {
-                self.ctx.device.device_wait_idle().unwrap();
-                // Surface must be destroyed via the surface loader
+                let _ = self.ctx.device.device_wait_idle();
+                self.ctx.device.destroy_pipeline(vk::Pipeline::from_raw(self.pipeline.handle), None);
+                self.ctx.device.destroy_pipeline_layout(vk::PipelineLayout::from_raw(self.pipeline_layout_handle), None);
+                self.ctx.device.destroy_shader_module(vk::ShaderModule::from_raw(self.vert_module.handle), None);
+                self.ctx.device.destroy_shader_module(vk::ShaderModule::from_raw(self.frag_module.handle), None);
+                for fb in &self.framebuffers {
+                    self.ctx.device.destroy_framebuffer(vk::Framebuffer::from_raw(fb.handle), None);
+                }
+                for iv in &self.image_views {
+                    self.ctx.device.destroy_image_view(vk::ImageView::from_raw(iv.handle), None);
+                }
+                self.ctx.device.destroy_render_pass(vk::RenderPass::from_raw(self.render_pass.handle), None);
+                self.ctx.device.destroy_command_pool(vk::CommandPool::from_raw(self.command_pool.handle), None);
+                self.ctx.device.destroy_fence(vk::Fence::from_raw(self.in_flight_fence.handle), None);
+                self.ctx.device.destroy_semaphore(vk::Semaphore::from_raw(self.image_available_sem.handle), None);
+                self.ctx.device.destroy_semaphore(vk::Semaphore::from_raw(self.render_finished_sem.handle), None);
+                self.ctx.swapchain_loader.destroy_swapchain(vk::SwapchainKHR::from_raw(self.swapchain.handle), None);
                 self.ctx.surface_loader.destroy_surface(self.raw_surface, None);
                 self.ctx.destroy();
             }
@@ -490,8 +505,9 @@ impl ApplicationHandler for App {
 
         #[cfg(feature = "vulkan-backend")]
         {
-            let vk = vulkan::VkState::new(window);
+            let vk = vulkan::VkState::new(window.clone());
             self.backend = Backend::Vulkan(vk);
+            window.request_redraw();
             return;
         }
 
