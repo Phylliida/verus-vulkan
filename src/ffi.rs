@@ -17,6 +17,7 @@ use crate::descriptor::*;
 use crate::swapchain::*;
 use crate::timeline_semaphore::*;
 use crate::image_layout::*;
+use crate::layout_barrier::*;
 use crate::resource::*;
 use crate::sync::*;
 use crate::recording::*;
@@ -237,6 +238,37 @@ fn raw_cmd_pipeline_barrier(ctx: &VulkanContext, cb: u64, src: u32, dst: u32) {
             vk::CommandBuffer::from_raw(cb),
             vk::PipelineStageFlags::from_raw(src), vk::PipelineStageFlags::from_raw(dst),
             vk::DependencyFlags::empty(), &[], &[], &[],
+        );
+    }
+}
+
+fn raw_cmd_pipeline_barrier_image(
+    ctx: &VulkanContext, cb: u64, src: u32, dst: u32,
+    // (image_handle, old_layout, new_layout, src_access_mask, dst_access_mask)
+    image_barriers: &[(u64, u32, u32, u32, u32)],
+) {
+    let barriers: Vec<vk::ImageMemoryBarrier> = image_barriers.iter().map(|&(img, old_l, new_l, src_a, dst_a)| {
+        vk::ImageMemoryBarrier::default()
+            .src_access_mask(vk::AccessFlags::from_raw(src_a))
+            .dst_access_mask(vk::AccessFlags::from_raw(dst_a))
+            .old_layout(vk::ImageLayout::from_raw(old_l as i32))
+            .new_layout(vk::ImageLayout::from_raw(new_l as i32))
+            .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+            .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+            .image(vk::Image::from_raw(img))
+            .subresource_range(vk::ImageSubresourceRange {
+                aspect_mask: vk::ImageAspectFlags::COLOR,
+                base_mip_level: 0,
+                level_count: 1,
+                base_array_layer: 0,
+                layer_count: 1,
+            })
+    }).collect();
+    unsafe {
+        ctx.device.cmd_pipeline_barrier(
+            vk::CommandBuffer::from_raw(cb),
+            vk::PipelineStageFlags::from_raw(src), vk::PipelineStageFlags::from_raw(dst),
+            vk::DependencyFlags::empty(), &[], &[], &barriers,
         );
     }
 }
@@ -593,6 +625,23 @@ fn raw_create_descriptor_set_layout(ctx: &VulkanContext, binding_count: u32) -> 
         .expect("create_descriptor_set_layout failed").as_raw()
 }
 
+fn raw_create_descriptor_set_layout_typed(
+    ctx: &VulkanContext,
+    // (binding_num, descriptor_type, count, stage_flags)
+    bindings: &[(u32, u32, u32, u32)],
+) -> u64 {
+    let vk_bindings: Vec<vk::DescriptorSetLayoutBinding> = bindings.iter().map(|&(b, ty, cnt, stages)| {
+        vk::DescriptorSetLayoutBinding::default()
+            .binding(b)
+            .descriptor_type(vk::DescriptorType::from_raw(ty as i32))
+            .descriptor_count(cnt)
+            .stage_flags(vk::ShaderStageFlags::from_raw(stages))
+    }).collect();
+    let ci = vk::DescriptorSetLayoutCreateInfo::default().bindings(&vk_bindings);
+    unsafe { ctx.device.create_descriptor_set_layout(&ci, None) }
+        .expect("create_descriptor_set_layout_typed failed").as_raw()
+}
+
 fn raw_create_descriptor_pool(ctx: &VulkanContext, max_sets: u32) -> u64 {
     let ps = [vk::DescriptorPoolSize {
         ty: vk::DescriptorType::UNIFORM_BUFFER, descriptor_count: max_sets,
@@ -600,6 +649,23 @@ fn raw_create_descriptor_pool(ctx: &VulkanContext, max_sets: u32) -> u64 {
     let ci = vk::DescriptorPoolCreateInfo::default().max_sets(max_sets).pool_sizes(&ps);
     unsafe { ctx.device.create_descriptor_pool(&ci, None) }
         .expect("create_descriptor_pool failed").as_raw()
+}
+
+fn raw_create_descriptor_pool_typed(
+    ctx: &VulkanContext,
+    max_sets: u32,
+    // (descriptor_type, descriptor_count)
+    pool_sizes: &[(u32, u32)],
+) -> u64 {
+    let ps: Vec<vk::DescriptorPoolSize> = pool_sizes.iter().map(|&(ty, cnt)| {
+        vk::DescriptorPoolSize {
+            ty: vk::DescriptorType::from_raw(ty as i32),
+            descriptor_count: cnt,
+        }
+    }).collect();
+    let ci = vk::DescriptorPoolCreateInfo::default().max_sets(max_sets).pool_sizes(&ps);
+    unsafe { ctx.device.create_descriptor_pool(&ci, None) }
+        .expect("create_descriptor_pool_typed failed").as_raw()
 }
 
 fn raw_allocate_descriptor_sets(ctx: &VulkanContext, pool: u64, layout: u64) -> u64 {
@@ -618,6 +684,27 @@ fn raw_update_descriptor_sets(ctx: &VulkanContext, ds: u64, binding: u32, ty: u3
     unsafe { ctx.device.update_descriptor_sets(&[w], &[]) }
 }
 
+fn raw_update_descriptor_sets_image(
+    ctx: &VulkanContext,
+    ds: u64,
+    binding: u32,
+    descriptor_type: u32,
+    image_view: u64,
+    image_layout: u32,
+) {
+    let ii = [vk::DescriptorImageInfo {
+        sampler: vk::Sampler::null(),
+        image_view: vk::ImageView::from_raw(image_view),
+        image_layout: vk::ImageLayout::from_raw(image_layout as i32),
+    }];
+    let w = vk::WriteDescriptorSet::default()
+        .dst_set(vk::DescriptorSet::from_raw(ds))
+        .dst_binding(binding)
+        .descriptor_type(vk::DescriptorType::from_raw(descriptor_type as i32))
+        .image_info(&ii);
+    unsafe { ctx.device.update_descriptor_sets(&[w], &[]) }
+}
+
 fn raw_destroy_descriptor_pool(ctx: &VulkanContext, pool: u64) {
     unsafe { ctx.device.destroy_descriptor_pool(vk::DescriptorPool::from_raw(pool), None) }
 }
@@ -628,7 +715,7 @@ fn raw_destroy_descriptor_set_layout(ctx: &VulkanContext, handle: u64) {
 
 // ── Swapchain helpers ───────────────────────────────────────────────────
 
-fn raw_create_swapchain(ctx: &VulkanContext, surface: u64, count: u32, fmt: u32, w: u32, h: u32, pm: u32) -> u64 {
+fn raw_create_swapchain(ctx: &VulkanContext, surface: u64, count: u32, fmt: u32, w: u32, h: u32, pm: u32, usage: u32) -> u64 {
     let ci = vk::SwapchainCreateInfoKHR::default()
         .surface(vk::SurfaceKHR::from_raw(surface))
         .min_image_count(count)
@@ -636,7 +723,7 @@ fn raw_create_swapchain(ctx: &VulkanContext, surface: u64, count: u32, fmt: u32,
         .image_color_space(vk::ColorSpaceKHR::SRGB_NONLINEAR)
         .image_extent(vk::Extent2D { width: w, height: h })
         .image_array_layers(1)
-        .image_usage(vk::ImageUsageFlags::COLOR_ATTACHMENT)
+        .image_usage(vk::ImageUsageFlags::from_raw(usage))
         .image_sharing_mode(vk::SharingMode::EXCLUSIVE)
         .pre_transform(vk::SurfaceTransformFlagsKHR::IDENTITY)
         .composite_alpha(vk::CompositeAlphaFlagsKHR::OPAQUE)
@@ -1543,6 +1630,22 @@ pub fn vk_cmd_pipeline_barrier(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffe
     raw_cmd_pipeline_barrier(ctx, cb.handle, src_stage, dst_stage);
 }
 
+/// FFI: pipeline barrier with image memory barriers.
+#[verifier::external_body]
+pub fn vk_cmd_pipeline_barrier_image(
+    ctx: &VulkanContext,
+    cb: &mut RuntimeCommandBuffer,
+    _barriers: Ghost<Seq<ImageBarrierEntry>>,
+    src_stage: u32,
+    dst_stage: u32,
+    // (image_handle, old_layout, new_layout, src_access_mask, dst_access_mask)
+    image_barriers: &[(u64, u32, u32, u32, u32)],
+)
+    requires !old(cb).in_render_pass@,
+{
+    raw_cmd_pipeline_barrier_image(ctx, cb.handle, src_stage, dst_stage, image_barriers);
+}
+
 /// FFI: bind a pipeline.
 #[verifier::external_body]
 pub fn vk_cmd_bind_pipeline(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer, bind_point: u32, pipeline_handle: u64)
@@ -1804,6 +1907,21 @@ pub fn vk_create_descriptor_set_layout(
     RuntimeDescriptorSetLayout { handle: h, state: Ghost(layout_state@) }
 }
 
+/// FFI: create a descriptor set layout with explicit binding types.
+#[verifier::external_body]
+pub fn vk_create_descriptor_set_layout_typed(
+    ctx: &VulkanContext,
+    layout_state: Ghost<DescriptorSetLayoutState>,
+    // (binding_num, descriptor_type, count, stage_flags)
+    bindings: &[(u32, u32, u32, u32)],
+) -> (out: RuntimeDescriptorSetLayout)
+    requires layout_state@.alive, layout_well_formed(layout_state@),
+    ensures out@ == layout_state@, runtime_dsl_wf(&out),
+{
+    let h = raw_create_descriptor_set_layout_typed(ctx, bindings);
+    RuntimeDescriptorSetLayout { handle: h, state: Ghost(layout_state@) }
+}
+
 /// FFI: create a descriptor pool.
 #[verifier::external_body]
 pub fn vk_create_descriptor_pool(
@@ -1820,6 +1938,30 @@ pub fn vk_create_descriptor_pool(
         pool_has_capacity(&out),
 {
     let h = raw_create_descriptor_pool(ctx, max_sets as u32);
+    RuntimeDescriptorPool {
+        handle: h,
+        state: Ghost(DescriptorPoolState { id: id@, max_sets: max_sets as nat, allocated_sets: 0nat, alive: true }),
+    }
+}
+
+/// FFI: create a descriptor pool with explicit pool size types.
+#[verifier::external_body]
+pub fn vk_create_descriptor_pool_typed(
+    ctx: &VulkanContext,
+    id: Ghost<nat>,
+    max_sets: u64,
+    // (descriptor_type, descriptor_count)
+    pool_sizes: &[(u32, u32)],
+) -> (out: RuntimeDescriptorPool)
+    requires max_sets > 0,
+    ensures
+        runtime_pool_wf(&out),
+        out@.id == id@,
+        out@.max_sets == max_sets as nat,
+        out@.allocated_sets == 0,
+        pool_has_capacity(&out),
+{
+    let h = raw_create_descriptor_pool_typed(ctx, max_sets as u32, pool_sizes);
     RuntimeDescriptorPool {
         handle: h,
         state: Ghost(DescriptorPoolState { id: id@, max_sets: max_sets as nat, allocated_sets: 0nat, alive: true }),
@@ -1865,6 +2007,23 @@ pub fn vk_update_descriptor_sets(
     ensures ds@ == update_descriptor_binding(old(ds)@, binding_num@, new_binding@),
 {
     raw_update_descriptor_sets(ctx, ds.handle, binding_index, descriptor_type, buffer_handle, offset, range);
+}
+
+/// FFI: update descriptor sets with an image binding.
+#[verifier::external_body]
+pub fn vk_update_descriptor_sets_image(
+    ctx: &VulkanContext,
+    ds: &mut RuntimeDescriptorSet,
+    binding_num: Ghost<nat>,
+    new_binding: Ghost<DescriptorBinding>,
+    binding_index: u32,
+    descriptor_type: u32,
+    image_view_handle: u64,
+    image_layout: u32,
+)
+    ensures ds@ == update_descriptor_binding(old(ds)@, binding_num@, new_binding@),
+{
+    raw_update_descriptor_sets_image(ctx, ds.handle, binding_index, descriptor_type, image_view_handle, image_layout);
 }
 
 /// FFI: destroy a descriptor pool.
@@ -1913,6 +2072,7 @@ pub fn vk_create_swapchain(
     width: u32,
     height: u32,
     present_mode: u32,
+    usage: u32,
 ) -> (out: RuntimeSwapchain)
     requires image_count > 0,
     ensures
@@ -1921,7 +2081,7 @@ pub fn vk_create_swapchain(
         out@.image_states.len() == image_count as nat,
         all_available(out@),
 {
-    let h = raw_create_swapchain(ctx, surface_handle, image_count as u32, format, width, height, present_mode);
+    let h = raw_create_swapchain(ctx, surface_handle, image_count as u32, format, width, height, present_mode, usage);
     RuntimeSwapchain {
         handle: h,
         state: Ghost(SwapchainState {
@@ -2355,6 +2515,11 @@ pub fn ffi_cmd_dispatch(ctx: &VulkanContext, cb_handle: u64, gx: u32, gy: u32, g
 #[verifier::external_body]
 pub fn ffi_cmd_pipeline_barrier(ctx: &VulkanContext, cb_handle: u64, src: u32, dst: u32) {
     raw_cmd_pipeline_barrier(ctx, cb_handle, src, dst);
+}
+
+#[verifier::external_body]
+pub fn ffi_cmd_pipeline_barrier_image(ctx: &VulkanContext, cb_handle: u64, src: u32, dst: u32, image_barriers: &[(u64, u32, u32, u32, u32)]) {
+    raw_cmd_pipeline_barrier_image(ctx, cb_handle, src, dst, image_barriers);
 }
 
 #[verifier::external_body]

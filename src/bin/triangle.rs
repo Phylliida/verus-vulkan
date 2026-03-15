@@ -260,6 +260,7 @@ mod vulkan {
                 width,
                 height,
                 vk::PresentModeKHR::FIFO.as_raw() as u32,
+                vk::ImageUsageFlags::COLOR_ATTACHMENT.as_raw(),
             );
 
             // 8. Get swapchain images → create image views
