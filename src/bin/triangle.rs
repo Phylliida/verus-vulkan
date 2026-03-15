@@ -210,12 +210,8 @@ mod vulkan {
                 ash_window::enumerate_required_extensions(display_handle.as_raw())
                     .expect("Failed to get required surface extensions");
 
-            // Device extensions: swapchain + portability subset on macOS
-            let mut device_exts: Vec<*const i8> = vec![ash::khr::swapchain::NAME.as_ptr()];
-            #[cfg(target_os = "macos")]
-            {
-                device_exts.push(c"VK_KHR_portability_subset".as_ptr());
-            }
+            // Device extensions: swapchain (portability subset auto-added by VulkanContext on macOS)
+            let device_exts: Vec<*const i8> = vec![ash::khr::swapchain::NAME.as_ptr()];
 
             // 2. Create VulkanContext (instance + device + loaders)
             let ctx = unsafe {
@@ -370,7 +366,7 @@ mod vulkan {
             ffi::vk_reset_fences(&self.ctx, &mut self.in_flight_fence);
 
             // Acquire next swapchain image
-            let idx = ffi::vk_acquire_next_image_any(
+            let idx = ffi::vk_acquire_next_image(
                 &self.ctx,
                 &mut self.swapchain,
                 self.image_available_sem.handle,
@@ -389,6 +385,7 @@ mod vulkan {
                 self.framebuffers[idx as usize].handle,
                 self.width,
                 self.height,
+                0.1, 0.1, 0.1, 1.0, // clear color
             );
             ffi::vk_cmd_bind_pipeline(
                 &self.ctx,

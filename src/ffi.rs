@@ -1,3 +1,12 @@
+//! # FFI Convention
+//!
+//! Ghost parameters (Ghost<T>) appear right after `ctx: &VulkanContext`,
+//! before concrete runtime parameters. This groups the "what we're proving"
+//! with the context, keeping raw Vulkan parameters at the end.
+//!
+//! Pattern: `vk_create_foo(ctx, ghost_state, handle1, handle2, ...)`
+//!          `vk_destroy_foo(ctx, runtime_obj)`
+
 use vstd::prelude::*;
 use crate::device::*;
 use crate::memory::*;
@@ -45,6 +54,11 @@ use crate::shader_interface::*;
 use ash::vk;
 use ash::vk::Handle;
 use crate::vk_context::VulkanContext;
+
+/// Opaque Vulkan object handle (VkBuffer, VkImage, VkPipeline, etc.)
+pub type VkHandle = u64;
+/// Swapchain image index returned by vkAcquireNextImageKHR.
+pub type ImageIndex = u64;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Ash helpers — pure Rust, outside verus!
@@ -162,9 +176,12 @@ fn raw_end_command_buffer(ctx: &VulkanContext, cb: u64) {
         .expect("end_command_buffer failed");
 }
 
-fn raw_cmd_begin_render_pass(ctx: &VulkanContext, cb: u64, rp: u64, fb: u64, w: u32, h: u32) {
+fn raw_cmd_begin_render_pass(
+    ctx: &VulkanContext, cb: u64, rp: u64, fb: u64, w: u32, h: u32,
+    clear_r: f32, clear_g: f32, clear_b: f32, clear_a: f32,
+) {
     let clear_values = [vk::ClearValue {
-        color: vk::ClearColorValue { float32: [0.1, 0.1, 0.1, 1.0] },
+        color: vk::ClearColorValue { float32: [clear_r, clear_g, clear_b, clear_a] },
     }];
     let bi = vk::RenderPassBeginInfo::default()
         .render_pass(vk::RenderPass::from_raw(rp))
@@ -374,6 +391,14 @@ fn raw_signal_semaphore(ctx: &VulkanContext, sem: u64, value: u64) {
     unsafe { ctx.device.signal_semaphore(&si) }.expect("signal_semaphore failed");
 }
 
+fn raw_destroy_semaphore(ctx: &VulkanContext, handle: u64) {
+    unsafe { ctx.device.destroy_semaphore(vk::Semaphore::from_raw(handle), None) }
+}
+
+fn raw_destroy_timeline_semaphore(ctx: &VulkanContext, handle: u64) {
+    unsafe { ctx.device.destroy_semaphore(vk::Semaphore::from_raw(handle), None) }
+}
+
 // ── Queue helpers ───────────────────────────────────────────────────────
 
 fn raw_queue_submit(
@@ -526,6 +551,10 @@ fn raw_destroy_descriptor_pool(ctx: &VulkanContext, pool: u64) {
     unsafe { ctx.device.destroy_descriptor_pool(vk::DescriptorPool::from_raw(pool), None) }
 }
 
+fn raw_destroy_descriptor_set_layout(ctx: &VulkanContext, handle: u64) {
+    unsafe { ctx.device.destroy_descriptor_set_layout(vk::DescriptorSetLayout::from_raw(handle), None) }
+}
+
 // ── Swapchain helpers ───────────────────────────────────────────────────
 
 fn raw_create_swapchain(ctx: &VulkanContext, surface: u64, count: u32, fmt: u32, w: u32, h: u32, pm: u32) -> u64 {
@@ -555,6 +584,10 @@ fn raw_acquire_next_image(ctx: &VulkanContext, sc: u64, sem: u64, fence: u64, ti
         )
     }.expect("acquire_next_image failed");
     idx
+}
+
+fn raw_destroy_swapchain(ctx: &VulkanContext, handle: u64) {
+    unsafe { ctx.swapchain_loader.destroy_swapchain(vk::SwapchainKHR::from_raw(handle), None) }
 }
 
 // ── Query Pool helpers ────────────────────────────────────────────────
@@ -950,11 +983,8 @@ fn raw_create_render_pass(ctx: &VulkanContext, format: u32, load_op: u32, store_
     let attachment = vk::AttachmentDescription::default()
         .format(vk::Format::from_raw(format as i32))
         .samples(vk::SampleCountFlags::from_raw(samples))
-        .load_op(if load_op == 0 { vk::AttachmentLoadOp::LOAD }
-            else if load_op == 1 { vk::AttachmentLoadOp::CLEAR }
-            else { vk::AttachmentLoadOp::DONT_CARE })
-        .store_op(if store_op == 0 { vk::AttachmentStoreOp::STORE }
-            else { vk::AttachmentStoreOp::DONT_CARE })
+        .load_op(vk::AttachmentLoadOp::from_raw(load_op as i32))
+        .store_op(vk::AttachmentStoreOp::from_raw(store_op as i32))
         .stencil_load_op(vk::AttachmentLoadOp::DONT_CARE)
         .stencil_store_op(vk::AttachmentStoreOp::DONT_CARE)
         .initial_layout(vk::ImageLayout::UNDEFINED)
@@ -1297,7 +1327,7 @@ pub fn vk_end_command_buffer(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer)
     raw_end_command_buffer(ctx, cb.handle);
 }
 
-/// FFI: begin a render pass.
+/// FFI: begin a render pass with clear color.
 #[verifier::external_body]
 pub fn vk_cmd_begin_render_pass(
     ctx: &VulkanContext,
@@ -1306,11 +1336,15 @@ pub fn vk_cmd_begin_render_pass(
     framebuffer_handle: u64,
     width: u32,
     height: u32,
+    clear_r: f32,
+    clear_g: f32,
+    clear_b: f32,
+    clear_a: f32,
 )
     requires !old(cb).in_render_pass@,
     ensures cb.in_render_pass@ == true,
 {
-    raw_cmd_begin_render_pass(ctx, cb.handle, render_pass_handle, framebuffer_handle, width, height);
+    raw_cmd_begin_render_pass(ctx, cb.handle, render_pass_handle, framebuffer_handle, width, height, clear_r, clear_g, clear_b, clear_a);
 }
 
 /// FFI: end a render pass.
@@ -1339,7 +1373,7 @@ pub fn vk_cmd_draw(
 
 /// FFI: dispatch compute.
 #[verifier::external_body]
-pub(crate) fn vk_cmd_dispatch(
+pub fn vk_cmd_dispatch(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     group_count_x: u32,
@@ -1353,7 +1387,7 @@ pub(crate) fn vk_cmd_dispatch(
 
 /// FFI: pipeline barrier.
 #[verifier::external_body]
-pub(crate) fn vk_cmd_pipeline_barrier(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer, src_stage: u32, dst_stage: u32)
+pub fn vk_cmd_pipeline_barrier(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer, src_stage: u32, dst_stage: u32)
     requires !old(cb).in_render_pass@,
 {
     raw_cmd_pipeline_barrier(ctx, cb.handle, src_stage, dst_stage);
@@ -1368,7 +1402,7 @@ pub fn vk_cmd_bind_pipeline(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer, 
 
 /// FFI: bind descriptor sets.
 #[verifier::external_body]
-pub(crate) fn vk_cmd_bind_descriptor_sets(
+pub fn vk_cmd_bind_descriptor_sets(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     _sets: Ghost<Seq<DescriptorSetState>>,
@@ -1441,6 +1475,26 @@ pub fn vk_signal_semaphore(ctx: &VulkanContext, sem: &mut RuntimeTimelineSemapho
     ensures sem@ == submit_signal(old(sem)@, value as nat),
 {
     raw_signal_semaphore(ctx, sem.handle, value);
+}
+
+/// FFI: destroy a binary semaphore.
+#[verifier::external_body]
+pub fn vk_destroy_semaphore(ctx: &VulkanContext, sem: &mut RuntimeSemaphore)
+    requires runtime_semaphore_wf(&*old(sem)),
+    ensures sem@ == destroy_semaphore_ghost(old(sem)@), !sem@.alive,
+{
+    raw_destroy_semaphore(ctx, sem.handle);
+    sem.state = Ghost(destroy_semaphore_ghost(sem.state@));
+}
+
+/// FFI: destroy a timeline semaphore.
+#[verifier::external_body]
+pub fn vk_destroy_timeline_semaphore(ctx: &VulkanContext, sem: &mut RuntimeTimelineSemaphore)
+    requires runtime_timeline_wf(&*old(sem)),
+    ensures !sem@.alive, sem@.id == old(sem)@.id,
+{
+    raw_destroy_timeline_semaphore(ctx, sem.handle);
+    sem.state = Ghost(TimelineSemaphoreState { alive: false, ..sem.state@ });
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1636,6 +1690,16 @@ pub fn vk_destroy_descriptor_pool(ctx: &VulkanContext, pool: &mut RuntimeDescrip
     raw_destroy_descriptor_pool(ctx, pool.handle);
 }
 
+/// FFI: destroy a descriptor set layout.
+#[verifier::external_body]
+pub fn vk_destroy_descriptor_set_layout(ctx: &VulkanContext, dsl: &mut RuntimeDescriptorSetLayout)
+    requires runtime_dsl_wf(&*old(dsl)),
+    ensures !dsl@.alive, dsl@.id == old(dsl)@.id,
+{
+    raw_destroy_descriptor_set_layout(ctx, dsl.handle);
+    dsl.state = Ghost(DescriptorSetLayoutState { alive: false, ..dsl.state@ });
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // Swapchain
 // ═══════════════════════════════════════════════════════════════════════
@@ -1670,28 +1734,9 @@ pub fn vk_create_swapchain(
     }
 }
 
-/// FFI: acquire next image from swapchain.
+/// FFI: acquire next swapchain image. Returns the image index chosen by the driver.
 #[verifier::external_body]
 pub fn vk_acquire_next_image(
-    ctx: &VulkanContext,
-    sc: &mut RuntimeSwapchain,
-    idx: u64,
-    semaphore_handle: u64,
-    fence_handle: u64,
-    timeout: u64,
-)
-    requires runtime_swapchain_wf(&*old(sc)), can_acquire_image(&*old(sc), idx as nat),
-    ensures
-        sc@ == acquire_image(old(sc)@, idx as nat).unwrap(),
-        sc@.image_states[idx as int] == SwapchainImageState::Acquired,
-{
-    let _actual = raw_acquire_next_image(ctx, sc.handle, semaphore_handle, fence_handle, timeout);
-}
-
-/// FFI: acquire next image, returning the actual image index chosen by the driver.
-/// Unlike vk_acquire_next_image, the caller does not specify the index.
-#[verifier::external_body]
-pub fn vk_acquire_next_image_any(
     ctx: &VulkanContext,
     sc: &mut RuntimeSwapchain,
     semaphore_handle: u64,
@@ -1718,6 +1763,16 @@ pub fn vk_queue_present_khr(
     ensures sc@ == present_image(old(sc)@, idx as nat).unwrap(),
 {
     raw_queue_present(ctx, queue.handle, sc.handle, idx as u32, wait_sem_handles);
+}
+
+/// FFI: destroy a swapchain.
+#[verifier::external_body]
+pub fn vk_destroy_swapchain(ctx: &VulkanContext, sc: &mut RuntimeSwapchain)
+    requires runtime_swapchain_wf(&*old(sc)),
+    ensures sc@.retired, sc@.image_states.len() == 0,
+{
+    raw_destroy_swapchain(ctx, sc.handle);
+    sc.state = Ghost(SwapchainState { id: sc.state@.id, image_states: Seq::empty(), retired: true });
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1756,7 +1811,7 @@ pub fn vk_destroy_query_pool(ctx: &VulkanContext, pool: &mut RuntimeQueryPool)
 
 /// FFI: reset queries in a command buffer.
 #[verifier::external_body]
-pub(crate) fn vk_cmd_reset_query_pool(
+pub fn vk_cmd_reset_query_pool(
     ctx: &VulkanContext,
     cb_handle: u64,
     pool: &mut RuntimeQueryPool,
@@ -1776,7 +1831,7 @@ pub(crate) fn vk_cmd_reset_query_pool(
 
 /// FFI: begin a query.
 #[verifier::external_body]
-pub(crate) fn vk_cmd_begin_query(
+pub fn vk_cmd_begin_query(
     ctx: &VulkanContext,
     cb_handle: u64,
     pool: &mut RuntimeQueryPool,
@@ -1793,7 +1848,7 @@ pub(crate) fn vk_cmd_begin_query(
 
 /// FFI: end a query.
 #[verifier::external_body]
-pub(crate) fn vk_cmd_end_query(
+pub fn vk_cmd_end_query(
     ctx: &VulkanContext,
     cb_handle: u64,
     pool: &mut RuntimeQueryPool,
@@ -1861,7 +1916,7 @@ pub fn vk_reset_event(ctx: &VulkanContext, event: &mut RuntimeEvent)
 
 /// FFI: set an event from a command buffer.
 #[verifier::external_body]
-pub(crate) fn vk_cmd_set_event(
+pub fn vk_cmd_set_event(
     ctx: &VulkanContext,
     cb_handle: u64,
     event: &mut RuntimeEvent,
@@ -1877,7 +1932,7 @@ pub(crate) fn vk_cmd_set_event(
 
 /// FFI: reset an event from a command buffer.
 #[verifier::external_body]
-pub(crate) fn vk_cmd_reset_event(
+pub fn vk_cmd_reset_event(
     ctx: &VulkanContext,
     cb_handle: u64,
     event: &mut RuntimeEvent,
@@ -1923,7 +1978,7 @@ pub fn vk_destroy_acceleration_structure(
 
 /// FFI: build an acceleration structure.
 #[verifier::external_body]
-pub(crate) fn vk_cmd_build_acceleration_structure(
+pub fn vk_cmd_build_acceleration_structure(
     ctx: &VulkanContext,
     cb_handle: u64,
     as_obj: &mut RuntimeAccelerationStructure,
@@ -1942,7 +1997,7 @@ pub(crate) fn vk_cmd_build_acceleration_structure(
 
 /// FFI: compact an acceleration structure.
 #[verifier::external_body]
-pub(crate) fn vk_cmd_compact_acceleration_structure(
+pub fn vk_cmd_compact_acceleration_structure(
     ctx: &VulkanContext,
     cb_handle: u64,
     as_obj: &mut RuntimeAccelerationStructure,
@@ -1994,7 +2049,7 @@ pub fn vk_destroy_ray_tracing_pipeline(
 
 /// FFI: indirect draw.
 #[verifier::external_body]
-pub(crate) fn vk_cmd_draw_indirect(
+pub fn vk_cmd_draw_indirect(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     buffer_handle: u64,
@@ -2009,7 +2064,7 @@ pub(crate) fn vk_cmd_draw_indirect(
 
 /// FFI: indirect indexed draw.
 #[verifier::external_body]
-pub(crate) fn vk_cmd_draw_indexed_indirect(
+pub fn vk_cmd_draw_indexed_indirect(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     buffer_handle: u64,
@@ -2024,7 +2079,7 @@ pub(crate) fn vk_cmd_draw_indexed_indirect(
 
 /// FFI: indirect dispatch.
 #[verifier::external_body]
-pub(crate) fn vk_cmd_dispatch_indirect(
+pub fn vk_cmd_dispatch_indirect(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     buffer_handle: u64,
@@ -2037,7 +2092,7 @@ pub(crate) fn vk_cmd_dispatch_indirect(
 
 /// FFI: begin dynamic rendering (VK_KHR_dynamic_rendering / Vulkan 1.3).
 #[verifier::external_body]
-pub(crate) fn vk_cmd_begin_rendering(
+pub fn vk_cmd_begin_rendering(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     width: u32,
@@ -2052,7 +2107,7 @@ pub(crate) fn vk_cmd_begin_rendering(
 
 /// FFI: end dynamic rendering.
 #[verifier::external_body]
-pub(crate) fn vk_cmd_end_rendering(
+pub fn vk_cmd_end_rendering(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
 )
@@ -2068,117 +2123,117 @@ pub(crate) fn vk_cmd_end_rendering(
 // ═══════════════════════════════════════════════════════════════════════
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_draw(ctx: &VulkanContext, cb_handle: u64, vc: u32, ic: u32, fv: u32, fi: u32) {
+pub fn ffi_cmd_draw(ctx: &VulkanContext, cb_handle: u64, vc: u32, ic: u32, fv: u32, fi: u32) {
     raw_cmd_draw(ctx, cb_handle, vc, ic, fv, fi);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_draw_indexed(ctx: &VulkanContext, cb_handle: u64, ic: u32, inst_c: u32, fi: u32, vo: i32, f_inst: u32) {
+pub fn ffi_cmd_draw_indexed(ctx: &VulkanContext, cb_handle: u64, ic: u32, inst_c: u32, fi: u32, vo: i32, f_inst: u32) {
     raw_cmd_draw_indexed(ctx, cb_handle, ic, inst_c, fi, vo, f_inst);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_dispatch(ctx: &VulkanContext, cb_handle: u64, gx: u32, gy: u32, gz: u32) {
+pub fn ffi_cmd_dispatch(ctx: &VulkanContext, cb_handle: u64, gx: u32, gy: u32, gz: u32) {
     raw_cmd_dispatch(ctx, cb_handle, gx, gy, gz);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_pipeline_barrier(ctx: &VulkanContext, cb_handle: u64, src: u32, dst: u32) {
+pub fn ffi_cmd_pipeline_barrier(ctx: &VulkanContext, cb_handle: u64, src: u32, dst: u32) {
     raw_cmd_pipeline_barrier(ctx, cb_handle, src, dst);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_bind_pipeline(ctx: &VulkanContext, cb_handle: u64, bp: u32, pipe: u64) {
+pub fn ffi_cmd_bind_pipeline(ctx: &VulkanContext, cb_handle: u64, bp: u32, pipe: u64) {
     raw_cmd_bind_pipeline(ctx, cb_handle, bp, pipe);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_begin_render_pass(ctx: &VulkanContext, cb_handle: u64, rp: u64, fb: u64, w: u32, h: u32) {
-    raw_cmd_begin_render_pass(ctx, cb_handle, rp, fb, w, h);
+pub fn ffi_cmd_begin_render_pass(ctx: &VulkanContext, cb_handle: u64, rp: u64, fb: u64, w: u32, h: u32, clear_r: f32, clear_g: f32, clear_b: f32, clear_a: f32) {
+    raw_cmd_begin_render_pass(ctx, cb_handle, rp, fb, w, h, clear_r, clear_g, clear_b, clear_a);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_end_render_pass(ctx: &VulkanContext, cb_handle: u64) {
+pub fn ffi_cmd_end_render_pass(ctx: &VulkanContext, cb_handle: u64) {
     raw_cmd_end_render_pass(ctx, cb_handle);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_next_subpass(ctx: &VulkanContext, cb_handle: u64) {
+pub fn ffi_cmd_next_subpass(ctx: &VulkanContext, cb_handle: u64) {
     raw_cmd_next_subpass(ctx, cb_handle);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_copy_buffer(ctx: &VulkanContext, cb_handle: u64, src: u64, dst: u64, size: u64) {
+pub fn ffi_cmd_copy_buffer(ctx: &VulkanContext, cb_handle: u64, src: u64, dst: u64, size: u64) {
     raw_cmd_copy_buffer(ctx, cb_handle, src, dst, size);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_copy_image(ctx: &VulkanContext, cb_handle: u64, src: u64, dst: u64, width: u32, height: u32) {
+pub fn ffi_cmd_copy_image(ctx: &VulkanContext, cb_handle: u64, src: u64, dst: u64, width: u32, height: u32) {
     raw_cmd_copy_image(ctx, cb_handle, src, dst, width, height);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_blit_image(ctx: &VulkanContext, cb_handle: u64, src: u64, dst: u64, width: u32, height: u32) {
+pub fn ffi_cmd_blit_image(ctx: &VulkanContext, cb_handle: u64, src: u64, dst: u64, width: u32, height: u32) {
     raw_cmd_blit_image(ctx, cb_handle, src, dst, width, height);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_copy_buffer_to_image(ctx: &VulkanContext, cb_handle: u64, src_buf: u64, dst_img: u64, width: u32, height: u32) {
+pub fn ffi_cmd_copy_buffer_to_image(ctx: &VulkanContext, cb_handle: u64, src_buf: u64, dst_img: u64, width: u32, height: u32) {
     raw_cmd_copy_buffer_to_image(ctx, cb_handle, src_buf, dst_img, width, height);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_copy_image_to_buffer(ctx: &VulkanContext, cb_handle: u64, src_img: u64, dst_buf: u64, width: u32, height: u32) {
+pub fn ffi_cmd_copy_image_to_buffer(ctx: &VulkanContext, cb_handle: u64, src_img: u64, dst_buf: u64, width: u32, height: u32) {
     raw_cmd_copy_image_to_buffer(ctx, cb_handle, src_img, dst_buf, width, height);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_draw_indirect(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64, draw_count: u32, stride: u32) {
+pub fn ffi_cmd_draw_indirect(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64, draw_count: u32, stride: u32) {
     raw_cmd_draw_indirect(ctx, cb_handle, buffer, offset, draw_count, stride);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_draw_indexed_indirect(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64, draw_count: u32, stride: u32) {
+pub fn ffi_cmd_draw_indexed_indirect(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64, draw_count: u32, stride: u32) {
     raw_cmd_draw_indexed_indirect(ctx, cb_handle, buffer, offset, draw_count, stride);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_dispatch_indirect(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64) {
+pub fn ffi_cmd_dispatch_indirect(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64) {
     raw_cmd_dispatch_indirect(ctx, cb_handle, buffer, offset);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_begin_rendering(ctx: &VulkanContext, cb_handle: u64, width: u32, height: u32, layer_count: u32) {
+pub fn ffi_cmd_begin_rendering(ctx: &VulkanContext, cb_handle: u64, width: u32, height: u32, layer_count: u32) {
     raw_cmd_begin_rendering(ctx, cb_handle, width, height, layer_count);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_end_rendering(ctx: &VulkanContext, cb_handle: u64) {
+pub fn ffi_cmd_end_rendering(ctx: &VulkanContext, cb_handle: u64) {
     raw_cmd_end_rendering(ctx, cb_handle);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_bind_vertex_buffers(ctx: &VulkanContext, cb_handle: u64, first_binding: u32, buffer: u64, offset: u64) {
+pub fn ffi_cmd_bind_vertex_buffers(ctx: &VulkanContext, cb_handle: u64, first_binding: u32, buffer: u64, offset: u64) {
     raw_cmd_bind_vertex_buffers(ctx, cb_handle, first_binding, buffer, offset);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_bind_index_buffer(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64, index_type: u32) {
+pub fn ffi_cmd_bind_index_buffer(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64, index_type: u32) {
     raw_cmd_bind_index_buffer(ctx, cb_handle, buffer, offset, index_type);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_begin_command_buffer(ctx: &VulkanContext, cb_handle: u64) {
+pub fn ffi_begin_command_buffer(ctx: &VulkanContext, cb_handle: u64) {
     raw_begin_command_buffer(ctx, cb_handle);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_end_command_buffer(ctx: &VulkanContext, cb_handle: u64) {
+pub fn ffi_end_command_buffer(ctx: &VulkanContext, cb_handle: u64) {
     raw_end_command_buffer(ctx, cb_handle);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_bind_descriptor_sets(ctx: &VulkanContext, cb_handle: u64, bp: u32, layout: u64, first: u32, sets: &[u64]) {
+pub fn ffi_cmd_bind_descriptor_sets(ctx: &VulkanContext, cb_handle: u64, bp: u32, layout: u64, first: u32, sets: &[u64]) {
     raw_cmd_bind_descriptor_sets(ctx, cb_handle, bp, layout, first, sets);
 }
 
@@ -2193,291 +2248,291 @@ pub fn ffi_cmd_set_scissor(ctx: &VulkanContext, cb_handle: u64, x: i32, y: i32, 
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_push_constants(ctx: &VulkanContext, cb_handle: u64, layout: u64, stages: u32, offset: u32, data: &[u8]) {
+pub fn ffi_cmd_push_constants(ctx: &VulkanContext, cb_handle: u64, layout: u64, stages: u32, offset: u32, data: &[u8]) {
     raw_cmd_push_constants(ctx, cb_handle, layout, stages, offset, data);
 }
 
 // ── Query Pool command bridges ───────────────────────────────────────
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_reset_query_pool(ctx: &VulkanContext, cb_handle: u64, pool_handle: u64, first: u32, count: u32) {
+pub fn ffi_cmd_reset_query_pool(ctx: &VulkanContext, cb_handle: u64, pool_handle: u64, first: u32, count: u32) {
     raw_cmd_reset_query_pool(ctx, cb_handle, pool_handle, first, count);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_begin_query(ctx: &VulkanContext, cb_handle: u64, pool_handle: u64, index: u32) {
+pub fn ffi_cmd_begin_query(ctx: &VulkanContext, cb_handle: u64, pool_handle: u64, index: u32) {
     raw_cmd_begin_query(ctx, cb_handle, pool_handle, index);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_end_query(ctx: &VulkanContext, cb_handle: u64, pool_handle: u64, index: u32) {
+pub fn ffi_cmd_end_query(ctx: &VulkanContext, cb_handle: u64, pool_handle: u64, index: u32) {
     raw_cmd_end_query(ctx, cb_handle, pool_handle, index);
 }
 
 // ── Event command bridges ────────────────────────────────────────────
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_set_event(ctx: &VulkanContext, cb_handle: u64, event_handle: u64, stages_mask: u32) {
+pub fn ffi_cmd_set_event(ctx: &VulkanContext, cb_handle: u64, event_handle: u64, stages_mask: u32) {
     raw_cmd_set_event(ctx, cb_handle, event_handle, stages_mask);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_reset_event(ctx: &VulkanContext, cb_handle: u64, event_handle: u64, stages_mask: u32) {
+pub fn ffi_cmd_reset_event(ctx: &VulkanContext, cb_handle: u64, event_handle: u64, stages_mask: u32) {
     raw_cmd_reset_event(ctx, cb_handle, event_handle, stages_mask);
 }
 
 // ── Acceleration Structure command bridges ───────────────────────────
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_build_acceleration_structure(ctx: &VulkanContext, cb_handle: u64) {
+pub fn ffi_cmd_build_acceleration_structure(ctx: &VulkanContext, cb_handle: u64) {
     // No raw_* exists — VulkanContext lacks khr::acceleration_structure::Device.
     // Ghost-only stub for CB invariant enforcement.
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_compact_acceleration_structure(ctx: &VulkanContext, cb_handle: u64) {
+pub fn ffi_cmd_compact_acceleration_structure(ctx: &VulkanContext, cb_handle: u64) {
     // No raw_* exists — ghost-only stub.
 }
 
 // ── Dynamic state command bridges ───────────────────────────────────
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_set_line_width(ctx: &VulkanContext, cb_handle: u64, line_width: f32) {
+pub fn ffi_cmd_set_line_width(ctx: &VulkanContext, cb_handle: u64, line_width: f32) {
     raw_cmd_set_line_width(ctx, cb_handle, line_width);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_set_depth_bias(ctx: &VulkanContext, cb_handle: u64, constant_factor: f32, clamp: f32, slope_factor: f32) {
+pub fn ffi_cmd_set_depth_bias(ctx: &VulkanContext, cb_handle: u64, constant_factor: f32, clamp: f32, slope_factor: f32) {
     raw_cmd_set_depth_bias(ctx, cb_handle, constant_factor, clamp, slope_factor);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_set_blend_constants(ctx: &VulkanContext, cb_handle: u64, c0: f32, c1: f32, c2: f32, c3: f32) {
+pub fn ffi_cmd_set_blend_constants(ctx: &VulkanContext, cb_handle: u64, c0: f32, c1: f32, c2: f32, c3: f32) {
     raw_cmd_set_blend_constants(ctx, cb_handle, [c0, c1, c2, c3]);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_set_depth_bounds(ctx: &VulkanContext, cb_handle: u64, min: f32, max: f32) {
+pub fn ffi_cmd_set_depth_bounds(ctx: &VulkanContext, cb_handle: u64, min: f32, max: f32) {
     raw_cmd_set_depth_bounds(ctx, cb_handle, min, max);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_set_stencil_compare_mask(ctx: &VulkanContext, cb_handle: u64, face_mask: u32, compare_mask: u32) {
+pub fn ffi_cmd_set_stencil_compare_mask(ctx: &VulkanContext, cb_handle: u64, face_mask: u32, compare_mask: u32) {
     raw_cmd_set_stencil_compare_mask(ctx, cb_handle, face_mask, compare_mask);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_set_stencil_write_mask(ctx: &VulkanContext, cb_handle: u64, face_mask: u32, write_mask: u32) {
+pub fn ffi_cmd_set_stencil_write_mask(ctx: &VulkanContext, cb_handle: u64, face_mask: u32, write_mask: u32) {
     raw_cmd_set_stencil_write_mask(ctx, cb_handle, face_mask, write_mask);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_set_stencil_reference(ctx: &VulkanContext, cb_handle: u64, face_mask: u32, reference: u32) {
+pub fn ffi_cmd_set_stencil_reference(ctx: &VulkanContext, cb_handle: u64, face_mask: u32, reference: u32) {
     raw_cmd_set_stencil_reference(ctx, cb_handle, face_mask, reference);
 }
 
 // ── Buffer operation command bridges ────────────────────────────────
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_fill_buffer(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64, size: u64, data: u32) {
+pub fn ffi_cmd_fill_buffer(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64, size: u64, data: u32) {
     raw_cmd_fill_buffer(ctx, cb_handle, buffer, offset, size, data);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_update_buffer(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64, data: &[u8]) {
+pub fn ffi_cmd_update_buffer(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64, data: &[u8]) {
     raw_cmd_update_buffer(ctx, cb_handle, buffer, offset, data);
 }
 
 // ── Image clear & resolve command bridges ───────────────────────────
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_clear_color_image(ctx: &VulkanContext, cb_handle: u64, image: u64, layout: u32) {
+pub fn ffi_cmd_clear_color_image(ctx: &VulkanContext, cb_handle: u64, image: u64, layout: u32) {
     raw_cmd_clear_color_image(ctx, cb_handle, image, layout);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_clear_depth_stencil_image(ctx: &VulkanContext, cb_handle: u64, image: u64, layout: u32) {
+pub fn ffi_cmd_clear_depth_stencil_image(ctx: &VulkanContext, cb_handle: u64, image: u64, layout: u32) {
     raw_cmd_clear_depth_stencil_image(ctx, cb_handle, image, layout);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_clear_attachments(ctx: &VulkanContext, cb_handle: u64) {
+pub fn ffi_cmd_clear_attachments(ctx: &VulkanContext, cb_handle: u64) {
     raw_cmd_clear_attachments(ctx, cb_handle);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_resolve_image(ctx: &VulkanContext, cb_handle: u64, src: u64, dst: u64, width: u32, height: u32) {
+pub fn ffi_cmd_resolve_image(ctx: &VulkanContext, cb_handle: u64, src: u64, dst: u64, width: u32, height: u32) {
     raw_cmd_resolve_image(ctx, cb_handle, src, dst, width, height);
 }
 
 // ── Query command bridges ───────────────────────────────────────────
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_write_timestamp(ctx: &VulkanContext, cb_handle: u64, stage: u32, pool_handle: u64, query: u32) {
+pub fn ffi_cmd_write_timestamp(ctx: &VulkanContext, cb_handle: u64, stage: u32, pool_handle: u64, query: u32) {
     raw_cmd_write_timestamp(ctx, cb_handle, stage, pool_handle, query);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_copy_query_pool_results(ctx: &VulkanContext, cb_handle: u64, pool_handle: u64, first: u32, count: u32, dst: u64, offset: u64, stride: u64, flags: u32) {
+pub fn ffi_cmd_copy_query_pool_results(ctx: &VulkanContext, cb_handle: u64, pool_handle: u64, first: u32, count: u32, dst: u64, offset: u64, stride: u64, flags: u32) {
     raw_cmd_copy_query_pool_results(ctx, cb_handle, pool_handle, first, count, dst, offset, stride, flags);
 }
 
 // ── Sync command bridges ────────────────────────────────────────────
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_wait_events(ctx: &VulkanContext, cb_handle: u64, event_handle: u64, src_stage: u32, dst_stage: u32) {
+pub fn ffi_cmd_wait_events(ctx: &VulkanContext, cb_handle: u64, event_handle: u64, src_stage: u32, dst_stage: u32) {
     raw_cmd_wait_events(ctx, cb_handle, event_handle, src_stage, dst_stage);
 }
 
 // ── Indirect count command bridges (ghost stubs — needs VK 1.2) ─────
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_draw_indirect_count(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64, count_buffer: u64, count_offset: u64, max_draw_count: u32, stride: u32) {
+pub fn ffi_cmd_draw_indirect_count(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64, count_buffer: u64, count_offset: u64, max_draw_count: u32, stride: u32) {
     // Ghost stub — VulkanContext lacks khr::draw_indirect_count::Device.
     // The verified wrapper enforces all preconditions at the spec level.
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_draw_indexed_indirect_count(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64, count_buffer: u64, count_offset: u64, max_draw_count: u32, stride: u32) {
+pub fn ffi_cmd_draw_indexed_indirect_count(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64, count_buffer: u64, count_offset: u64, max_draw_count: u32, stride: u32) {
     // Ghost stub.
 }
 
 // ── Ray tracing command bridges (ghost stubs) ───────────────────────
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_trace_rays(ctx: &VulkanContext, cb_handle: u64) {
+pub fn ffi_cmd_trace_rays(ctx: &VulkanContext, cb_handle: u64) {
     // Ghost stub — VulkanContext lacks khr::ray_tracing_pipeline::Device.
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_trace_rays_indirect(ctx: &VulkanContext, cb_handle: u64, buffer: u64) {
+pub fn ffi_cmd_trace_rays_indirect(ctx: &VulkanContext, cb_handle: u64, buffer: u64) {
     // Ghost stub.
 }
 
 // ── Debug utils command bridges (ghost stubs) ───────────────────────
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_begin_debug_utils_label(ctx: &VulkanContext, cb_handle: u64) {
+pub fn ffi_cmd_begin_debug_utils_label(ctx: &VulkanContext, cb_handle: u64) {
     // Ghost stub — needs ext::debug_utils::Instance.
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_end_debug_utils_label(ctx: &VulkanContext, cb_handle: u64) {
+pub fn ffi_cmd_end_debug_utils_label(ctx: &VulkanContext, cb_handle: u64) {
     // Ghost stub.
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_insert_debug_utils_label(ctx: &VulkanContext, cb_handle: u64) {
+pub fn ffi_cmd_insert_debug_utils_label(ctx: &VulkanContext, cb_handle: u64) {
     // Ghost stub.
 }
 
 // ── Extension command bridges (ghost stubs) ─────────────────────────
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_dispatch_base(ctx: &VulkanContext, cb_handle: u64, bx: u32, by: u32, bz: u32, gx: u32, gy: u32, gz: u32) {
+pub fn ffi_cmd_dispatch_base(ctx: &VulkanContext, cb_handle: u64, bx: u32, by: u32, bz: u32, gx: u32, gy: u32, gz: u32) {
     // Ghost stub — Vulkan 1.1.
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_draw_mesh_tasks(ctx: &VulkanContext, cb_handle: u64, gx: u32, gy: u32, gz: u32) {
+pub fn ffi_cmd_draw_mesh_tasks(ctx: &VulkanContext, cb_handle: u64, gx: u32, gy: u32, gz: u32) {
     // Ghost stub — VK_EXT_mesh_shader.
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_draw_mesh_tasks_indirect(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64, draw_count: u32, stride: u32) {
+pub fn ffi_cmd_draw_mesh_tasks_indirect(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64, draw_count: u32, stride: u32) {
     // Ghost stub.
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_draw_mesh_tasks_indirect_count(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64, count_buffer: u64, count_offset: u64, max_draw_count: u32, stride: u32) {
+pub fn ffi_cmd_draw_mesh_tasks_indirect_count(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64, count_buffer: u64, count_offset: u64, max_draw_count: u32, stride: u32) {
     // Ghost stub.
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_begin_transform_feedback(ctx: &VulkanContext, cb_handle: u64) {
+pub fn ffi_cmd_begin_transform_feedback(ctx: &VulkanContext, cb_handle: u64) {
     // Ghost stub — VK_EXT_transform_feedback.
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_end_transform_feedback(ctx: &VulkanContext, cb_handle: u64) {
+pub fn ffi_cmd_end_transform_feedback(ctx: &VulkanContext, cb_handle: u64) {
     // Ghost stub.
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_pipeline_barrier2(ctx: &VulkanContext, cb_handle: u64) {
+pub fn ffi_cmd_pipeline_barrier2(ctx: &VulkanContext, cb_handle: u64) {
     // Ghost stub — Vulkan 1.3 vkCmdPipelineBarrier2.
 }
 
 // ── Extended dynamic state command bridges (ghost stubs — VK 1.3) ───
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_set_cull_mode(ctx: &VulkanContext, cb_handle: u64, cull_mode: u32) {
+pub fn ffi_cmd_set_cull_mode(ctx: &VulkanContext, cb_handle: u64, cull_mode: u32) {
     // Ghost stub — vkCmdSetCullMode (Vulkan 1.3).
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_set_front_face(ctx: &VulkanContext, cb_handle: u64, front_face: u32) {
+pub fn ffi_cmd_set_front_face(ctx: &VulkanContext, cb_handle: u64, front_face: u32) {
     // Ghost stub — vkCmdSetFrontFace (Vulkan 1.3).
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_set_primitive_topology(ctx: &VulkanContext, cb_handle: u64, topology: u32) {
+pub fn ffi_cmd_set_primitive_topology(ctx: &VulkanContext, cb_handle: u64, topology: u32) {
     // Ghost stub — vkCmdSetPrimitiveTopology (Vulkan 1.3).
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_set_depth_test_enable(ctx: &VulkanContext, cb_handle: u64, enable: u32) {
+pub fn ffi_cmd_set_depth_test_enable(ctx: &VulkanContext, cb_handle: u64, enable: u32) {
     // Ghost stub — vkCmdSetDepthTestEnable (Vulkan 1.3).
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_set_depth_write_enable(ctx: &VulkanContext, cb_handle: u64, enable: u32) {
+pub fn ffi_cmd_set_depth_write_enable(ctx: &VulkanContext, cb_handle: u64, enable: u32) {
     // Ghost stub — vkCmdSetDepthWriteEnable (Vulkan 1.3).
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_set_depth_compare_op(ctx: &VulkanContext, cb_handle: u64, compare_op: u32) {
+pub fn ffi_cmd_set_depth_compare_op(ctx: &VulkanContext, cb_handle: u64, compare_op: u32) {
     // Ghost stub — vkCmdSetDepthCompareOp (Vulkan 1.3).
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_set_depth_bounds_test_enable(ctx: &VulkanContext, cb_handle: u64, enable: u32) {
+pub fn ffi_cmd_set_depth_bounds_test_enable(ctx: &VulkanContext, cb_handle: u64, enable: u32) {
     // Ghost stub — vkCmdSetDepthBoundsTestEnable (Vulkan 1.3).
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_set_stencil_test_enable(ctx: &VulkanContext, cb_handle: u64, enable: u32) {
+pub fn ffi_cmd_set_stencil_test_enable(ctx: &VulkanContext, cb_handle: u64, enable: u32) {
     // Ghost stub — vkCmdSetStencilTestEnable (Vulkan 1.3).
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_set_stencil_op(ctx: &VulkanContext, cb_handle: u64, face_mask: u32, fail_op: u32, pass_op: u32, depth_fail_op: u32, compare_op: u32) {
+pub fn ffi_cmd_set_stencil_op(ctx: &VulkanContext, cb_handle: u64, face_mask: u32, fail_op: u32, pass_op: u32, depth_fail_op: u32, compare_op: u32) {
     // Ghost stub — vkCmdSetStencilOp (Vulkan 1.3).
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_set_rasterizer_discard_enable(ctx: &VulkanContext, cb_handle: u64, enable: u32) {
+pub fn ffi_cmd_set_rasterizer_discard_enable(ctx: &VulkanContext, cb_handle: u64, enable: u32) {
     // Ghost stub — vkCmdSetRasterizerDiscardEnable (Vulkan 1.3).
 }
 
 // ── Push descriptor command bridges (ghost stubs) ───────────────────
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_push_descriptor_set(ctx: &VulkanContext, cb_handle: u64, bind_point: u32, layout: u64, set_index: u32) {
+pub fn ffi_cmd_push_descriptor_set(ctx: &VulkanContext, cb_handle: u64, bind_point: u32, layout: u64, set_index: u32) {
     // Ghost stub — vkCmdPushDescriptorSetKHR.
 }
 
 // ── Fragment shading rate command bridges (ghost stubs) ─────────────
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_set_fragment_shading_rate(ctx: &VulkanContext, cb_handle: u64, width: u32, height: u32, combiner0: u32, combiner1: u32) {
+pub fn ffi_cmd_set_fragment_shading_rate(ctx: &VulkanContext, cb_handle: u64, width: u32, height: u32, combiner0: u32, combiner1: u32) {
     // Ghost stub — vkCmdSetFragmentShadingRateKHR.
 }
 
 // ── Shader object command bridges (ghost stubs) ─────────────────────
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_bind_shaders(ctx: &VulkanContext, cb_handle: u64, stage_count: u32) {
+pub fn ffi_cmd_bind_shaders(ctx: &VulkanContext, cb_handle: u64, stage_count: u32) {
     // Ghost stub — vkCmdBindShadersEXT.
 }
 
