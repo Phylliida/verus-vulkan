@@ -39,6 +39,8 @@ use crate::runtime::framebuffer::*;
 use crate::runtime::command_pool::*;
 use crate::runtime::surface::*;
 use crate::runtime::shader_module::*;
+use crate::pipeline_layout::*;
+use crate::shader_interface::*;
 
 use ash::vk;
 use ash::vk::Handle;
@@ -1277,7 +1279,7 @@ pub fn vk_allocate_command_buffer(
 
 /// FFI: begin recording a command buffer.
 #[verifier::external_body]
-pub(crate) fn vk_begin_command_buffer(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer)
+pub fn vk_begin_command_buffer(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer)
     requires !old(cb).in_render_pass@,
 {
     raw_begin_command_buffer(ctx, cb.handle);
@@ -1285,7 +1287,7 @@ pub(crate) fn vk_begin_command_buffer(ctx: &VulkanContext, cb: &mut RuntimeComma
 
 /// FFI: end recording a command buffer.
 #[verifier::external_body]
-pub(crate) fn vk_end_command_buffer(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer)
+pub fn vk_end_command_buffer(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer)
     requires !old(cb).in_render_pass@,
 {
     raw_end_command_buffer(ctx, cb.handle);
@@ -1293,7 +1295,7 @@ pub(crate) fn vk_end_command_buffer(ctx: &VulkanContext, cb: &mut RuntimeCommand
 
 /// FFI: begin a render pass.
 #[verifier::external_body]
-pub(crate) fn vk_cmd_begin_render_pass(
+pub fn vk_cmd_begin_render_pass(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     render_pass_handle: u64,
@@ -1309,7 +1311,7 @@ pub(crate) fn vk_cmd_begin_render_pass(
 
 /// FFI: end a render pass.
 #[verifier::external_body]
-pub(crate) fn vk_cmd_end_render_pass(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer)
+pub fn vk_cmd_end_render_pass(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer)
     requires old(cb).in_render_pass@,
     ensures cb.in_render_pass@ == false,
 {
@@ -1318,7 +1320,7 @@ pub(crate) fn vk_cmd_end_render_pass(ctx: &VulkanContext, cb: &mut RuntimeComman
 
 /// FFI: draw.
 #[verifier::external_body]
-pub(crate) fn vk_cmd_draw(
+pub fn vk_cmd_draw(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
     vertex_count: u32,
@@ -1355,7 +1357,7 @@ pub(crate) fn vk_cmd_pipeline_barrier(ctx: &VulkanContext, cb: &mut RuntimeComma
 
 /// FFI: bind a pipeline.
 #[verifier::external_body]
-pub(crate) fn vk_cmd_bind_pipeline(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer, bind_point: u32, pipeline_handle: u64)
+pub fn vk_cmd_bind_pipeline(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer, bind_point: u32, pipeline_handle: u64)
 {
     raw_cmd_bind_pipeline(ctx, cb.handle, bind_point, pipeline_handle);
 }
@@ -1680,6 +1682,23 @@ pub fn vk_acquire_next_image(
         sc@.image_states[idx as int] == SwapchainImageState::Acquired,
 {
     let _actual = raw_acquire_next_image(ctx, sc.handle, semaphore_handle, fence_handle, timeout);
+}
+
+/// FFI: acquire next image, returning the actual image index chosen by the driver.
+/// Unlike vk_acquire_next_image, the caller does not specify the index.
+#[verifier::external_body]
+pub fn vk_acquire_next_image_any(
+    ctx: &VulkanContext,
+    sc: &mut RuntimeSwapchain,
+    semaphore_handle: u64,
+    fence_handle: u64,
+    timeout: u64,
+) -> (idx: u64)
+    requires runtime_swapchain_wf(&*old(sc)),
+    ensures idx < sc@.image_states.len(),
+{
+    let actual = raw_acquire_next_image(ctx, sc.handle, semaphore_handle, fence_handle, timeout);
+    actual as u64
 }
 
 /// FFI: queue present (KHR extension).
@@ -2160,12 +2179,12 @@ pub(crate) fn ffi_cmd_bind_descriptor_sets(ctx: &VulkanContext, cb_handle: u64, 
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_set_viewport(ctx: &VulkanContext, cb_handle: u64, x: f32, y: f32, w: f32, h: f32, min_d: f32, max_d: f32) {
+pub fn ffi_cmd_set_viewport(ctx: &VulkanContext, cb_handle: u64, x: f32, y: f32, w: f32, h: f32, min_d: f32, max_d: f32) {
     raw_cmd_set_viewport(ctx, cb_handle, x, y, w, h, min_d, max_d);
 }
 
 #[verifier::external_body]
-pub(crate) fn ffi_cmd_set_scissor(ctx: &VulkanContext, cb_handle: u64, x: i32, y: i32, w: u32, h: u32) {
+pub fn ffi_cmd_set_scissor(ctx: &VulkanContext, cb_handle: u64, x: i32, y: i32, w: u32, h: u32) {
     raw_cmd_set_scissor(ctx, cb_handle, x, y, w, h);
 }
 
@@ -2459,7 +2478,7 @@ pub(crate) fn ffi_cmd_bind_shaders(ctx: &VulkanContext, cb_handle: u64, stage_co
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// Round 4 — Triangle-ready FFI
+// Round 4 — Triangle-ready FFI (hardened)
 // ═══════════════════════════════════════════════════════════════════════
 
 // ── Surface FFI ─────────────────────────────────────────────────────
@@ -2483,12 +2502,22 @@ pub fn vk_create_surface(
 }
 
 /// Destroy a surface.
+/// Caller must prove no live swapchain references this surface.
 #[verifier::external_body]
 pub fn vk_destroy_surface(
     ctx: &VulkanContext,
     surface: &mut RuntimeSurface,
+    dev: &RuntimeDevice,
+    // Ghost: caller attests no live swapchain is bound to this surface
+    no_live_swapchains: Ghost<bool>,
 )
-    requires runtime_surface_wf(&*old(surface)),
+    requires
+        runtime_surface_wf(&*old(surface)),
+        // Device must be idle — no pending work referencing the surface
+        forall|i: int| 0 <= i < dev@.pending_submissions.len()
+            ==> (#[trigger] dev@.pending_submissions[i]).completed,
+        // Caller attests no swapchain is alive on this surface
+        no_live_swapchains@,
     ensures
         surface@ == destroy_surface_ghost(old(surface)@),
         !surface@.alive,
@@ -2516,6 +2545,7 @@ pub fn vk_create_shader_module(
 }
 
 /// Destroy a shader module.
+/// Safe to destroy after pipeline creation — Vulkan copies the module at pipeline creation time.
 #[verifier::external_body]
 pub fn vk_destroy_shader_module(
     ctx: &VulkanContext,
@@ -2550,12 +2580,22 @@ pub fn vk_create_render_pass(
 }
 
 /// Destroy a render pass.
+/// Caller must prove device is idle and no live framebuffers reference this render pass.
 #[verifier::external_body]
 pub fn vk_destroy_render_pass(
     ctx: &VulkanContext,
     rp: &mut RuntimeRenderPass,
+    dev: &RuntimeDevice,
+    // Ghost: caller attests no live framebuffer references this render pass
+    no_live_framebuffers: Ghost<bool>,
 )
-    requires runtime_render_pass_wf(&*old(rp)),
+    requires
+        runtime_render_pass_wf(&*old(rp)),
+        // Device must be idle
+        forall|i: int| 0 <= i < dev@.pending_submissions.len()
+            ==> (#[trigger] dev@.pending_submissions[i]).completed,
+        // Caller attests no framebuffer references this render pass
+        no_live_framebuffers@,
     ensures
         rp@ == destroy_render_pass_ghost(old(rp)@),
         !rp@.alive,
@@ -2567,15 +2607,20 @@ pub fn vk_destroy_render_pass(
 // ── Image View FFI ───────────────────────────────────────────────────
 
 /// Create an image view (2D, 1 mip, 1 layer).
+/// Caller must provide a live swapchain that owns the image.
 #[verifier::external_body]
 pub fn vk_create_image_view(
     ctx: &VulkanContext,
     state: Ghost<ImageViewState>,
+    sc: &RuntimeSwapchain,
     image_handle: u64,
     format: u32,
     aspect: u32,
 ) -> (out: RuntimeImageView)
-    requires state@.alive,
+    requires
+        state@.alive,
+        // Swapchain must be alive — it owns the images
+        runtime_swapchain_wf(sc),
     ensures out@ == state@, runtime_image_view_wf(&out),
 {
     let h = raw_create_image_view(ctx, image_handle, format, aspect);
@@ -2583,12 +2628,22 @@ pub fn vk_create_image_view(
 }
 
 /// Destroy an image view.
+/// Caller must prove device is idle and no live framebuffer references this view.
 #[verifier::external_body]
 pub fn vk_destroy_image_view(
     ctx: &VulkanContext,
     view: &mut RuntimeImageView,
+    dev: &RuntimeDevice,
+    // Ghost: caller attests no live framebuffer references this view
+    no_live_framebuffers: Ghost<bool>,
 )
-    requires runtime_image_view_wf(&*old(view)),
+    requires
+        runtime_image_view_wf(&*old(view)),
+        // Device must be idle
+        forall|i: int| 0 <= i < dev@.pending_submissions.len()
+            ==> (#[trigger] dev@.pending_submissions[i]).completed,
+        // Caller attests no framebuffer references this view
+        no_live_framebuffers@,
     ensures
         view@ == destroy_image_view_ghost(old(view)@),
         !view@.alive,
@@ -2600,29 +2655,43 @@ pub fn vk_destroy_image_view(
 // ── Framebuffer FFI ──────────────────────────────────────────────────
 
 /// Create a framebuffer.
+/// Caller must prove the render pass is alive and the ghost state matches it.
 #[verifier::external_body]
 pub fn vk_create_framebuffer(
     ctx: &VulkanContext,
     state: Ghost<FramebufferState>,
-    rp_handle: u64,
+    rp: &RuntimeRenderPass,
     view_handles: &[u64],
     w: u32,
     h: u32,
 ) -> (out: RuntimeFramebuffer)
-    requires state@.alive,
+    requires
+        state@.alive,
+        // Render pass must be alive
+        runtime_render_pass_wf(rp),
+        // Ghost state must reference this render pass
+        state@.render_pass_id == rp@.id,
+        // Attachment count must match render pass
+        framebuffer_attachment_count_matches(state@, rp@),
     ensures out@ == state@, runtime_framebuffer_wf(&out),
 {
-    let handle = raw_create_framebuffer(ctx, rp_handle, view_handles, w, h);
+    let handle = raw_create_framebuffer(ctx, rp.handle, view_handles, w, h);
     RuntimeFramebuffer { handle, state: Ghost(state@) }
 }
 
 /// Destroy a framebuffer.
+/// Caller must prove device is idle.
 #[verifier::external_body]
 pub fn vk_destroy_framebuffer(
     ctx: &VulkanContext,
     fb: &mut RuntimeFramebuffer,
+    dev: &RuntimeDevice,
 )
-    requires runtime_framebuffer_wf(&*old(fb)),
+    requires
+        runtime_framebuffer_wf(&*old(fb)),
+        // Device must be idle — framebuffer may be referenced by pending command buffers
+        forall|i: int| 0 <= i < dev@.pending_submissions.len()
+            ==> (#[trigger] dev@.pending_submissions[i]).completed,
     ensures
         fb@ == destroy_framebuffer_ghost(old(fb)@),
         !fb@.alive,
@@ -2660,12 +2729,19 @@ pub fn vk_create_command_pool(
 }
 
 /// Destroy a command pool.
+/// Caller must prove pool is empty and device is idle.
 #[verifier::external_body]
 pub fn vk_destroy_command_pool(
     ctx: &VulkanContext,
     pool: &mut RuntimeCommandPool,
+    dev: &RuntimeDevice,
 )
-    requires runtime_command_pool_wf(&*old(pool)), pool_empty(old(pool)@),
+    requires
+        runtime_command_pool_wf(&*old(pool)),
+        pool_empty(old(pool)@),
+        // Device must be idle — command buffers from this pool may be in-flight
+        forall|i: int| 0 <= i < dev@.pending_submissions.len()
+            ==> (#[trigger] dev@.pending_submissions[i]).completed,
     ensures
         pool@ == destroy_command_pool_ghost(old(pool)@),
         !pool@.alive,
@@ -2689,6 +2765,67 @@ pub fn vk_get_swapchain_images(
     handles
 }
 
-// ── Enhanced Graphics Pipeline FFI ───────────────────────────────────
+// ── Graphics Pipeline FFI (hardened) ─────────────────────────────────
+
+/// Create a graphics pipeline with full precondition checking.
+///
+/// Caller must prove:
+/// - Render pass alive + pipeline compatible with its subpass
+/// - Pipeline layout alive
+/// - Both shader modules alive + correct stages
+/// - Full shader-pipeline interface compatibility (vertex inputs, descriptor
+///   bindings, push constants, fragment output count)
+///
+/// Ghost params `vertex_attributes` and `resolved_set_layouts` carry the
+/// resolved data that the spec needs but isn't stored in the pipeline state
+/// (GraphicsPipelineState only has layout IDs, not full layouts).
+#[verifier::external_body]
+pub fn vk_create_graphics_pipeline_checked(
+    ctx: &VulkanContext,
+    gps: Ghost<GraphicsPipelineState>,
+    layout: &RuntimePipelineLayout,
+    rp: &RuntimeRenderPass,
+    vert: &RuntimeShaderModule,
+    frag: &RuntimeShaderModule,
+    // Ghost: the vertex attributes the pipeline's vertex input state provides
+    vertex_attributes: Ghost<Seq<ShaderInputAttribute>>,
+    // Ghost: resolved descriptor set layouts (full objects, not just IDs)
+    resolved_set_layouts: Ghost<Seq<DescriptorSetLayoutState>>,
+) -> (out: RuntimeGraphicsPipeline)
+    requires
+        gps@.alive,
+        // Render pass must be alive
+        runtime_render_pass_wf(rp),
+        // Pipeline must be compatible with the render pass subpass
+        graphics_pipeline_compatible_with_subpass(gps@, rp@, gps@.subpass_index),
+        // Pipeline layout must be alive
+        runtime_pipeline_layout_wf(layout),
+        // Shader modules must be alive
+        runtime_shader_module_wf(vert),
+        runtime_shader_module_wf(frag),
+        // Shader stages must be correct
+        shader_module_is_vertex(vert@),
+        shader_module_is_fragment(frag@),
+        // Resolved layouts must correspond to the pipeline layout's set_layout IDs
+        resolved_set_layouts@.len() == layout@.set_layouts.len(),
+        forall|i: int| 0 <= i < resolved_set_layouts@.len() ==>
+            (#[trigger] resolved_set_layouts@[i]).id == layout@.set_layouts[i]
+            && resolved_set_layouts@[i].alive,
+        // Full shader-pipeline interface compatibility
+        shader_pipeline_compatible(
+            vert@.interface,
+            frag@.interface,
+            vertex_attributes@,
+            resolved_set_layouts@,
+            layout@.push_constant_ranges,
+            gps@.color_attachment_count,
+        ),
+    ensures
+        out@ == gps@,
+        runtime_gfx_pipeline_wf(&out),
+{
+    let h = raw_create_graphics_pipeline(ctx, layout.handle, rp.handle, vert.handle, frag.handle);
+    RuntimeGraphicsPipeline { handle: h, state: Ghost(gps@) }
+}
 
 } // verus!

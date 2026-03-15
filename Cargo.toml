@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 vstd = { path = "../verus/source/vstd" }
+builtin = { package = "verus_builtin", path = "../verus/source/builtin" }
 ash = { version = "0.38", default-features = true }
 
 # Windowing (shared by both backends)
