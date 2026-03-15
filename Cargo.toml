@@ -30,6 +30,11 @@ name = "triangle"
 path = "src/bin/triangle.rs"
 required-features = ["windowing"]
 
+[[bin]]
+name = "cube"
+path = "src/bin/cube.rs"
+required-features = ["vulkan-backend"]
+
 [package.metadata.verus]
 verify = true
 

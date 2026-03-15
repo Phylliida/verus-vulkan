@@ -117,6 +117,9 @@ pub mod nested_command_buffers;
 pub mod round3_composition_proofs;
 pub mod examples;
 pub mod parallel_dispatch;
+#[cfg(verus_keep_ghost)]
 pub mod gemm_dispatch;
+#[cfg(verus_keep_ghost)]
 pub mod gemm_sm80;
+pub mod window_cleanup;
 pub mod runtime;
