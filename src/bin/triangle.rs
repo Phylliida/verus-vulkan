@@ -148,7 +148,7 @@ mod webgpu {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Vulkan backend (placeholder — needs compiled SPIR-V)
+// Vulkan backend — uses verified FFI for all Vulkan object management
 // ═══════════════════════════════════════════════════════════════════════════
 
 #[cfg(feature = "vulkan-backend")]
@@ -156,59 +156,300 @@ mod vulkan {
     use super::*;
     use std::sync::Arc;
     use ash::vk;
+    use ash::vk::Handle;
+    use builtin::Ghost;
+    use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
     use verus_vulkan::vk_context::VulkanContext;
+    use verus_vulkan::ffi;
+    use verus_vulkan::runtime::surface::RuntimeSurface;
+    use verus_vulkan::runtime::swapchain::RuntimeSwapchain;
+    use verus_vulkan::runtime::shader_module::RuntimeShaderModule;
+    use verus_vulkan::runtime::render_pass::RuntimeRenderPass;
+    use verus_vulkan::runtime::framebuffer::{RuntimeFramebuffer, RuntimeImageView};
+    use verus_vulkan::runtime::command_pool::RuntimeCommandPool;
+    use verus_vulkan::runtime::command_buffer::RuntimeCommandBuffer;
+    use verus_vulkan::runtime::fence::RuntimeFence;
+    use verus_vulkan::runtime::semaphore::RuntimeSemaphore;
+    use verus_vulkan::runtime::device::RuntimeDevice;
+    use verus_vulkan::runtime::queue::RuntimeQueue;
+    use verus_vulkan::runtime::pipeline::RuntimeGraphicsPipeline;
 
     pub struct VkState {
-        pub ctx: VulkanContext,
-        // TODO: fill in once SPIR-V shaders are compiled
+        ctx: VulkanContext,
+        dev: RuntimeDevice,
+        raw_surface: vk::SurfaceKHR,
+        surface: RuntimeSurface,
+        queue: RuntimeQueue,
+        swapchain: RuntimeSwapchain,
+        image_views: Vec<RuntimeImageView>,
+        render_pass: RuntimeRenderPass,
+        framebuffers: Vec<RuntimeFramebuffer>,
+        pipeline: RuntimeGraphicsPipeline,
+        pipeline_layout_handle: u64,
+        command_pool: RuntimeCommandPool,
+        command_buffers: Vec<RuntimeCommandBuffer>,
+        image_available_sem: RuntimeSemaphore,
+        render_finished_sem: RuntimeSemaphore,
+        in_flight_fence: RuntimeFence,
+        vert_module: RuntimeShaderModule,
+        frag_module: RuntimeShaderModule,
+        format: vk::Format,
+        width: u32,
+        height: u32,
     }
 
     impl VkState {
         pub fn new(window: Arc<Window>) -> Self {
-            let surface_extensions =
-                ash_window::enumerate_required_extensions(window.display_handle().unwrap().as_raw())
-                    .expect("Failed to get required surface extensions");
-            let device_extensions = [ash::khr::swapchain::NAME.as_ptr()];
+            let size = window.inner_size();
+            let width = size.width.max(1);
+            let height = size.height.max(1);
 
+            // 1. Required surface extensions from the windowing system
+            let display_handle = window.display_handle().unwrap();
+            let surface_extensions =
+                ash_window::enumerate_required_extensions(display_handle.as_raw())
+                    .expect("Failed to get required surface extensions");
+
+            // Device extensions: swapchain + portability subset on macOS
+            let mut device_exts: Vec<*const i8> = vec![ash::khr::swapchain::NAME.as_ptr()];
+            #[cfg(target_os = "macos")]
+            {
+                device_exts.push(c"VK_KHR_portability_subset".as_ptr());
+            }
+
+            // 2. Create VulkanContext (instance + device + loaders)
             let ctx = unsafe {
-                VulkanContext::new(
-                    "triangle",
-                    true,
-                    surface_extensions,
-                    &device_extensions,
-                    0,
-                )
+                VulkanContext::new("triangle", true, surface_extensions, &device_exts, 0)
             };
 
-            // Create surface
-            let _surface = unsafe {
+            // 3. Create surface via ash-window, then wrap with verified FFI
+            let raw_surface = unsafe {
                 ash_window::create_surface(
                     &ctx.entry,
                     &ctx.instance,
-                    window.display_handle().unwrap().as_raw(),
+                    display_handle.as_raw(),
                     window.window_handle().unwrap().as_raw(),
                     None,
                 )
             }
             .expect("Failed to create Vulkan surface");
+            let surface = ffi::vk_create_surface(&ctx, Ghost::assume_new(), raw_surface.as_raw());
 
-            // TODO: swapchain, render pass, framebuffers, pipeline, command buffers, sync, frame loop
-            eprintln!("Vulkan backend: surface created. Full pipeline TBD (need compiled SPIR-V).");
+            // 4. Create RuntimeDevice wrapper (ghost state for destroy preconditions)
+            let dev = ffi::vk_create_device(&ctx, Ghost::assume_new());
 
-            VkState { ctx }
+            // 5. Get graphics queue
+            let queue = ffi::vk_get_device_queue(&ctx, 0, 0, Ghost::assume_new());
+
+            // 6. Query surface format
+            let surface_formats = unsafe {
+                ctx.surface_loader
+                    .get_physical_device_surface_formats(ctx.physical_device, raw_surface)
+            }
+            .expect("Failed to query surface formats");
+            let format = surface_formats
+                .iter()
+                .find(|f| f.format == vk::Format::B8G8R8A8_SRGB)
+                .unwrap_or(&surface_formats[0])
+                .format;
+
+            // 7. Create swapchain (double-buffered, FIFO)
+            let image_count = 2u64;
+            let swapchain = ffi::vk_create_swapchain(
+                &ctx,
+                Ghost::assume_new(),
+                image_count,
+                raw_surface.as_raw(),
+                format.as_raw() as u32,
+                width,
+                height,
+                vk::PresentModeKHR::FIFO.as_raw() as u32,
+            );
+
+            // 8. Get swapchain images → create image views
+            let images = ffi::vk_get_swapchain_images(&ctx, &swapchain);
+            let mut image_views = Vec::new();
+            for &img in images.iter() {
+                let view = ffi::vk_create_image_view(
+                    &ctx,
+                    Ghost::assume_new(),
+                    &swapchain,
+                    img,
+                    format.as_raw() as u32,
+                    vk::ImageAspectFlags::COLOR.as_raw() as u32,
+                );
+                image_views.push(view);
+            }
+
+            // 9. Create render pass (single color attachment, clear on load, store)
+            let render_pass = ffi::vk_create_render_pass(
+                &ctx,
+                Ghost::assume_new(),
+                format.as_raw() as u32,
+                vk::AttachmentLoadOp::CLEAR.as_raw() as u32,
+                vk::AttachmentStoreOp::STORE.as_raw() as u32,
+                vk::SampleCountFlags::TYPE_1.as_raw() as u32,
+            );
+
+            // 10. Create framebuffers (one per swapchain image)
+            let mut framebuffers = Vec::new();
+            for view in &image_views {
+                let fb = ffi::vk_create_framebuffer(
+                    &ctx,
+                    Ghost::assume_new(),
+                    &render_pass,
+                    &[view.handle],
+                    width,
+                    height,
+                );
+                framebuffers.push(fb);
+            }
+
+            // 11. Create shader modules from pre-compiled SPIR-V
+            let vert_code = spv_to_u32(include_bytes!("shaders/triangle.vert.spv"));
+            let vert_module = ffi::vk_create_shader_module(&ctx, Ghost::assume_new(), &vert_code);
+
+            let frag_code = spv_to_u32(include_bytes!("shaders/triangle.frag.spv"));
+            let frag_module = ffi::vk_create_shader_module(&ctx, Ghost::assume_new(), &frag_code);
+
+            // 12. Create pipeline layout (no descriptors, no push constants)
+            let pipeline_layout_handle = ffi::vk_create_pipeline_layout(&ctx, &[]);
+
+            // 13. Create graphics pipeline
+            let pipeline = ffi::vk_create_graphics_pipeline(
+                &ctx,
+                Ghost::assume_new(),
+                pipeline_layout_handle,
+                render_pass.handle,
+                vert_module.handle,
+                frag_module.handle,
+            );
+
+            // 14. Create command pool + one command buffer per swapchain image
+            let command_pool = ffi::vk_create_command_pool(&ctx, Ghost::assume_new(), 0, true);
+            let mut command_buffers = Vec::new();
+            for _ in 0..image_count {
+                let cb = ffi::vk_allocate_command_buffer(
+                    &ctx,
+                    Ghost::assume_new(),
+                    command_pool.handle,
+                );
+                command_buffers.push(cb);
+            }
+
+            // 15. Create sync objects
+            let in_flight_fence = ffi::vk_create_fence(&ctx, Ghost::assume_new(), true);
+            let image_available_sem = ffi::vk_create_semaphore(&ctx, Ghost::assume_new());
+            let render_finished_sem = ffi::vk_create_semaphore(&ctx, Ghost::assume_new());
+
+            eprintln!("Vulkan backend initialized: {}x{}, format {:?}", width, height, format);
+
+            VkState {
+                ctx, dev, raw_surface, surface, queue, swapchain, image_views,
+                render_pass, framebuffers, pipeline, pipeline_layout_handle,
+                command_pool, command_buffers, image_available_sem,
+                render_finished_sem, in_flight_fence, vert_module, frag_module,
+                format, width, height,
+            }
         }
 
-        pub fn resize(&mut self, _width: u32, _height: u32) {
-            // TODO: recreate swapchain
+        pub fn resize(&mut self, width: u32, height: u32) {
+            if width == 0 || height == 0 {
+                return;
+            }
+            self.width = width;
+            self.height = height;
+            // TODO: recreate swapchain + framebuffers for resize
         }
 
-        pub fn render(&self) {
-            // TODO: acquire → record → submit → present
+        pub fn render(&mut self) {
+            // Wait for previous frame to finish
+            ffi::vk_wait_for_fences(
+                &self.ctx, &mut self.in_flight_fence, Ghost::assume_new(), u64::MAX,
+            );
+            ffi::vk_reset_fences(&self.ctx, &mut self.in_flight_fence);
+
+            // Acquire next swapchain image
+            let idx = ffi::vk_acquire_next_image_any(
+                &self.ctx,
+                &mut self.swapchain,
+                self.image_available_sem.handle,
+                0, // no fence for acquire
+                u64::MAX,
+            );
+
+            let cb = &mut self.command_buffers[idx as usize];
+
+            // Record commands
+            ffi::vk_begin_command_buffer(&self.ctx, cb);
+            ffi::vk_cmd_begin_render_pass(
+                &self.ctx,
+                cb,
+                self.render_pass.handle,
+                self.framebuffers[idx as usize].handle,
+                self.width,
+                self.height,
+            );
+            ffi::vk_cmd_bind_pipeline(
+                &self.ctx,
+                cb,
+                vk::PipelineBindPoint::GRAPHICS.as_raw() as u32,
+                self.pipeline.handle,
+            );
+            ffi::ffi_cmd_set_viewport(
+                &self.ctx,
+                cb.handle,
+                0.0, 0.0, self.width as f32, self.height as f32, 0.0, 1.0,
+            );
+            ffi::ffi_cmd_set_scissor(
+                &self.ctx,
+                cb.handle,
+                0, 0, self.width, self.height,
+            );
+            ffi::vk_cmd_draw(&self.ctx, cb, 3, 1, 0, 0);
+            ffi::vk_cmd_end_render_pass(&self.ctx, cb);
+            ffi::vk_end_command_buffer(&self.ctx, cb);
+
+            // Submit
+            let wait_stage = vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT.as_raw();
+            ffi::vk_queue_submit(
+                &self.ctx,
+                &self.queue,
+                Ghost::assume_new(),
+                Ghost::assume_new(),
+                Ghost::assume_new(),
+                &[cb.handle],
+                &[self.image_available_sem.handle],
+                &[wait_stage],
+                &[self.render_finished_sem.handle],
+                self.in_flight_fence.handle,
+            );
+
+            // Present
+            ffi::vk_queue_present_khr(
+                &self.ctx,
+                &self.queue,
+                &mut self.swapchain,
+                idx,
+                &[self.render_finished_sem.handle],
+            );
         }
 
         pub fn destroy(&mut self) {
-            unsafe { self.ctx.destroy(); }
+            unsafe {
+                self.ctx.device.device_wait_idle().unwrap();
+                // Surface must be destroyed via the surface loader
+                self.ctx.surface_loader.destroy_surface(self.raw_surface, None);
+                self.ctx.destroy();
+            }
         }
+    }
+
+    fn spv_to_u32(bytes: &[u8]) -> Vec<u32> {
+        bytes
+            .chunks_exact(4)
+            .map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+            .collect()
     }
 }
 
@@ -280,7 +521,7 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::RedrawRequested => {
-                match &self.backend {
+                match &mut self.backend {
                     #[cfg(feature = "webgpu-backend")]
                     Backend::WebGpu(gpu) => {
                         match gpu.render() {

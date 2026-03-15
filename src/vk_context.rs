@@ -46,14 +46,42 @@ impl VulkanContext {
             vec![]
         };
 
+        // Collect instance extensions — start with caller-provided surface extensions,
+        // then add portability enumeration on macOS for MoltenVK compatibility.
+        let mut all_instance_extensions: Vec<*const i8> = surface_extensions.to_vec();
+        #[cfg(target_os = "macos")]
+        {
+            all_instance_extensions.push(ash::vk::KHR_PORTABILITY_ENUMERATION_NAME.as_ptr());
+        }
+
+        let mut instance_flags = vk::InstanceCreateFlags::empty();
+        #[cfg(target_os = "macos")]
+        {
+            instance_flags |= vk::InstanceCreateFlags::ENUMERATE_PORTABILITY_KHR;
+        }
+
         let instance_create_info = vk::InstanceCreateInfo::default()
             .application_info(&app_info)
             .enabled_layer_names(&layer_names)
-            .enabled_extension_names(surface_extensions);
+            .enabled_extension_names(&all_instance_extensions)
+            .flags(instance_flags);
 
-        let instance = entry
-            .create_instance(&instance_create_info, None)
-            .expect("Failed to create Vulkan instance");
+        // Try creating instance; if validation layers are missing, retry without them
+        let instance = match entry.create_instance(&instance_create_info, None) {
+            Ok(inst) => inst,
+            Err(vk::Result::ERROR_LAYER_NOT_PRESENT) if enable_validation => {
+                eprintln!("Validation layers not found, continuing without validation");
+                let no_layers: Vec<*const i8> = vec![];
+                let fallback = vk::InstanceCreateInfo::default()
+                    .application_info(&app_info)
+                    .enabled_layer_names(&no_layers)
+                    .enabled_extension_names(&all_instance_extensions)
+                    .flags(instance_flags);
+                entry.create_instance(&fallback, None)
+                    .expect("Failed to create Vulkan instance")
+            }
+            Err(e) => panic!("Failed to create Vulkan instance: {:?}", e),
+        };
 
         // 3. Pick first physical device
         let physical_devices = instance
