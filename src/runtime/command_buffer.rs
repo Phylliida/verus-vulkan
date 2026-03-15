@@ -170,6 +170,10 @@ pub fn cmd_begin_render_pass_exec(
     fb_handle: u64,
     width: u32,
     height: u32,
+    clear_r: f32,
+    clear_g: f32,
+    clear_b: f32,
+    clear_a: f32,
     rp: Ghost<RenderPassState>,
     fb: Ghost<FramebufferState>,
     layout_tracker: &RuntimeImageLayoutTracker,
@@ -198,7 +202,7 @@ pub fn cmd_begin_render_pass_exec(
         cb.cb_id@ == old(cb).cb_id@,
         runtime_cb_wf(cb),
 {
-    crate::ffi::ffi_cmd_begin_render_pass(ctx, cb.handle, rp_handle, fb_handle, width, height);
+    crate::ffi::ffi_cmd_begin_render_pass(ctx, cb.handle, rp_handle, fb_handle, width, height, clear_r, clear_g, clear_b, clear_a);
     cb.in_render_pass = Ghost(true);
     cb.recording_state = Ghost(begin_render_pass_recording(cb.recording_state@, rp@.id, fb@.id));
 }

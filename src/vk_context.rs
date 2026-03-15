@@ -103,9 +103,16 @@ impl VulkanContext {
         let mut vk12_features = vk::PhysicalDeviceVulkan12Features::default()
             .timeline_semaphore(true);
 
+        // Auto-add portability subset on macOS for MoltenVK compatibility
+        let mut all_device_extensions: Vec<*const i8> = device_extensions.to_vec();
+        #[cfg(target_os = "macos")]
+        {
+            all_device_extensions.push(c"VK_KHR_portability_subset".as_ptr());
+        }
+
         let device_create_info = vk::DeviceCreateInfo::default()
             .queue_create_infos(&queue_create_infos)
-            .enabled_extension_names(device_extensions)
+            .enabled_extension_names(&all_device_extensions)
             .enabled_features(&features)
             .push_next(&mut vk12_features);
 
