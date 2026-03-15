@@ -388,6 +388,7 @@ pub proof fn lemma_swapchain_full_cycle_stable(
     swapchain: SwapchainState, idx: nat,
 )
     requires
+        swapchain.alive,
         !swapchain.retired,
         idx < swapchain.image_states.len(),
         swapchain.image_states[idx as int] == SwapchainImageState::Available,

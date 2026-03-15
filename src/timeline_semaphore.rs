@@ -99,6 +99,13 @@ pub open spec fn host_wait(
     sem
 }
 
+/// Ghost update: destroy the timeline semaphore.
+pub open spec fn destroy_timeline_ghost(sem: TimelineSemaphoreState) -> TimelineSemaphoreState
+    recommends sem.alive,
+{
+    TimelineSemaphoreState { alive: false, ..sem }
+}
+
 /// No deadlock: every pending wait has a pending or completed signal >= its value.
 pub open spec fn no_deadlock(sem: TimelineSemaphoreState) -> bool {
     forall|w: nat| sem.pending_waits.contains(w) ==>

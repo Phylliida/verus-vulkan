@@ -116,4 +116,7 @@ pub mod fragment_shading_rate;
 pub mod nested_command_buffers;
 pub mod round3_composition_proofs;
 pub mod examples;
+pub mod parallel_dispatch;
+pub mod gemm_dispatch;
+pub mod gemm_sm80;
 pub mod runtime;

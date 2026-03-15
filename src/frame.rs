@@ -140,6 +140,7 @@ pub proof fn lemma_acquire_makes_acquired(
     idx: nat,
 )
     requires
+        swapchain.alive,
         !swapchain.retired,
         idx < swapchain.image_states.len(),
         swapchain.image_states[idx as int] == SwapchainImageState::Available,
@@ -173,6 +174,7 @@ pub proof fn lemma_acquire_present_cycle(
     idx: nat,
 )
     requires
+        swapchain.alive,
         !swapchain.retired,
         idx < swapchain.image_states.len(),
         swapchain.image_states[idx as int] == SwapchainImageState::Available,
@@ -192,6 +194,7 @@ pub proof fn lemma_full_frame_cycle(
     idx: nat,
 )
     requires
+        swapchain.alive,
         !swapchain.retired,
         idx < swapchain.image_states.len(),
         swapchain.image_states[idx as int] == SwapchainImageState::Available,

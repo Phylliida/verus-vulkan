@@ -983,8 +983,17 @@ fn raw_create_render_pass(ctx: &VulkanContext, format: u32, load_op: u32, store_
     let attachment = vk::AttachmentDescription::default()
         .format(vk::Format::from_raw(format as i32))
         .samples(vk::SampleCountFlags::from_raw(samples))
-        .load_op(vk::AttachmentLoadOp::from_raw(load_op as i32))
-        .store_op(vk::AttachmentStoreOp::from_raw(store_op as i32))
+        .load_op(match load_op {
+            0 => vk::AttachmentLoadOp::LOAD,
+            1 => vk::AttachmentLoadOp::CLEAR,
+            2 => vk::AttachmentLoadOp::DONT_CARE,
+            _ => panic!("invalid load_op"),
+        })
+        .store_op(match store_op {
+            0 => vk::AttachmentStoreOp::STORE,
+            1 => vk::AttachmentStoreOp::DONT_CARE,
+            _ => panic!("invalid store_op"),
+        })
         .stencil_load_op(vk::AttachmentLoadOp::DONT_CARE)
         .stencil_store_op(vk::AttachmentStoreOp::DONT_CARE)
         .initial_layout(vk::ImageLayout::UNDEFINED)
@@ -1478,9 +1487,18 @@ pub fn vk_signal_semaphore(ctx: &VulkanContext, sem: &mut RuntimeTimelineSemapho
 }
 
 /// FFI: destroy a binary semaphore.
+/// Caller must prove device is idle (no pending submission uses this semaphore).
 #[verifier::external_body]
-pub fn vk_destroy_semaphore(ctx: &VulkanContext, sem: &mut RuntimeSemaphore)
-    requires runtime_semaphore_wf(&*old(sem)),
+pub fn vk_destroy_semaphore(
+    ctx: &VulkanContext,
+    sem: &mut RuntimeSemaphore,
+    dev: &RuntimeDevice,
+)
+    requires
+        runtime_semaphore_wf(&*old(sem)),
+        // Device must be idle — no pending work references this semaphore
+        forall|i: int| 0 <= i < dev@.pending_submissions.len()
+            ==> (#[trigger] dev@.pending_submissions[i]).completed,
     ensures sem@ == destroy_semaphore_ghost(old(sem)@), !sem@.alive,
 {
     raw_destroy_semaphore(ctx, sem.handle);
@@ -1488,13 +1506,22 @@ pub fn vk_destroy_semaphore(ctx: &VulkanContext, sem: &mut RuntimeSemaphore)
 }
 
 /// FFI: destroy a timeline semaphore.
+/// Caller must prove device is idle (no pending signals/waits on this semaphore).
 #[verifier::external_body]
-pub fn vk_destroy_timeline_semaphore(ctx: &VulkanContext, sem: &mut RuntimeTimelineSemaphore)
-    requires runtime_timeline_wf(&*old(sem)),
-    ensures !sem@.alive, sem@.id == old(sem)@.id,
+pub fn vk_destroy_timeline_semaphore(
+    ctx: &VulkanContext,
+    sem: &mut RuntimeTimelineSemaphore,
+    dev: &RuntimeDevice,
+)
+    requires
+        runtime_timeline_wf(&*old(sem)),
+        // Device must be idle — no pending work references this semaphore
+        forall|i: int| 0 <= i < dev@.pending_submissions.len()
+            ==> (#[trigger] dev@.pending_submissions[i]).completed,
+    ensures sem@ == destroy_timeline_ghost(old(sem)@), !sem@.alive, sem@.id == old(sem)@.id,
 {
     raw_destroy_timeline_semaphore(ctx, sem.handle);
-    sem.state = Ghost(TimelineSemaphoreState { alive: false, ..sem.state@ });
+    sem.state = Ghost(destroy_timeline_ghost(sem.state@));
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1691,13 +1718,25 @@ pub fn vk_destroy_descriptor_pool(ctx: &VulkanContext, pool: &mut RuntimeDescrip
 }
 
 /// FFI: destroy a descriptor set layout.
+/// Caller must prove device is idle (no pending submission references this layout).
 #[verifier::external_body]
-pub fn vk_destroy_descriptor_set_layout(ctx: &VulkanContext, dsl: &mut RuntimeDescriptorSetLayout)
-    requires runtime_dsl_wf(&*old(dsl)),
-    ensures !dsl@.alive, dsl@.id == old(dsl)@.id,
+pub fn vk_destroy_descriptor_set_layout(
+    ctx: &VulkanContext,
+    dsl: &mut RuntimeDescriptorSetLayout,
+    dev: &RuntimeDevice,
+)
+    requires
+        runtime_dsl_wf(&*old(dsl)),
+        // Device must be idle — no pending submission references descriptor sets using this layout
+        forall|i: int| 0 <= i < dev@.pending_submissions.len()
+            ==> (#[trigger] dev@.pending_submissions[i]).completed,
+    ensures
+        dsl@ == destroy_descriptor_set_layout_ghost(old(dsl)@),
+        !dsl@.alive,
+        dsl@.id == old(dsl)@.id,
 {
     raw_destroy_descriptor_set_layout(ctx, dsl.handle);
-    dsl.state = Ghost(DescriptorSetLayoutState { alive: false, ..dsl.state@ });
+    dsl.state = Ghost(destroy_descriptor_set_layout_ghost(dsl.state@));
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1730,6 +1769,7 @@ pub fn vk_create_swapchain(
             id: id@,
             image_states: Seq::new(image_count as nat, |_i| SwapchainImageState::Available),
             retired: false,
+            alive: true,
         }),
     }
 }
@@ -1766,13 +1806,26 @@ pub fn vk_queue_present_khr(
 }
 
 /// FFI: destroy a swapchain.
+/// Caller must prove device is idle (no pending work uses swapchain images).
 #[verifier::external_body]
-pub fn vk_destroy_swapchain(ctx: &VulkanContext, sc: &mut RuntimeSwapchain)
-    requires runtime_swapchain_wf(&*old(sc)),
-    ensures sc@.retired, sc@.image_states.len() == 0,
+pub fn vk_destroy_swapchain(
+    ctx: &VulkanContext,
+    sc: &mut RuntimeSwapchain,
+    dev: &RuntimeDevice,
+)
+    requires
+        runtime_swapchain_wf(&*old(sc)),
+        // All images must be available (none in-flight)
+        all_available(old(sc)@),
+        // Device must be idle
+        forall|i: int| 0 <= i < dev@.pending_submissions.len()
+            ==> (#[trigger] dev@.pending_submissions[i]).completed,
+    ensures
+        sc@ == destroy_swapchain_ghost(old(sc)@),
+        !sc@.alive,
 {
     raw_destroy_swapchain(ctx, sc.handle);
-    sc.state = Ghost(SwapchainState { id: sc.state@.id, image_states: Seq::empty(), retired: true });
+    sc.state = Ghost(destroy_swapchain_ghost(sc.state@));
 }
 
 // ═══════════════════════════════════════════════════════════════════════
