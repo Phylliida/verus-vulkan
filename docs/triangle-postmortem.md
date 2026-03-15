@@ -208,6 +208,6 @@ or example, it should include this call.
 | P1 | Add missing `vk_destroy_*` functions | ffi.rs | DONE |
 | P2 | Remove/replace pipeline creation stub | ffi.rs | DONE |
 | P2 | Document ghost param convention (always last) | ffi.rs | DONE |
-| P2 | Replace raw int enums with `from_raw()` conversions | ffi.rs | DONE |
+| P2 | Replace raw int enums with validated `match` mappings | ffi.rs | DONE |
 | P2 | Add type aliases for handles vs indices vs enums | ffi.rs | DONE |
 | P2 | Pass clear color through `cmd_begin_render_pass_exec` | runtime/command_buffer.rs | DONE |

@@ -23,7 +23,7 @@ impl View for RuntimeSwapchain {
 
 /// Well-formedness of the runtime swapchain.
 pub open spec fn runtime_swapchain_wf(sc: &RuntimeSwapchain) -> bool {
-    sc@.image_states.len() > 0
+    sc@.alive && sc@.image_states.len() > 0
 }
 
 /// Number of images in the swapchain.
@@ -63,9 +63,10 @@ pub open spec fn swapchain_id(sc: &RuntimeSwapchain) -> nat {
 }
 
 /// Whether a specific image can be acquired.
-/// Retired swapchains cannot acquire images.
+/// Destroyed or retired swapchains cannot acquire images.
 pub open spec fn can_acquire_image(sc: &RuntimeSwapchain, idx: nat) -> bool {
-    !sc@.retired
+    sc@.alive
+    && !sc@.retired
     && idx < sc@.image_states.len()
     && sc@.image_states[idx as int] == SwapchainImageState::Available
 }
@@ -96,6 +97,7 @@ pub fn create_swapchain_exec(
             id: id@,
             image_states: states,
             retired: false,
+            alive: true,
         }),
     }
 }
@@ -208,6 +210,7 @@ pub fn recreate_swapchain_exec(
         id: sc.state@.id,
         image_states: new_states,
         retired: false,
+        alive: true,
     });
     true
 }
@@ -219,7 +222,7 @@ pub proof fn lemma_create_swapchain_wf(id: nat, image_count: nat)
     requires image_count > 0,
     ensures ({
         let states = Seq::new(image_count, |_i: int| SwapchainImageState::Available);
-        let sc = SwapchainState { id, image_states: states, retired: false };
+        let sc = SwapchainState { id, image_states: states, retired: false, alive: true };
         sc.image_states.len() > 0
         && all_available(sc)
     }),
@@ -334,7 +337,7 @@ pub proof fn lemma_recreate_preserves_id(
     requires new_image_count > 0,
     ensures ({
         let new_states = Seq::new(new_image_count, |_i: int| SwapchainImageState::Available);
-        let new_sc = SwapchainState { id: old_sc.id, image_states: new_states, retired: false };
+        let new_sc = SwapchainState { id: old_sc.id, image_states: new_states, retired: false, alive: true };
         new_sc.id == old_sc.id
         && new_sc.image_states.len() == new_image_count
         && new_sc.image_states.len() > 0

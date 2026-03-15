@@ -280,13 +280,11 @@ pub fn destroy_descriptor_set_layout_exec(
         // No pending submission may reference descriptor sets using this layout
         forall|i: int| 0 <= i < dev@.pending_submissions.len() ==> (#[trigger] dev@.pending_submissions[i]).completed,
     ensures
+        dsl@ == destroy_descriptor_set_layout_ghost(old(dsl)@),
         !dsl@.alive,
         dsl@.id == old(dsl)@.id,
 {
-    dsl.state = Ghost(DescriptorSetLayoutState {
-        alive: false,
-        ..dsl.state@
-    });
+    dsl.state = Ghost(destroy_descriptor_set_layout_ghost(dsl.state@));
 }
 
 /// Exec: reset a descriptor pool (frees all allocated sets).

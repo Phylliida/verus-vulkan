@@ -1725,6 +1725,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
+name = "verus-algebra"
+version = "0.1.0"
+dependencies = [
+ "vstd",
+]
+
+[[package]]
+name = "verus-cutedsl"
+version = "0.1.0"
+dependencies = [
+ "verus-algebra",
+ "vstd",
+]
+
+[[package]]
 name = "verus-vulkan"
 version = "0.1.0"
 dependencies = [
@@ -1732,6 +1747,7 @@ dependencies = [
  "ash-window",
  "pollster",
  "raw-window-handle",
+ "verus-cutedsl",
  "verus_builtin",
  "vstd",
  "wgpu",

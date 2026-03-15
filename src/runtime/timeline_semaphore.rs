@@ -107,13 +107,11 @@ pub fn destroy_timeline_semaphore_exec(
         old(sem)@.pending_waits == Set::<nat>::empty(),
         holds_exclusive(reg@, SyncObjectId::Handle(old(sem)@.id), thread@),
     ensures
+        sem@ == destroy_timeline_ghost(old(sem)@),
         !sem@.alive,
         sem@.id == old(sem)@.id,
 {
-    sem.state = Ghost(TimelineSemaphoreState {
-        alive: false,
-        ..sem.state@
-    });
+    sem.state = Ghost(destroy_timeline_ghost(sem.state@));
 }
 
 /// Exec: submit a signal operation (pending until GPU completes).
@@ -256,7 +254,7 @@ pub proof fn lemma_counter_non_decreasing(
 pub proof fn lemma_destroy_invalidates(sem: &RuntimeTimelineSemaphore)
     requires runtime_timeline_wf(sem),
     ensures ({
-        let destroyed = TimelineSemaphoreState { alive: false, ..sem@ };
+        let destroyed = destroy_timeline_ghost(sem@);
         !destroyed.alive
         && !timeline_well_formed(destroyed)
         && destroyed.counter == sem@.counter
