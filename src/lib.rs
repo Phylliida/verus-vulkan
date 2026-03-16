@@ -121,5 +121,6 @@ pub mod parallel_dispatch;
 pub mod gemm_dispatch;
 #[cfg(verus_keep_ghost)]
 pub mod gemm_sm80;
+pub mod mapped_buffer;
 pub mod window_cleanup;
 pub mod runtime;

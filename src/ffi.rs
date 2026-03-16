@@ -53,6 +53,8 @@ use crate::runtime::image::*;
 use crate::pipeline_layout::*;
 use crate::shader_interface::*;
 use crate::window_cleanup::*;
+use crate::mapped_buffer::*;
+use crate::runtime::mapped_buffer::*;
 
 use ash::vk;
 use ash::vk::Handle;
@@ -147,6 +149,25 @@ fn raw_bind_buffer_memory(ctx: &VulkanContext, buf: u64, mem: u64, offset: u64) 
             vk::Buffer::from_raw(buf), vk::DeviceMemory::from_raw(mem), offset,
         )
     }.expect("bind_buffer_memory failed");
+}
+
+fn raw_find_host_visible_memory_type(ctx: &VulkanContext, type_filter: u32) -> u32 {
+    let mem_props = unsafe {
+        ctx.instance
+            .get_physical_device_memory_properties(ctx.physical_device)
+    };
+    let desired = vk::MemoryPropertyFlags::HOST_VISIBLE
+        | vk::MemoryPropertyFlags::HOST_COHERENT;
+    for i in 0..mem_props.memory_type_count {
+        if (type_filter & (1 << i)) != 0
+            && mem_props.memory_types[i as usize]
+                .property_flags
+                .contains(desired)
+        {
+            return i;
+        }
+    }
+    panic!("No suitable host-visible memory type found");
 }
 
 fn raw_bind_image_memory(ctx: &VulkanContext, img: u64, mem: u64, offset: u64) {
@@ -3315,6 +3336,60 @@ pub fn create_window_cleanup_permit() -> (out: Ghost<WindowCleanupPermit>)
     ensures cleanup_permit_valid(out@),
 {
     Ghost(WindowCleanupPermit { event_loop_exited: true })
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Mapped Buffer
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Create a host-visible, persistently-mapped GPU buffer.
+/// Performs: create_buffer + allocate_memory + bind + map in one call.
+/// Starts as GpuPending so first-frame reclaim pattern works with signaled fence.
+#[verifier::external_body]
+pub fn vk_create_mapped_buffer(
+    ctx: &VulkanContext,
+    id: Ghost<nat>,
+    size: u64,
+    usage: u32,
+) -> (out: RuntimeMappedBuffer)
+    requires size > 0,
+    ensures
+        out@.id == id@,
+        out@.size == size as nat,
+        out@.ownership == BufferOwnership::GpuPending,
+        out.size == size,
+{
+    let buf = raw_create_buffer(ctx, size, usage, 0);
+    let mem_req = unsafe { ctx.device.get_buffer_memory_requirements(vk::Buffer::from_raw(buf)) };
+    let mem_type = raw_find_host_visible_memory_type(ctx, mem_req.memory_type_bits);
+    let mem = raw_allocate_memory(ctx, mem_req.size, mem_type);
+    raw_bind_buffer_memory(ctx, buf, mem, 0);
+    let ptr = unsafe {
+        ctx.device.map_memory(
+            vk::DeviceMemory::from_raw(mem), 0, size, vk::MemoryMapFlags::empty(),
+        )
+    }.expect("map_memory failed") as usize;
+    RuntimeMappedBuffer {
+        handle: buf,
+        mem_handle: mem,
+        mapped_ptr: ptr,
+        size,
+        state: Ghost(MappedBufferState {
+            id: id@,
+            size: size as nat,
+            ownership: BufferOwnership::GpuPending,
+        }),
+    }
+}
+
+/// Destroy a mapped buffer. Requires HostOwned (GPU must be done).
+#[verifier::external_body]
+pub fn vk_destroy_mapped_buffer(ctx: &VulkanContext, buf: RuntimeMappedBuffer)
+    requires buf@.ownership == BufferOwnership::HostOwned,
+{
+    raw_unmap_memory(ctx, buf.mem_handle);
+    raw_destroy_buffer(ctx, buf.handle);
+    raw_free_memory(ctx, buf.mem_handle);
 }
 
 } // verus!
