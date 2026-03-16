@@ -1,5 +1,7 @@
 use vstd::prelude::*;
 use crate::memory_map::*;
+use crate::resource::*;
+use crate::runtime::device::*;
 
 verus! {
 
@@ -48,9 +50,17 @@ pub fn unmap_exec(mm: &mut RuntimeMemoryMap)
 }
 
 /// Exec: host write to mapped memory.
-pub fn host_write_exec(mm: &mut RuntimeMemoryMap)
-    requires old(mm)@.mapped,
-    ensures mm@ == host_write(old(mm)@),
+/// Caller must prove the GPU has no pending references to this resource.
+pub fn host_write_exec(
+    mm: &mut RuntimeMemoryMap,
+    dev: &RuntimeDevice,
+    resource: Ghost<ResourceId>,
+)
+    requires
+        old(mm)@.mapped,
+        host_writable(dev@.pending_submissions, resource@),
+    ensures
+        mm@ == host_write(old(mm)@),
 {
     mm.state = Ghost(host_write(mm.state@));
 }
