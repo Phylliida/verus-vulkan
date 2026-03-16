@@ -4,6 +4,7 @@ use crate::fence::*;
 use crate::lifetime::*;
 use crate::resource::*;
 use crate::memory_aliasing::*;
+use crate::memory_map::*;
 use crate::queue::*;
 use crate::semaphore::*;
 use crate::sync_token::*;
@@ -43,11 +44,14 @@ pub fn submit_exec(
     signal_sem_views: Ghost<Seq<SemaphoreState>>,
     fence_view: Ghost<Option<FenceState>>,
     aliasing_tracker: &mut RuntimeAliasingTracker,
+    mapped_states: Ghost<Map<ResourceId, MemoryMapState>>,
     thread: Ghost<ThreadId>,
     reg: Ghost<TokenRegistry>,
 )
     requires
         runtime_device_wf(&*old(dev)),
+        // Flush guard: all mapped referenced resources must have visible host writes
+        submission_writes_visible(mapped_states@, submission@.referenced_resources),
         submission@.queue_id == queue@,
         submission@.command_buffers.len() > 0,
         // Thread safety: exclusive queue access

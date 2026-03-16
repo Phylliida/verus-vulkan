@@ -3,6 +3,7 @@ use crate::device::*;
 use crate::format_properties::*;
 use crate::memory::*;
 use crate::lifetime::*;
+use crate::resource::*;
 use crate::sync_token::*;
 
 verus! {
@@ -74,15 +75,17 @@ pub fn create_buffer_exec(
 }
 
 /// Exec: destroy a buffer (decrements live_buffers in ghost state).
-/// Caller must prove exclusive access to the device.
+/// Caller must prove exclusive access to the device and no pending GPU references.
 pub fn destroy_buffer_exec(
     dev: &mut RuntimeDevice,
+    resource: Ghost<ResourceId>,
     thread: Ghost<ThreadId>,
     reg: Ghost<TokenRegistry>,
 )
     requires
         runtime_device_wf(&*old(dev)),
         old(dev)@.live_buffers > 0,
+        no_pending_references(old(dev)@.pending_submissions, resource@),
         holds_exclusive(reg@, SyncObjectId::Handle(old(dev).device_id@), thread@),
     ensures
         dev@ == destroy_buffer_ghost(old(dev)@),
@@ -109,15 +112,17 @@ pub fn create_image_exec(
 }
 
 /// Exec: destroy an image (decrements live_images in ghost state).
-/// Caller must prove exclusive access to the device.
+/// Caller must prove exclusive access to the device and no pending GPU references.
 pub fn destroy_image_exec(
     dev: &mut RuntimeDevice,
+    resource: Ghost<ResourceId>,
     thread: Ghost<ThreadId>,
     reg: Ghost<TokenRegistry>,
 )
     requires
         runtime_device_wf(&*old(dev)),
         old(dev)@.live_images > 0,
+        no_pending_references(old(dev)@.pending_submissions, resource@),
         holds_exclusive(reg@, SyncObjectId::Handle(old(dev).device_id@), thread@),
     ensures
         dev@ == destroy_image_ghost(old(dev)@),

@@ -129,6 +129,18 @@ pub open spec fn host_writable(
     no_pending_references(submissions, resource)
 }
 
+// ── Flush-Before-Submit ─────────────────────────────────────────────────
+
+/// All mapped resources referenced by a submission have visible host writes.
+/// Prevents submitting work that reads stale data from non-coherent memory.
+pub open spec fn submission_writes_visible(
+    mapped_states: Map<ResourceId, MemoryMapState>,
+    referenced: Set<ResourceId>,
+) -> bool {
+    forall|r: ResourceId| referenced.contains(r) && mapped_states.contains_key(r)
+        ==> host_writes_visible(#[trigger] mapped_states[r])
+}
+
 // ── Proofs ──────────────────────────────────────────────────────────────
 
 /// After mapping, the memory is mapped.
@@ -212,6 +224,44 @@ pub proof fn lemma_double_map_invalid(state: MemoryMapState)
     ensures !can_map(state),
 {
 }
+
+// ── Flush-Before-Submit Proofs ──────────────────────────────────────────
+
+/// If no referenced resources are mapped, writes are trivially visible.
+pub proof fn lemma_no_mapped_writes_visible(
+    mapped_states: Map<ResourceId, MemoryMapState>,
+    referenced: Set<ResourceId>,
+)
+    requires
+        forall|r: ResourceId| referenced.contains(r)
+            ==> !mapped_states.contains_key(r),
+    ensures
+        submission_writes_visible(mapped_states, referenced),
+{}
+
+/// All coherent mapped resources trivially have visible writes.
+pub proof fn lemma_coherent_writes_visible(
+    mapped_states: Map<ResourceId, MemoryMapState>,
+    referenced: Set<ResourceId>,
+)
+    requires
+        forall|r: ResourceId| referenced.contains(r) && mapped_states.contains_key(r)
+            ==> (#[trigger] mapped_states[r]).host_coherent,
+    ensures
+        submission_writes_visible(mapped_states, referenced),
+{}
+
+/// After flushing all mapped resources, writes are visible.
+pub proof fn lemma_flushed_writes_visible(
+    mapped_states: Map<ResourceId, MemoryMapState>,
+    referenced: Set<ResourceId>,
+)
+    requires
+        forall|r: ResourceId| referenced.contains(r) && mapped_states.contains_key(r)
+            ==> host_writes_visible(#[trigger] mapped_states[r]),
+    ensures
+        submission_writes_visible(mapped_states, referenced),
+{}
 
 // ── Host-Writable Proofs ────────────────────────────────────────────────
 
