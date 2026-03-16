@@ -36,3 +36,4 @@ pub mod completion;
 pub mod surface;
 pub mod shader_module;
 pub mod image;
+pub mod mapped_buffer;
