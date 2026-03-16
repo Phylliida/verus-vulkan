@@ -1,6 +1,7 @@
 use vstd::prelude::*;
 use crate::resource::*;
 use crate::memory::*;
+use crate::lifetime::*;
 
 verus! {
 
@@ -119,6 +120,15 @@ pub open spec fn access_in_mapped_range(
     && offset + size <= state.map_offset + state.map_size
 }
 
+/// Host can safely write to a mapped buffer: no pending GPU references.
+/// Mirrors `host_readable` from readback.rs.
+pub open spec fn host_writable(
+    submissions: Seq<SubmissionRecord>,
+    resource: ResourceId,
+) -> bool {
+    no_pending_references(submissions, resource)
+}
+
 // ── Proofs ──────────────────────────────────────────────────────────────
 
 /// After mapping, the memory is mapped.
@@ -201,6 +211,47 @@ pub proof fn lemma_double_map_invalid(state: MemoryMapState)
     requires state.mapped,
     ensures !can_map(state),
 {
+}
+
+// ── Host-Writable Proofs ────────────────────────────────────────────────
+
+/// After device_wait_idle (empty submissions), any resource is host-writable.
+pub proof fn lemma_device_idle_host_writable(resource: ResourceId)
+    ensures host_writable(Seq::<SubmissionRecord>::empty(), resource),
+{
+}
+
+/// A freshly created resource (never submitted) is host-writable.
+pub proof fn lemma_fresh_resource_host_writable(
+    submissions: Seq<SubmissionRecord>,
+    resource: ResourceId,
+)
+    requires
+        forall|i: int| #![trigger submissions[i]]
+            0 <= i < submissions.len()
+            ==> !submissions[i].referenced_resources.contains(resource),
+    ensures
+        host_writable(submissions, resource),
+{
+}
+
+/// After fence wait, resource is host-writable if all its submissions used that fence.
+pub proof fn lemma_fence_wait_host_writable(
+    submissions: Seq<SubmissionRecord>,
+    fence: nat,
+    resource: ResourceId,
+)
+    requires
+        forall|i: int| 0 <= i < submissions.len()
+            && submissions[i].referenced_resources.contains(resource)
+            ==> submissions[i].fence_id == Some(fence),
+    ensures
+        host_writable(
+            remove_completed(mark_fence_completed(submissions, fence)),
+            resource,
+        ),
+{
+    lemma_wait_clears_fence_submissions(submissions, fence, resource);
 }
 
 } // verus!
