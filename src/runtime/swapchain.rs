@@ -24,6 +24,9 @@ impl View for RuntimeSwapchain {
 /// Well-formedness of the runtime swapchain.
 pub open spec fn runtime_swapchain_wf(sc: &RuntimeSwapchain) -> bool {
     sc@.alive && sc@.image_states.len() > 0
+    && sc@.current_image_ids.len() == sc@.image_states.len()
+    && forall|j: int| 0 <= j < sc@.current_image_ids.len() ==>
+        sc@.current_image_ids[j] < sc@.next_image_id
 }
 
 /// Number of images in the swapchain.
@@ -62,6 +65,13 @@ pub open spec fn swapchain_id(sc: &RuntimeSwapchain) -> nat {
     sc@.id
 }
 
+/// Current logical image id for swapchain image at `idx`.
+pub open spec fn swapchain_current_image_id(sc: &RuntimeSwapchain, idx: nat) -> nat
+    recommends idx < sc@.current_image_ids.len(),
+{
+    sc@.current_image_ids[idx as int]
+}
+
 /// Whether a specific image can be acquired.
 /// Destroyed or retired swapchains cannot acquire images.
 pub open spec fn can_acquire_image(sc: &RuntimeSwapchain, idx: nat) -> bool {
@@ -82,6 +92,8 @@ pub fn create_swapchain_exec(
     handle: u64,
     id: Ghost<nat>,
     image_count: u64,
+    base_image_id: Ghost<nat>,
+    image_info: Ghost<SwapchainImageInfo>,
 ) -> (out: RuntimeSwapchain)
     requires image_count > 0,
     ensures
@@ -89,8 +101,13 @@ pub fn create_swapchain_exec(
         out@.id == id@,
         out@.image_states.len() == image_count as nat,
         all_available(out@),
+        out@.current_image_ids.len() == image_count as nat,
+        out@.current_image_ids == Seq::new(image_count as nat, |i: int| (base_image_id@ + i) as nat),
+        out@.next_image_id == base_image_id@ + image_count as nat,
+        out@.image_info == image_info@,
 {
     let ghost states = Seq::new(image_count as nat, |_i: int| SwapchainImageState::Available);
+    let ghost ids = Seq::new(image_count as nat, |i: int| (base_image_id@ + i) as nat);
     RuntimeSwapchain {
         handle,
         state: Ghost(SwapchainState {
@@ -98,12 +115,16 @@ pub fn create_swapchain_exec(
             image_states: states,
             retired: false,
             alive: true,
+            current_image_ids: ids,
+            next_image_id: base_image_id@ + image_count as nat,
+            image_info: image_info@,
         }),
     }
 }
 
 /// Exec: acquire the next available image at index `idx`.
 /// Caller must prove exclusive access to the swapchain.
+/// After acquire, the image id at `idx` is rotated to a fresh value.
 pub fn acquire_next_image_exec(
     sc: &mut RuntimeSwapchain,
     idx: u64,
@@ -118,6 +139,10 @@ pub fn acquire_next_image_exec(
         sc@ == acquire_image(old(sc)@, idx as nat).unwrap(),
         sc@.image_states[idx as int] == SwapchainImageState::Acquired,
         sc@.image_states.len() == old(sc)@.image_states.len(),
+        // Image-id rotation: the old id is gone, a fresh id is assigned
+        sc@.current_image_ids[idx as int] == old(sc)@.next_image_id,
+        sc@.next_image_id == old(sc)@.next_image_id + 1,
+        sc@.current_image_ids.len() == old(sc)@.current_image_ids.len(),
 {
     sc.state = Ghost(acquire_image(sc.state@, idx as nat).unwrap());
 }
@@ -186,9 +211,12 @@ pub fn get_swapchain_image_count_exec(sc: &RuntimeSwapchain) -> (out: u64)
 
 /// Exec: recreate swapchain with new image count (all images reset to Available).
 /// Caller must prove no images are in-flight (all Available) and exclusive access.
+/// Image ids are re-initialized from `base_image_id`.
 pub fn recreate_swapchain_exec(
     sc: &mut RuntimeSwapchain,
     new_image_count: u64,
+    base_image_id: Ghost<nat>,
+    image_info: Ghost<SwapchainImageInfo>,
     thread: Ghost<ThreadId>,
     reg: Ghost<TokenRegistry>,
 ) -> (success: bool)
@@ -202,15 +230,21 @@ pub fn recreate_swapchain_exec(
             sc@.id == old(sc)@.id
             && sc@.image_states.len() == new_image_count as nat
             && all_available(sc@)
+            && runtime_swapchain_wf(sc)
+            && sc@.image_info == image_info@
         ),
         !success ==> sc@ == old(sc)@,
 {
     let ghost new_states = Seq::new(new_image_count as nat, |_i: int| SwapchainImageState::Available);
+    let ghost new_ids = Seq::new(new_image_count as nat, |i: int| (base_image_id@ + i) as nat);
     sc.state = Ghost(SwapchainState {
         id: sc.state@.id,
         image_states: new_states,
         retired: false,
         alive: true,
+        current_image_ids: new_ids,
+        next_image_id: base_image_id@ + new_image_count as nat,
+        image_info: image_info@,
     });
     true
 }
@@ -218,13 +252,21 @@ pub fn recreate_swapchain_exec(
 // ── Proofs ──────────────────────────────────────────────────────────────
 
 /// Creating a swapchain gives a well-formed result.
-pub proof fn lemma_create_swapchain_wf(id: nat, image_count: nat)
+pub proof fn lemma_create_swapchain_wf(
+    id: nat, image_count: nat, base_image_id: nat, info: SwapchainImageInfo,
+)
     requires image_count > 0,
     ensures ({
         let states = Seq::new(image_count, |_i: int| SwapchainImageState::Available);
-        let sc = SwapchainState { id, image_states: states, retired: false, alive: true };
+        let ids = Seq::new(image_count, |i: int| (base_image_id + i) as nat);
+        let sc = SwapchainState {
+            id, image_states: states, retired: false, alive: true,
+            current_image_ids: ids, next_image_id: base_image_id + image_count,
+            image_info: info,
+        };
         sc.image_states.len() > 0
         && all_available(sc)
+        && sc.current_image_ids.len() == sc.image_states.len()
     }),
 {
 }
@@ -333,11 +375,18 @@ pub proof fn lemma_acquire_preserves_other(sc: &RuntimeSwapchain, idx: nat, othe
 pub proof fn lemma_recreate_preserves_id(
     old_sc: SwapchainState,
     new_image_count: nat,
+    base_image_id: nat,
+    info: SwapchainImageInfo,
 )
     requires new_image_count > 0,
     ensures ({
         let new_states = Seq::new(new_image_count, |_i: int| SwapchainImageState::Available);
-        let new_sc = SwapchainState { id: old_sc.id, image_states: new_states, retired: false, alive: true };
+        let new_ids = Seq::new(new_image_count, |i: int| (base_image_id + i) as nat);
+        let new_sc = SwapchainState {
+            id: old_sc.id, image_states: new_states, retired: false, alive: true,
+            current_image_ids: new_ids, next_image_id: base_image_id + new_image_count,
+            image_info: info,
+        };
         new_sc.id == old_sc.id
         && new_sc.image_states.len() == new_image_count
         && new_sc.image_states.len() > 0

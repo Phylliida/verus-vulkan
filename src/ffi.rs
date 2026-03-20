@@ -1378,6 +1378,7 @@ pub fn vk_create_device(
 #[verifier::external_body]
 pub fn vk_destroy_device(ctx: &VulkanContext, dev: &mut RuntimeDevice)
     requires runtime_device_wf(&*old(dev)),
+    ensures dev.device_id@ == old(dev).device_id@,
 {
     raw_device_wait_idle(ctx);
 }
@@ -1573,6 +1574,15 @@ pub fn vk_allocate_command_buffer(
 #[verifier::external_body]
 pub fn vk_begin_command_buffer(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer)
     requires !old(cb).in_render_pass@,
+    ensures
+        is_recording(cb),
+        cb.recording_state@ == initial_recording_state(),
+        cb.barrier_log@ == Seq::<BarrierEntry>::empty(),
+        cb.in_render_pass@ == false,
+        cb.handle == old(cb).handle,
+        cb.cb_id@ == old(cb).cb_id@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        runtime_cb_wf(cb),
 {
     raw_begin_command_buffer(ctx, cb.handle);
 }
@@ -1581,6 +1591,14 @@ pub fn vk_begin_command_buffer(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffe
 #[verifier::external_body]
 pub fn vk_end_command_buffer(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer)
     requires !old(cb).in_render_pass@,
+    ensures
+        is_executable(cb),
+        cb.handle == old(cb).handle,
+        cb.cb_id@ == old(cb).cb_id@,
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.recording_thread@ == old(cb).recording_thread@,
 {
     raw_end_command_buffer(ctx, cb.handle);
 }
@@ -1589,6 +1607,8 @@ pub fn vk_end_command_buffer(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer)
 #[verifier::external_body]
 pub fn vk_cmd_begin_render_pass(
     ctx: &VulkanContext,
+    rp_id: Ghost<nat>,
+    fb_id: Ghost<nat>,
     cb: &mut RuntimeCommandBuffer,
     render_pass_handle: u64,
     framebuffer_handle: u64,
@@ -1600,7 +1620,15 @@ pub fn vk_cmd_begin_render_pass(
     clear_a: f32,
 )
     requires !old(cb).in_render_pass@,
-    ensures cb.in_render_pass@ == true,
+    ensures
+        cb.in_render_pass@ == true,
+        cb.recording_state@ == begin_render_pass_recording(old(cb).recording_state@, rp_id@, fb_id@),
+        cb.handle == old(cb).handle,
+        cb.cb_id@ == old(cb).cb_id@,
+        cb.status@ == old(cb).status@,
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        runtime_cb_wf(cb),
 {
     raw_cmd_begin_render_pass(ctx, cb.handle, render_pass_handle, framebuffer_handle, width, height, clear_r, clear_g, clear_b, clear_a);
 }
@@ -1609,7 +1637,15 @@ pub fn vk_cmd_begin_render_pass(
 #[verifier::external_body]
 pub fn vk_cmd_end_render_pass(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer)
     requires old(cb).in_render_pass@,
-    ensures cb.in_render_pass@ == false,
+    ensures
+        cb.in_render_pass@ == false,
+        cb.recording_state@ == end_render_pass_recording(old(cb).recording_state@),
+        cb.handle == old(cb).handle,
+        cb.cb_id@ == old(cb).cb_id@,
+        cb.status@ == old(cb).status@,
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        runtime_cb_wf(cb),
 {
     raw_cmd_end_render_pass(ctx, cb.handle);
 }
@@ -1625,6 +1661,7 @@ pub fn vk_cmd_draw(
     first_instance: u32,
 )
     requires old(cb).in_render_pass@,
+    ensures cb_ghost_frame_preserved(*old(cb), *cb),
 {
     raw_cmd_draw(ctx, cb.handle, vertex_count, instance_count, first_vertex, first_instance);
 }
@@ -1639,14 +1676,29 @@ pub fn vk_cmd_dispatch(
     group_count_z: u32,
 )
     requires !old(cb).in_render_pass@,
+    ensures cb_ghost_frame_preserved(*old(cb), *cb),
 {
     raw_cmd_dispatch(ctx, cb.handle, group_count_x, group_count_y, group_count_z);
 }
 
 /// FFI: pipeline barrier.
 #[verifier::external_body]
-pub fn vk_cmd_pipeline_barrier(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer, src_stage: u32, dst_stage: u32)
+pub fn vk_cmd_pipeline_barrier(
+    ctx: &VulkanContext,
+    entry: Ghost<BarrierEntry>,
+    cb: &mut RuntimeCommandBuffer,
+    src_stage: u32,
+    dst_stage: u32,
+)
     requires !old(cb).in_render_pass@,
+    ensures
+        cb.barrier_log@ == old(cb).barrier_log@.push(entry@),
+        cb.handle == old(cb).handle,
+        cb.cb_id@ == old(cb).cb_id@,
+        cb.status@ == old(cb).status@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.recording_thread@ == old(cb).recording_thread@,
 {
     raw_cmd_pipeline_barrier(ctx, cb.handle, src_stage, dst_stage);
 }
@@ -1655,6 +1707,7 @@ pub fn vk_cmd_pipeline_barrier(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffe
 #[verifier::external_body]
 pub fn vk_cmd_pipeline_barrier_image(
     ctx: &VulkanContext,
+    barrier_entries: Ghost<Seq<BarrierEntry>>,
     cb: &mut RuntimeCommandBuffer,
     _barriers: Ghost<Seq<ImageBarrierEntry>>,
     src_stage: u32,
@@ -1663,13 +1716,40 @@ pub fn vk_cmd_pipeline_barrier_image(
     image_barriers: &[(u64, u32, u32, u32, u32)],
 )
     requires !old(cb).in_render_pass@,
+    ensures
+        cb.barrier_log@ == old(cb).barrier_log@ + barrier_entries@,
+        cb.handle == old(cb).handle,
+        cb.cb_id@ == old(cb).cb_id@,
+        cb.status@ == old(cb).status@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.recording_thread@ == old(cb).recording_thread@,
 {
     raw_cmd_pipeline_barrier_image(ctx, cb.handle, src_stage, dst_stage, image_barriers);
 }
 
 /// FFI: bind a pipeline.
 #[verifier::external_body]
-pub fn vk_cmd_bind_pipeline(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer, bind_point: u32, pipeline_handle: u64)
+pub fn vk_cmd_bind_pipeline(
+    ctx: &VulkanContext,
+    pipeline_id: Ghost<nat>,
+    pipeline_layouts: Ghost<Seq<nat>>,
+    cb: &mut RuntimeCommandBuffer,
+    bind_point: u32,
+    pipeline_handle: u64,
+)
+    ensures
+        cb.recording_state@ == (if bind_point == 0 {
+            bind_graphics_pipeline(old(cb).recording_state@, pipeline_id@, pipeline_layouts@)
+        } else {
+            bind_compute_pipeline(old(cb).recording_state@, pipeline_id@, pipeline_layouts@)
+        }),
+        cb.handle == old(cb).handle,
+        cb.cb_id@ == old(cb).cb_id@,
+        cb.status@ == old(cb).status@,
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
 {
     raw_cmd_bind_pipeline(ctx, cb.handle, bind_point, pipeline_handle);
 }
@@ -1678,6 +1758,10 @@ pub fn vk_cmd_bind_pipeline(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer, 
 #[verifier::external_body]
 pub fn vk_cmd_bind_descriptor_sets(
     ctx: &VulkanContext,
+    set_index: Ghost<nat>,
+    set_id: Ghost<nat>,
+    layout_id: Ghost<nat>,
+    dynamic_offsets: Ghost<Seq<nat>>,
     cb: &mut RuntimeCommandBuffer,
     _sets: Ghost<Seq<DescriptorSetState>>,
     bind_point: u32,
@@ -1685,6 +1769,14 @@ pub fn vk_cmd_bind_descriptor_sets(
     first_set: u32,
     set_handles: &[u64],
 )
+    ensures
+        cb.recording_state@ == bind_descriptor_set(old(cb).recording_state@, set_index@, set_id@, layout_id@, dynamic_offsets@),
+        cb.handle == old(cb).handle,
+        cb.cb_id@ == old(cb).cb_id@,
+        cb.status@ == old(cb).status@,
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.in_render_pass@ == old(cb).in_render_pass@,
+        cb.recording_thread@ == old(cb).recording_thread@,
 {
     raw_cmd_bind_descriptor_sets(ctx, cb.handle, bind_point, layout_handle, first_set, set_handles);
 }
@@ -2094,6 +2186,8 @@ pub fn vk_create_swapchain(
     height: u32,
     present_mode: u32,
     usage: u32,
+    base_image_id: Ghost<nat>,
+    usage_set: Ghost<Set<nat>>,
 ) -> (out: RuntimeSwapchain)
     requires image_count > 0,
     ensures
@@ -2101,6 +2195,15 @@ pub fn vk_create_swapchain(
         out@.id == id@,
         out@.image_states.len() == image_count as nat,
         all_available(out@),
+        out@.current_image_ids.len() == image_count as nat,
+        out@.current_image_ids == Seq::new(image_count as nat, |i: int| (base_image_id@ + i) as nat),
+        out@.next_image_id == base_image_id@ + image_count as nat,
+        out@.image_info == (SwapchainImageInfo {
+            format: format as nat,
+            width: width as nat,
+            height: height as nat,
+            usage: usage_set@,
+        }),
 {
     let h = raw_create_swapchain(ctx, surface_handle, image_count as u32, format, width, height, present_mode, usage);
     RuntimeSwapchain {
@@ -2110,11 +2213,25 @@ pub fn vk_create_swapchain(
             image_states: Seq::new(image_count as nat, |_i| SwapchainImageState::Available),
             retired: false,
             alive: true,
+            current_image_ids: Seq::new(image_count as nat, |i: int| (base_image_id@ + i) as nat),
+            next_image_id: base_image_id@ + image_count as nat,
+            image_info: SwapchainImageInfo {
+                format: format as nat,
+                width: width as nat,
+                height: height as nat,
+                usage: usage_set@,
+            },
         }),
     }
 }
 
 /// FFI: acquire next swapchain image. Returns the image index chosen by the driver.
+/// Ghost state is updated via `acquire_image`: the image at `idx` transitions to
+/// Acquired and its logical image id is rotated to `next_image_id`.
+///
+/// The ensures `sc@ == acquire_image(old(sc)@, idx).unwrap()` gives callers the
+/// full `acquire_image` spec relationship, which implies `runtime_swapchain_wf`,
+/// image-id rotation, monotonicity preservation, and all field preservation.
 #[verifier::external_body]
 pub fn vk_acquire_next_image(
     ctx: &VulkanContext,
@@ -2124,7 +2241,10 @@ pub fn vk_acquire_next_image(
     timeout: u64,
 ) -> (idx: u64)
     requires runtime_swapchain_wf(&*old(sc)),
-    ensures idx < sc@.image_states.len(),
+    ensures
+        idx < old(sc)@.image_states.len(),
+        old(sc)@.image_states[idx as int] == SwapchainImageState::Available,
+        sc@ == acquire_image(old(sc)@, idx as nat).unwrap(),
 {
     let actual = raw_acquire_next_image(ctx, sc.handle, semaphore_handle, fence_handle, timeout);
     actual as u64
@@ -2454,6 +2574,7 @@ pub fn vk_cmd_draw_indirect(
     stride: u32,
 )
     requires old(cb).in_render_pass@,
+    ensures cb_ghost_frame_preserved(*old(cb), *cb),
 {
     raw_cmd_draw_indirect(ctx, cb.handle, buffer_handle, offset, draw_count, stride);
 }
@@ -2469,6 +2590,7 @@ pub fn vk_cmd_draw_indexed_indirect(
     stride: u32,
 )
     requires old(cb).in_render_pass@,
+    ensures cb_ghost_frame_preserved(*old(cb), *cb),
 {
     raw_cmd_draw_indexed_indirect(ctx, cb.handle, buffer_handle, offset, draw_count, stride);
 }
@@ -2482,6 +2604,7 @@ pub fn vk_cmd_dispatch_indirect(
     offset: u64,
 )
     requires !old(cb).in_render_pass@,
+    ensures cb_ghost_frame_preserved(*old(cb), *cb),
 {
     raw_cmd_dispatch_indirect(ctx, cb.handle, buffer_handle, offset);
 }
@@ -2496,7 +2619,14 @@ pub fn vk_cmd_begin_rendering(
     layer_count: u32,
 )
     requires !old(cb).in_render_pass@,
-    ensures cb.in_render_pass@ == true,
+    ensures
+        cb.in_render_pass@ == true,
+        cb.handle == old(cb).handle,
+        cb.cb_id@ == old(cb).cb_id@,
+        cb.status@ == old(cb).status@,
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.recording_thread@ == old(cb).recording_thread@,
 {
     raw_cmd_begin_rendering(ctx, cb.handle, width, height, layer_count);
 }
@@ -2508,7 +2638,14 @@ pub fn vk_cmd_end_rendering(
     cb: &mut RuntimeCommandBuffer,
 )
     requires old(cb).in_render_pass@,
-    ensures cb.in_render_pass@ == false,
+    ensures
+        cb.in_render_pass@ == false,
+        cb.handle == old(cb).handle,
+        cb.cb_id@ == old(cb).cb_id@,
+        cb.status@ == old(cb).status@,
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_state@ == old(cb).recording_state@,
+        cb.recording_thread@ == old(cb).recording_thread@,
 {
     raw_cmd_end_rendering(ctx, cb.handle);
 }
@@ -3064,6 +3201,8 @@ pub fn vk_create_render_pass_depth(
 #[verifier::external_body]
 pub fn vk_cmd_begin_render_pass_depth(
     ctx: &VulkanContext,
+    rp_id: Ghost<nat>,
+    fb_id: Ghost<nat>,
     cb: &mut RuntimeCommandBuffer,
     render_pass_handle: u64,
     framebuffer_handle: u64,
@@ -3073,7 +3212,15 @@ pub fn vk_cmd_begin_render_pass_depth(
     clear_depth: f32, clear_stencil: u32,
 )
     requires !old(cb).in_render_pass@,
-    ensures cb.in_render_pass@ == true,
+    ensures
+        cb.in_render_pass@ == true,
+        cb.recording_state@ == begin_render_pass_recording(old(cb).recording_state@, rp_id@, fb_id@),
+        cb.handle == old(cb).handle,
+        cb.cb_id@ == old(cb).cb_id@,
+        cb.status@ == old(cb).status@,
+        cb.barrier_log@ == old(cb).barrier_log@,
+        cb.recording_thread@ == old(cb).recording_thread@,
+        runtime_cb_wf(cb),
 {
     raw_cmd_begin_render_pass_depth(ctx, cb.handle, render_pass_handle, framebuffer_handle, width, height, clear_r, clear_g, clear_b, clear_a, clear_depth, clear_stencil);
 }

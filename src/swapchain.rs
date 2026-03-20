@@ -2,6 +2,15 @@ use vstd::prelude::*;
 
 verus! {
 
+/// Swapchain image metadata extracted at creation time.
+/// Used to construct `ImageState` templates without repeating format/size/usage.
+pub struct SwapchainImageInfo {
+    pub format: nat,
+    pub width: nat,
+    pub height: nat,
+    pub usage: Set<nat>,
+}
+
 /// Lifecycle state of a single swapchain image.
 pub enum SwapchainImageState {
     /// Available for acquisition via vkAcquireNextImageKHR.
@@ -22,6 +31,15 @@ pub struct SwapchainState {
     pub retired: bool,
     /// Whether this swapchain has not been destroyed.
     pub alive: bool,
+    /// Logical image identity per swapchain index. On acquire, the id at the
+    /// acquired index is rotated to a fresh value so that descriptors bound to
+    /// the old id become stale (their `descriptor_binding_resource_alive` check
+    /// against the caller's `images` map will fail).
+    pub current_image_ids: Seq<nat>,
+    /// Monotonic counter for generating unique image ids.
+    pub next_image_id: nat,
+    /// Image metadata for constructing ImageState templates.
+    pub image_info: SwapchainImageInfo,
 }
 
 /// Count how many images are currently acquired (not available, not presenting).
@@ -72,6 +90,8 @@ pub open spec fn count_in_flight(swapchain: SwapchainState) -> nat {
 }
 
 /// Acquire image at index `idx`. Fails if swapchain is retired or destroyed.
+/// On success, the image at `idx` transitions to Acquired and its logical
+/// image id is rotated to `next_image_id` (invalidating stale descriptors).
 pub open spec fn acquire_image(swapchain: SwapchainState, idx: nat) -> Option<SwapchainState>
     recommends idx < swapchain.image_states.len(),
 {
@@ -83,6 +103,8 @@ pub open spec fn acquire_image(swapchain: SwapchainState, idx: nat) -> Option<Sw
         match swapchain.image_states[idx as int] {
             SwapchainImageState::Available => Some(SwapchainState {
                 image_states: swapchain.image_states.update(idx as int, SwapchainImageState::Acquired),
+                current_image_ids: swapchain.current_image_ids.update(idx as int, swapchain.next_image_id),
+                next_image_id: swapchain.next_image_id + 1,
                 ..swapchain
             }),
             _ => None,
@@ -294,6 +316,84 @@ pub proof fn lemma_retire_preserves_images(swapchain: SwapchainState)
     ensures
         retire_swapchain(swapchain).image_states == swapchain.image_states,
         retire_swapchain(swapchain).id == swapchain.id,
+{
+}
+
+// ── Image-id rotation lemmas ─────────────────────────────────────────
+
+/// After acquire at `idx`, the image id at `idx` equals the old `next_image_id`.
+pub proof fn lemma_acquire_rotates_image_id(swapchain: SwapchainState, idx: nat)
+    requires
+        swapchain.alive,
+        !swapchain.retired,
+        idx < swapchain.image_states.len(),
+        swapchain.image_states[idx as int] == SwapchainImageState::Available,
+        swapchain.current_image_ids.len() == swapchain.image_states.len(),
+    ensures
+        acquire_image(swapchain, idx).unwrap().current_image_ids[idx as int]
+            == swapchain.next_image_id,
+{
+}
+
+/// Acquire at `idx` preserves image ids at other indices.
+pub proof fn lemma_acquire_preserves_other_ids(
+    swapchain: SwapchainState, idx: nat, j: nat,
+)
+    requires
+        swapchain.alive,
+        !swapchain.retired,
+        idx < swapchain.image_states.len(),
+        j < swapchain.image_states.len(),
+        idx != j,
+        swapchain.image_states[idx as int] == SwapchainImageState::Available,
+        swapchain.current_image_ids.len() == swapchain.image_states.len(),
+    ensures
+        acquire_image(swapchain, idx).unwrap().current_image_ids[j as int]
+            == swapchain.current_image_ids[j as int],
+{
+}
+
+/// The new image id differs from all current image ids (by monotonicity).
+/// Requires that all current ids are less than `next_image_id`.
+pub proof fn lemma_acquire_new_id_unique(
+    swapchain: SwapchainState, idx: nat,
+)
+    requires
+        swapchain.alive,
+        !swapchain.retired,
+        idx < swapchain.image_states.len(),
+        swapchain.image_states[idx as int] == SwapchainImageState::Available,
+        swapchain.current_image_ids.len() == swapchain.image_states.len(),
+        forall|j: int| 0 <= j < swapchain.current_image_ids.len() ==>
+            swapchain.current_image_ids[j] < swapchain.next_image_id,
+    ensures ({
+        let new_sc = acquire_image(swapchain, idx).unwrap();
+        forall|j: int| 0 <= j < new_sc.current_image_ids.len() ==>
+            new_sc.current_image_ids[j] < new_sc.next_image_id
+    }),
+{
+    let new_sc = acquire_image(swapchain, idx).unwrap();
+    assert forall|j: int| 0 <= j < new_sc.current_image_ids.len()
+    implies new_sc.current_image_ids[j] < new_sc.next_image_id by {
+        if j == idx as int {
+            // new id = old next_image_id < old next_image_id + 1 = new next_image_id
+        } else {
+            // preserved id < old next_image_id < new next_image_id
+        }
+    }
+}
+
+/// Acquire preserves the length of current_image_ids.
+pub proof fn lemma_acquire_preserves_image_ids_len(swapchain: SwapchainState, idx: nat)
+    requires
+        swapchain.alive,
+        !swapchain.retired,
+        idx < swapchain.image_states.len(),
+        swapchain.image_states[idx as int] == SwapchainImageState::Available,
+        swapchain.current_image_ids.len() == swapchain.image_states.len(),
+    ensures
+        acquire_image(swapchain, idx).unwrap().current_image_ids.len()
+            == swapchain.current_image_ids.len(),
 {
 }
 

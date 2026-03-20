@@ -123,4 +123,5 @@ pub mod gemm_dispatch;
 pub mod gemm_sm80;
 pub mod mapped_buffer;
 pub mod window_cleanup;
+pub mod swapchain_image_lifecycle;
 pub mod runtime;
