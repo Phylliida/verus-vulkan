@@ -393,6 +393,8 @@ mod vulkan {
             ffi::vk_begin_command_buffer(&self.ctx, cb);
             ffi::vk_cmd_begin_render_pass_depth(
                 &self.ctx,
+                Ghost::assume_new(),
+                Ghost::assume_new(),
                 cb,
                 self.render_pass.handle,
                 self.framebuffers[idx as usize].handle,
@@ -403,6 +405,8 @@ mod vulkan {
             );
             ffi::vk_cmd_bind_pipeline(
                 &self.ctx,
+                Ghost::assume_new(),
+                Ghost::assume_new(),
                 cb,
                 vk::PipelineBindPoint::GRAPHICS.as_raw() as u32,
                 self.pipeline.handle,

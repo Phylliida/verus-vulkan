@@ -103,6 +103,18 @@ pub open spec fn is_pending(cb: &RuntimeCommandBuffer) -> bool {
     }
 }
 
+/// Ghost frame preservation: all fields except recording_state are unchanged.
+/// Used by commands that only affect the recording state (draw, dispatch, bind, etc.)
+pub open spec fn cb_ghost_frame_preserved(old_cb: RuntimeCommandBuffer, new_cb: RuntimeCommandBuffer) -> bool {
+    new_cb.handle == old_cb.handle
+    && new_cb.cb_id@ == old_cb.cb_id@
+    && new_cb.status@ == old_cb.status@
+    && new_cb.barrier_log@ == old_cb.barrier_log@
+    && new_cb.in_render_pass@ == old_cb.in_render_pass@
+    && new_cb.recording_state@ == old_cb.recording_state@
+    && new_cb.recording_thread@ == old_cb.recording_thread@
+}
+
 /// Exec: begin recording.
 /// Caller must prove exclusive access to the CB via pool ownership or direct token.
 pub fn begin_recording_exec(
