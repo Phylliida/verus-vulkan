@@ -8,6 +8,7 @@ vstd = { path = "../verus/source/vstd" }
 builtin = { package = "verus_builtin", path = "../verus/source/builtin" }
 verus-cutedsl = { path = "../verus-cutedsl" }
 ash = { version = "0.38", default-features = true }
+verus-gui = { path = "../verus-gui", optional = true }
 
 # Windowing (shared by both backends)
 winit = { version = "0.30", optional = true }
@@ -23,6 +24,7 @@ pollster = { version = "0.4", optional = true }
 [features]
 windowing = ["winit"]
 vulkan-backend = ["windowing", "ash-window", "raw-window-handle"]
+gui-showcase = ["vulkan-backend", "verus-gui"]
 webgpu-backend = ["windowing", "wgpu", "pollster"]
 
 [[bin]]
@@ -34,6 +36,11 @@ required-features = ["windowing"]
 name = "cube"
 path = "src/bin/cube.rs"
 required-features = ["vulkan-backend"]
+
+[[bin]]
+name = "gui_showcase"
+path = "src/bin/gui_showcase.rs"
+required-features = ["gui-showcase"]
 
 [package.metadata.verus]
 verify = true
