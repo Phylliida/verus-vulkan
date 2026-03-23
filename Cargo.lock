@@ -1732,10 +1732,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "verus-bigint"
+version = "0.1.0"
+dependencies = [
+ "verus-algebra",
+ "vstd",
+]
+
+[[package]]
 name = "verus-cutedsl"
 version = "0.1.0"
 dependencies = [
  "verus-algebra",
+ "vstd",
+]
+
+[[package]]
+name = "verus-gui"
+version = "0.1.0"
+dependencies = [
+ "unicode-segmentation",
+ "verus-algebra",
+ "verus-bigint",
+ "verus-rational",
+ "vstd",
+]
+
+[[package]]
+name = "verus-rational"
+version = "0.1.0"
+dependencies = [
+ "verus-algebra",
+ "verus-bigint",
  "vstd",
 ]
 
@@ -1748,6 +1776,7 @@ dependencies = [
  "pollster",
  "raw-window-handle",
  "verus-cutedsl",
+ "verus-gui",
  "verus_builtin",
  "vstd",
  "wgpu",
@@ -1756,11 +1785,11 @@ dependencies = [
 
 [[package]]
 name = "verus_builtin"
-version = "0.0.0-2026-03-01-0109"
+version = "0.0.0-2026-03-17-2326"
 
 [[package]]
 name = "verus_builtin_macros"
-version = "0.0.0-2026-03-15-0111"
+version = "0.0.0-2026-03-17-2326"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1799,7 +1828,7 @@ dependencies = [
 
 [[package]]
 name = "vstd"
-version = "0.0.0-2026-03-15-0111"
+version = "0.0.0-2026-03-17-2326"
 dependencies = [
  "verus_builtin",
  "verus_builtin_macros",
