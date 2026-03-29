@@ -5,9 +5,9 @@ use crate::render_graph_compile::*;
 
 verus! {
 
-/// Runtime builder for constructing a render graph.
+///  Runtime builder for constructing a render graph.
 pub struct RuntimeRenderGraphBuilder {
-    /// Ghost model of the render graph being built.
+    ///  Ghost model of the render graph being built.
     pub state: Ghost<RenderGraph>,
 }
 
@@ -16,17 +16,17 @@ impl View for RuntimeRenderGraphBuilder {
     open spec fn view(&self) -> RenderGraph { self.state@ }
 }
 
-/// Runtime wrapper for a compiled render graph with runtime metadata.
+///  Runtime wrapper for a compiled render graph with runtime metadata.
 pub struct RuntimeCompiledGraphWrapper {
-    /// Ghost compiled graph.
+    ///  Ghost compiled graph.
     pub compiled: Ghost<CompiledGraph>,
-    /// Number of passes in the graph (runtime-accessible).
+    ///  Number of passes in the graph (runtime-accessible).
     pub num_passes: usize,
-    /// Number of barriers per step (runtime-accessible).
+    ///  Number of barriers per step (runtime-accessible).
     pub step_barrier_counts: Vec<usize>,
 }
 
-/// Exec: create an empty render graph builder.
+///  Exec: create an empty render graph builder.
 pub fn create_graph_builder_exec() -> (out: RuntimeRenderGraphBuilder)
     ensures
         out@.passes.len() == 0,
@@ -40,7 +40,7 @@ pub fn create_graph_builder_exec() -> (out: RuntimeRenderGraphBuilder)
     }
 }
 
-/// Exec: add a render pass to the graph.
+///  Exec: add a render pass to the graph.
 pub fn add_pass_exec(
     builder: &mut RuntimeRenderGraphBuilder,
     pass: Ghost<RenderPassNode>,
@@ -56,7 +56,7 @@ pub fn add_pass_exec(
     });
 }
 
-/// Exec: add a resource dependency edge to the graph.
+///  Exec: add a resource dependency edge to the graph.
 pub fn add_edge_exec(
     builder: &mut RuntimeRenderGraphBuilder,
     edge: Ghost<ResourceEdge>,
@@ -75,10 +75,10 @@ pub fn add_edge_exec(
     });
 }
 
-/// Exec: package a compiled graph with runtime metadata.
+///  Exec: package a compiled graph with runtime metadata.
 ///
-/// The compilation itself is done at the spec level; this function bridges
-/// the ghost CompiledGraph with runtime-accessible counts for the executor.
+///  The compilation itself is done at the spec level; this function bridges
+///  the ghost CompiledGraph with runtime-accessible counts for the executor.
 pub fn compile_graph_exec(
     builder: &RuntimeRenderGraphBuilder,
     external_inputs: Ghost<Set<ResourceId>>,
@@ -104,7 +104,7 @@ pub fn compile_graph_exec(
     }
 }
 
-/// Exec: validate that the compiled graph is well-formed.
+///  Exec: validate that the compiled graph is well-formed.
 pub fn validate_compiled_graph_exec(
     wrapper: &RuntimeCompiledGraphWrapper,
 ) -> (result: Ghost<bool>)
@@ -113,7 +113,7 @@ pub fn validate_compiled_graph_exec(
     Ghost(compiled_graph_well_formed(wrapper.compiled@))
 }
 
-/// Proof: an empty graph can be compiled to a trivially well-formed compiled graph.
+///  Proof: an empty graph can be compiled to a trivially well-formed compiled graph.
 pub proof fn lemma_empty_graph_compiles(external_inputs: Set<ResourceId>)
     ensures ({
         let empty_graph = RenderGraph { passes: Seq::empty(), edges: Seq::empty() };
@@ -130,4 +130,4 @@ pub proof fn lemma_empty_graph_compiles(external_inputs: Set<ResourceId>)
     lemma_empty_graph_well_formed(external_inputs);
 }
 
-} // verus!
+} //  verus!

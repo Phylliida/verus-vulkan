@@ -3,9 +3,9 @@ use crate::conditional_rendering::*;
 
 verus! {
 
-/// Runtime wrapper for conditional rendering state (VK_EXT_conditional_rendering).
+///  Runtime wrapper for conditional rendering state (VK_EXT_conditional_rendering).
 pub struct RuntimeConditionalRendering {
-    /// Ghost model of the conditional rendering state.
+    ///  Ghost model of the conditional rendering state.
     pub state: Ghost<ConditionalRenderingState>,
 }
 
@@ -14,7 +14,7 @@ impl View for RuntimeConditionalRendering {
     open spec fn view(&self) -> ConditionalRenderingState { self.state@ }
 }
 
-/// Exec: create conditional rendering in the initial (inactive) state.
+///  Exec: create conditional rendering in the initial (inactive) state.
 pub fn create_conditional_rendering_exec() -> (out: RuntimeConditionalRendering)
     ensures
         out@ == no_conditional_rendering(),
@@ -25,7 +25,7 @@ pub fn create_conditional_rendering_exec() -> (out: RuntimeConditionalRendering)
     }
 }
 
-/// Exec: begin conditional rendering.
+///  Exec: begin conditional rendering.
 pub fn begin_conditional_exec(
     cr: &mut RuntimeConditionalRendering,
     buffer_id: Ghost<nat>,
@@ -40,7 +40,7 @@ pub fn begin_conditional_exec(
     cr.state = Ghost(begin_conditional(buffer_id@, offset@, inverted@));
 }
 
-/// Exec: end conditional rendering.
+///  Exec: end conditional rendering.
 pub fn end_conditional_exec(cr: &mut RuntimeConditionalRendering)
     requires command_is_conditional(old(cr)@),
     ensures
@@ -50,4 +50,4 @@ pub fn end_conditional_exec(cr: &mut RuntimeConditionalRendering)
     cr.state = Ghost(end_conditional());
 }
 
-} // verus!
+} //  verus!

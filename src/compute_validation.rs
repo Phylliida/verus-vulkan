@@ -5,19 +5,19 @@ use crate::descriptor::*;
 
 verus! {
 
-// ── Types ───────────────────────────────────────────────────────────────
+//  ── Types ───────────────────────────────────────────────────────────────
 
-/// Device limits for compute dispatch.
+///  Device limits for compute dispatch.
 pub struct ComputeLimits {
-    /// Maximum work group count in each dimension.
+    ///  Maximum work group count in each dimension.
     pub max_group_count_x: nat,
     pub max_group_count_y: nat,
     pub max_group_count_z: nat,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// Dispatch dimensions are within device limits.
+///  Dispatch dimensions are within device limits.
 pub open spec fn dispatch_dimensions_valid(
     x: nat,
     y: nat,
@@ -29,7 +29,7 @@ pub open spec fn dispatch_dimensions_valid(
     && z <= limits.max_group_count_z
 }
 
-/// Descriptor sets are valid for a compute pipeline.
+///  Descriptor sets are valid for a compute pipeline.
 pub open spec fn compute_descriptors_valid(
     state: RecordingState,
     pipeline: ComputePipelineState,
@@ -47,7 +47,7 @@ pub open spec fn compute_descriptors_valid(
     }
 }
 
-/// Full compute dispatch validation: pipeline + dimensions + descriptors.
+///  Full compute dispatch validation: pipeline + dimensions + descriptors.
 pub open spec fn full_dispatch_valid(
     state: RecordingState,
     pipeline: ComputePipelineState,
@@ -63,28 +63,28 @@ pub open spec fn full_dispatch_valid(
     && compute_descriptors_valid(state, pipeline, descriptor_sets, set_layouts)
 }
 
-/// A dispatch with zero groups in any dimension does nothing.
+///  A dispatch with zero groups in any dimension does nothing.
 pub open spec fn dispatch_is_noop(x: nat, y: nat, z: nat) -> bool {
     x == 0 || y == 0 || z == 0
 }
 
-/// A pipeline with no descriptor set layouts needs no descriptor validation.
+///  A pipeline with no descriptor set layouts needs no descriptor validation.
 pub open spec fn compute_pipeline_needs_no_descriptors(
     pipeline: ComputePipelineState,
 ) -> bool {
     pipeline.descriptor_set_layouts.len() == 0
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// A zero-dimension dispatch is always within limits.
+///  A zero-dimension dispatch is always within limits.
 pub proof fn lemma_zero_dispatch_valid(limits: ComputeLimits)
     ensures
         dispatch_dimensions_valid(0, 0, 0, limits),
 {
 }
 
-/// If all dimensions are within limits, dispatch is valid.
+///  If all dimensions are within limits, dispatch is valid.
 pub proof fn lemma_within_limits_valid(
     x: nat, y: nat, z: nat,
     limits: ComputeLimits,
@@ -98,8 +98,8 @@ pub proof fn lemma_within_limits_valid(
 {
 }
 
-/// A compute pipeline with no descriptor layouts trivially satisfies
-/// descriptor validation.
+///  A compute pipeline with no descriptor layouts trivially satisfies
+///  descriptor validation.
 pub proof fn lemma_no_layouts_descriptors_valid(
     state: RecordingState,
     pipeline: ComputePipelineState,
@@ -113,7 +113,7 @@ pub proof fn lemma_no_layouts_descriptors_valid(
 {
 }
 
-/// full_dispatch_valid implies dispatch_call_valid.
+///  full_dispatch_valid implies dispatch_call_valid.
 pub proof fn lemma_full_dispatch_implies_basic(
     state: RecordingState,
     pipeline: ComputePipelineState,
@@ -129,7 +129,7 @@ pub proof fn lemma_full_dispatch_implies_basic(
 {
 }
 
-/// full_dispatch_valid implies dimensions are within limits.
+///  full_dispatch_valid implies dimensions are within limits.
 pub proof fn lemma_full_dispatch_implies_dimensions(
     state: RecordingState,
     pipeline: ComputePipelineState,
@@ -145,4 +145,4 @@ pub proof fn lemma_full_dispatch_implies_dimensions(
 {
 }
 
-} // verus!
+} //  verus!

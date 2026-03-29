@@ -3,8 +3,8 @@ use crate::resource::*;
 use crate::flags::*;
 use crate::sync::*;
 use crate::sync_proofs::*;
-// Note: stage_access.rs has its own stage/access constants that conflict
-// with flags.rs. Use flags.rs constants here since sync_proofs uses them.
+//  Note: stage_access.rs has its own stage/access constants that conflict
+//  with flags.rs. Use flags.rs constants here since sync_proofs uses them.
 use crate::recording::*;
 use crate::recording_commands::*;
 use crate::pipeline::*;
@@ -31,13 +31,13 @@ use crate::swapchain::*;
 
 verus! {
 
-// ══════════════════════════════════════════════════════════════════════
-// Chain 1: Render Pipeline Composition
-// recording.rs + draw_state.rs + render_pass.rs + pipeline.rs + descriptor_validation.rs
-// ══════════════════════════════════════════════════════════════════════
+//  ══════════════════════════════════════════════════════════════════════
+//  Chain 1: Render Pipeline Composition
+//  recording.rs + draw_state.rs + render_pass.rs + pipeline.rs + descriptor_validation.rs
+//  ══════════════════════════════════════════════════════════════════════
 
-/// A full draw call valid in recording_commands implies the recording state
-/// has a render pass active and a graphics pipeline bound.
+///  A full draw call valid in recording_commands implies the recording state
+///  has a render pass active and a graphics pipeline bound.
 pub proof fn lemma_full_draw_implies_recording_state(
     ctx: RecordingContext,
     pipeline: GraphicsPipelineState,
@@ -51,7 +51,7 @@ pub proof fn lemma_full_draw_implies_recording_state(
 {
 }
 
-/// Draw and dispatch are mutually exclusive across the full recording context.
+///  Draw and dispatch are mutually exclusive across the full recording context.
 pub proof fn lemma_full_draw_dispatch_exclusive(
     ctx: RecordingContext,
     g_pipeline: GraphicsPipelineState,
@@ -63,14 +63,14 @@ pub proof fn lemma_full_draw_dispatch_exclusive(
 {
     if full_draw_call_valid(ctx, g_pipeline, rp)
         && full_dispatch_call_valid(ctx, c_pipeline) {
-        // draw requires in_render_pass, dispatch requires !in_render_pass
+        //  draw requires in_render_pass, dispatch requires !in_render_pass
         assert(in_render_pass(ctx.state));
         assert(!in_render_pass(ctx.state));
     }
 }
 
-/// After beginning a render pass and binding a compatible pipeline,
-/// draw_call_valid holds.
+///  After beginning a render pass and binding a compatible pipeline,
+///  draw_call_valid holds.
 pub proof fn lemma_begin_rp_bind_enables_draw(
     state: RecordingState,
     pipeline: GraphicsPipelineState,
@@ -91,13 +91,13 @@ pub proof fn lemma_begin_rp_bind_enables_draw(
 {
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// Chain 2: Synchronization Composition
-// sync.rs + sync_proofs.rs + stage_access.rs + flags.rs
-// ══════════════════════════════════════════════════════════════════════
+//  ══════════════════════════════════════════════════════════════════════
+//  Chain 2: Synchronization Composition
+//  sync.rs + sync_proofs.rs + stage_access.rs + flags.rs
+//  ══════════════════════════════════════════════════════════════════════
 
-/// A valid transfer barrier (per stage_access) makes a resource readable
-/// after a transfer write.
+///  A valid transfer barrier (per stage_access) makes a resource readable
+///  after a transfer write.
 pub proof fn lemma_transfer_barrier_enables_read(
     log: BarrierLog,
     state: SyncState,
@@ -131,8 +131,8 @@ pub proof fn lemma_transfer_barrier_enables_read(
     lemma_barrier_makes_readable(log, state, entry, STAGE_TRANSFER(), ACCESS_TRANSFER_READ());
 }
 
-/// A color write → fragment shader read barrier makes the resource readable
-/// at fragment shader stage.
+///  A color write → fragment shader read barrier makes the resource readable
+///  at fragment shader stage.
 pub proof fn lemma_color_to_fragment_barrier_enables_read(
     log: BarrierLog,
     state: SyncState,
@@ -166,7 +166,7 @@ pub proof fn lemma_color_to_fragment_barrier_enables_read(
     lemma_barrier_makes_readable(log, state, entry, STAGE_FRAGMENT_SHADER(), ACCESS_SHADER_READ());
 }
 
-/// Adding barriers preserves existing readability.
+///  Adding barriers preserves existing readability.
 pub proof fn lemma_barrier_chain_monotone(
     log: BarrierLog,
     state: SyncState,
@@ -180,19 +180,19 @@ pub proof fn lemma_barrier_chain_monotone(
     lemma_readable_monotone(log, state, new_entry, dst_stage, dst_access);
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// Chain 3: Lock Ordering + Thread Safety
-// lock_ordering.rs + sync_token.rs
-// ══════════════════════════════════════════════════════════════════════
+//  ══════════════════════════════════════════════════════════════════════
+//  Chain 3: Lock Ordering + Thread Safety
+//  lock_ordering.rs + sync_token.rs
+//  ══════════════════════════════════════════════════════════════════════
 
-/// A thread with no locks can acquire the device lock (level 0).
+///  A thread with no locks can acquire the device lock (level 0).
 pub proof fn lemma_fresh_thread_can_acquire_device(thread: ThreadId)
     ensures can_acquire_at_level(no_locks(thread), device_level()),
 {
     lemma_empty_locks_valid(thread);
 }
 
-/// After acquiring device lock, can acquire queue lock.
+///  After acquiring device lock, can acquire queue lock.
 pub proof fn lemma_device_then_queue(thread: ThreadId, device_id: nat)
     ensures ({
         let h0 = no_locks(thread);
@@ -205,7 +205,7 @@ pub proof fn lemma_device_then_queue(thread: ThreadId, device_id: nat)
     lemma_acquire_maintains_order(h0, device_id, device_level());
 }
 
-/// After device + queue, can acquire command pool lock.
+///  After device + queue, can acquire command pool lock.
 pub proof fn lemma_queue_then_command_pool(
     thread: ThreadId, device_id: nat, queue_id: nat,
 )
@@ -223,7 +223,7 @@ pub proof fn lemma_queue_then_command_pool(
     lemma_acquire_maintains_order(h1, queue_id, queue_level());
 }
 
-/// The full 3-level lock acquisition chain is valid.
+///  The full 3-level lock acquisition chain is valid.
 pub proof fn lemma_three_level_chain_valid(
     thread: ThreadId, device_id: nat, queue_id: nat, pool_id: nat,
 )
@@ -244,13 +244,13 @@ pub proof fn lemma_three_level_chain_valid(
     lemma_acquire_maintains_order(h2, pool_id, command_pool_level());
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// Chain 4: Image Layout + Render Pass + Format Properties
-// image_layout_fsm.rs + render_pass.rs + format_properties.rs
-// ══════════════════════════════════════════════════════════════════════
+//  ══════════════════════════════════════════════════════════════════════
+//  Chain 4: Image Layout + Render Pass + Format Properties
+//  image_layout_fsm.rs + render_pass.rs + format_properties.rs
+//  ══════════════════════════════════════════════════════════════════════
 
-/// If a render pass is well-formed and framebuffer well-formed, the
-/// framebuffer has the right number of attachments.
+///  If a render pass is well-formed and framebuffer well-formed, the
+///  framebuffer has the right number of attachments.
 pub proof fn lemma_rp_fb_attachment_agreement(
     rp: RenderPassState,
     fb: FramebufferState,
@@ -263,8 +263,8 @@ pub proof fn lemma_rp_fb_attachment_agreement(
 {
 }
 
-/// A format that supports both color attachment and sampling can serve as
-/// both a render target and a texture.
+///  A format that supports both color attachment and sampling can serve as
+///  both a render target and a texture.
 pub proof fn lemma_format_dual_use(props: FormatProperties)
     requires
         format_supports_color_attachment(props),
@@ -274,13 +274,13 @@ pub proof fn lemma_format_dual_use(props: FormatProperties)
 {
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// Chain 5: Descriptor Consistency + Hot Reload
-// hot_reload.rs + descriptor_validation.rs + descriptor_update.rs + shader_interface.rs
-// ══════════════════════════════════════════════════════════════════════
+//  ══════════════════════════════════════════════════════════════════════
+//  Chain 5: Descriptor Consistency + Hot Reload
+//  hot_reload.rs + descriptor_validation.rs + descriptor_update.rs + shader_interface.rs
+//  ══════════════════════════════════════════════════════════════════════
 
-/// Hot reload validity combined with safe_to_swap means the pipeline
-/// can be swapped without affecting in-flight work.
+///  Hot reload validity combined with safe_to_swap means the pipeline
+///  can be swapped without affecting in-flight work.
 pub proof fn lemma_hot_reload_safe_full(
     request: ReloadRequest,
     old_vertex: ShaderInterface,
@@ -291,19 +291,19 @@ pub proof fn lemma_hot_reload_safe_full(
         hot_reload_valid(request, old_vertex, old_fragment),
         safe_to_swap(submissions, request.old_pipeline_id),
     ensures
-        // No in-flight work references the old pipeline
+        //  No in-flight work references the old pipeline
         safe_to_swap(submissions, request.old_pipeline_id),
-        // New shaders are compatible
+        //  New shaders are compatible
         hot_reload_valid(request, old_vertex, old_fragment),
 {
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// Chain 6: Device Lifecycle
-// device.rs + lifetime.rs + completion.rs + fence.rs + semaphore.rs
-// ══════════════════════════════════════════════════════════════════════
+//  ══════════════════════════════════════════════════════════════════════
+//  Chain 6: Device Lifecycle
+//  device.rs + lifetime.rs + completion.rs + fence.rs + semaphore.rs
+//  ══════════════════════════════════════════════════════════════════════
 
-/// Full device shutdown sequence: wait idle + destroy all resources → ready.
+///  Full device shutdown sequence: wait idle + destroy all resources → ready.
 pub proof fn lemma_full_shutdown_sequence(dev: DeviceState)
     requires
         dev.live_buffers == 0,
@@ -315,21 +315,21 @@ pub proof fn lemma_full_shutdown_sequence(dev: DeviceState)
     lemma_wait_idle_enables_shutdown(dev);
 }
 
-/// Creating then destroying a buffer restores the original count.
+///  Creating then destroying a buffer restores the original count.
 pub proof fn lemma_create_destroy_buffer_roundtrip(dev: DeviceState)
     ensures
         destroy_buffer_ghost(create_buffer_ghost(dev)).live_buffers == dev.live_buffers,
 {
 }
 
-/// Creating then destroying an image restores the original count.
+///  Creating then destroying an image restores the original count.
 pub proof fn lemma_create_destroy_image_roundtrip(dev: DeviceState)
     ensures
         destroy_image_ghost(create_image_ghost(dev)).live_images == dev.live_images,
 {
 }
 
-/// A fence signal → wait cycle returns to the initial unsignaled state.
+///  A fence signal → wait cycle returns to the initial unsignaled state.
 pub proof fn lemma_fence_signal_wait_cycle(fence: FenceState, sub_id: nat)
     ensures ({
         let signaled = signal_fence_ghost(fence, sub_id);
@@ -339,7 +339,7 @@ pub proof fn lemma_fence_signal_wait_cycle(fence: FenceState, sub_id: nat)
 {
 }
 
-/// A semaphore signal → wait cycle returns to unsignaled + empty states.
+///  A semaphore signal → wait cycle returns to unsignaled + empty states.
 pub proof fn lemma_semaphore_signal_wait_cycle(
     sem: SemaphoreState,
     states: Map<ResourceId, SyncState>,
@@ -352,13 +352,13 @@ pub proof fn lemma_semaphore_signal_wait_cycle(
 {
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// Chain 7: Swapchain + Render Pass + Secondary CB
-// swapchain.rs + recording.rs + secondary_commands.rs
-// ══════════════════════════════════════════════════════════════════════
+//  ══════════════════════════════════════════════════════════════════════
+//  Chain 7: Swapchain + Render Pass + Secondary CB
+//  swapchain.rs + recording.rs + secondary_commands.rs
+//  ══════════════════════════════════════════════════════════════════════
 
-/// A secondary CB that assumes a render pass is active can only
-/// execute when the primary is in a render pass.
+///  A secondary CB that assumes a render pass is active can only
+///  execute when the primary is in a render pass.
 pub proof fn lemma_secondary_requires_render_pass_alignment(
     primary_ctx: RecordingContext,
     secondary: SecondaryCommandBuffer,
@@ -372,7 +372,7 @@ pub proof fn lemma_secondary_requires_render_pass_alignment(
 {
 }
 
-/// After executing a secondary CB, the primary's recording state is unchanged.
+///  After executing a secondary CB, the primary's recording state is unchanged.
 pub proof fn lemma_execute_secondary_preserves_state(
     primary_ctx: RecordingContext,
     secondary: SecondaryCommandBuffer,
@@ -382,8 +382,8 @@ pub proof fn lemma_execute_secondary_preserves_state(
 {
 }
 
-/// Swapchain acquire → present → complete preserves image count and
-/// returns to the original state at that index.
+///  Swapchain acquire → present → complete preserves image count and
+///  returns to the original state at that index.
 pub proof fn lemma_swapchain_full_cycle_stable(
     swapchain: SwapchainState, idx: nat,
 )
@@ -402,4 +402,4 @@ pub proof fn lemma_swapchain_full_cycle_stable(
 {
 }
 
-} // verus!
+} //  verus!

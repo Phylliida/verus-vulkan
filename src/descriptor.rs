@@ -4,9 +4,9 @@ use crate::image_layout::*;
 
 verus! {
 
-// ── Descriptor Types ──────────────────────────────────────────────────
+//  ── Descriptor Types ──────────────────────────────────────────────────
 
-/// The kind of resource a descriptor binds.
+///  The kind of resource a descriptor binds.
 pub enum DescriptorType {
     UniformBuffer,
     StorageBuffer,
@@ -18,61 +18,61 @@ pub enum DescriptorType {
     InputAttachment,
 }
 
-/// A single binding slot within a descriptor set layout.
+///  A single binding slot within a descriptor set layout.
 pub struct DescriptorSetLayoutBinding {
-    /// Binding number (must be unique within a layout).
+    ///  Binding number (must be unique within a layout).
     pub binding: nat,
-    /// Type of descriptor in this binding.
+    ///  Type of descriptor in this binding.
     pub descriptor_type: DescriptorType,
-    /// Number of descriptors in this binding (for arrays; always >= 1).
+    ///  Number of descriptors in this binding (for arrays; always >= 1).
     pub descriptor_count: nat,
-    /// Pipeline stages that can access this binding.
+    ///  Pipeline stages that can access this binding.
     pub stage_flags: PipelineStageFlags,
 }
 
-/// The state of a descriptor set layout object.
+///  The state of a descriptor set layout object.
 pub struct DescriptorSetLayoutState {
     pub id: nat,
     pub bindings: Seq<DescriptorSetLayoutBinding>,
     pub alive: bool,
 }
 
-/// What is actually bound at a particular binding slot in a descriptor set.
+///  What is actually bound at a particular binding slot in a descriptor set.
 pub enum DescriptorBinding {
-    /// Nothing bound yet.
+    ///  Nothing bound yet.
     Empty,
-    /// A buffer region is bound.
+    ///  A buffer region is bound.
     BoundBuffer { buffer_id: nat, offset: nat, range: nat },
-    /// An image view is bound.
+    ///  An image view is bound.
     BoundImage { image_id: nat, layout: ImageLayout },
 }
 
-/// The state of an allocated descriptor set.
+///  The state of an allocated descriptor set.
 pub struct DescriptorSetState {
-    /// Unique identifier.
+    ///  Unique identifier.
     pub id: nat,
-    /// The layout this set was allocated with.
+    ///  The layout this set was allocated with.
     pub layout_id: nat,
-    /// Current bindings: maps binding number → bound resource.
+    ///  Current bindings: maps binding number → bound resource.
     pub bindings: Map<nat, DescriptorBinding>,
-    /// The pool this set was allocated from.
+    ///  The pool this set was allocated from.
     pub pool_id: nat,
 }
 
-/// The state of a descriptor pool.
+///  The state of a descriptor pool.
 pub struct DescriptorPoolState {
     pub id: nat,
-    /// Maximum number of sets that can be allocated.
+    ///  Maximum number of sets that can be allocated.
     pub max_sets: nat,
-    /// Currently allocated set count.
+    ///  Currently allocated set count.
     pub allocated_sets: nat,
-    /// Whether this pool is alive (not destroyed).
+    ///  Whether this pool is alive (not destroyed).
     pub alive: bool,
 }
 
-// ── Ghost Destroy ────────────────────────────────────────────────────
+//  ── Ghost Destroy ────────────────────────────────────────────────────
 
-/// Ghost update: destroy a descriptor pool.
+///  Ghost update: destroy a descriptor pool.
 pub open spec fn destroy_descriptor_pool_ghost(
     pool: DescriptorPoolState,
 ) -> DescriptorPoolState
@@ -84,7 +84,7 @@ pub open spec fn destroy_descriptor_pool_ghost(
     }
 }
 
-/// Ghost update: destroy a descriptor set layout.
+///  Ghost update: destroy a descriptor set layout.
 pub open spec fn destroy_descriptor_set_layout_ghost(
     layout: DescriptorSetLayoutState,
 ) -> DescriptorSetLayoutState
@@ -96,9 +96,9 @@ pub open spec fn destroy_descriptor_set_layout_ghost(
     }
 }
 
-// ── Spec Functions ────────────────────────────────────────────────────
+//  ── Spec Functions ────────────────────────────────────────────────────
 
-/// All binding numbers in a layout are distinct.
+///  All binding numbers in a layout are distinct.
 pub open spec fn bindings_unique(layout: DescriptorSetLayoutState) -> bool {
     forall|i: int, j: int|
         0 <= i < layout.bindings.len()
@@ -107,15 +107,15 @@ pub open spec fn bindings_unique(layout: DescriptorSetLayoutState) -> bool {
         ==> layout.bindings[i].binding != layout.bindings[j].binding
 }
 
-/// A descriptor set layout is well-formed:
-/// binding numbers are unique and all descriptor counts are positive.
+///  A descriptor set layout is well-formed:
+///  binding numbers are unique and all descriptor counts are positive.
 pub open spec fn layout_well_formed(layout: DescriptorSetLayoutState) -> bool {
     bindings_unique(layout)
     && (forall|i: int| 0 <= i < layout.bindings.len() ==>
         layout.bindings[i].descriptor_count > 0)
 }
 
-/// The layout contains a binding with the given number, type, and count.
+///  The layout contains a binding with the given number, type, and count.
 pub open spec fn layout_has_binding(
     layout: DescriptorSetLayoutState,
     binding_num: nat,
@@ -128,7 +128,7 @@ pub open spec fn layout_has_binding(
         && layout.bindings[i].descriptor_count == count
 }
 
-/// The layout contains a binding with the given number (regardless of type/count).
+///  The layout contains a binding with the given number (regardless of type/count).
 pub open spec fn layout_contains_binding(
     layout: DescriptorSetLayoutState,
     binding_num: nat,
@@ -137,7 +137,7 @@ pub open spec fn layout_contains_binding(
         && layout.bindings[i].binding == binding_num
 }
 
-/// A descriptor binding type matches the layout's expected type for a binding slot.
+///  A descriptor binding type matches the layout's expected type for a binding slot.
 pub open spec fn binding_type_matches(
     binding: DescriptorBinding,
     desc_type: DescriptorType,
@@ -153,12 +153,12 @@ pub open spec fn binding_type_matches(
     }
 }
 
-/// A pool can allocate another set.
+///  A pool can allocate another set.
 pub open spec fn pool_can_allocate(pool: DescriptorPoolState) -> bool {
     pool.alive && pool.allocated_sets < pool.max_sets
 }
 
-/// Ghost update: allocate one set from the pool.
+///  Ghost update: allocate one set from the pool.
 pub open spec fn allocate_from_pool(pool: DescriptorPoolState) -> DescriptorPoolState
     recommends pool_can_allocate(pool),
 {
@@ -168,7 +168,7 @@ pub open spec fn allocate_from_pool(pool: DescriptorPoolState) -> DescriptorPool
     }
 }
 
-/// Ghost update: free one set back to the pool.
+///  Ghost update: free one set back to the pool.
 pub open spec fn free_to_pool(pool: DescriptorPoolState) -> DescriptorPoolState
     recommends pool.allocated_sets > 0,
 {
@@ -178,8 +178,8 @@ pub open spec fn free_to_pool(pool: DescriptorPoolState) -> DescriptorPoolState
     }
 }
 
-/// A descriptor set is fully bound with respect to its layout:
-/// every binding slot declared in the layout has a non-Empty entry.
+///  A descriptor set is fully bound with respect to its layout:
+///  every binding slot declared in the layout has a non-Empty entry.
 pub open spec fn descriptor_set_fully_bound(
     dset: DescriptorSetState,
     layout: DescriptorSetLayoutState,
@@ -191,7 +191,7 @@ pub open spec fn descriptor_set_fully_bound(
     }
 }
 
-/// Ghost update: write a binding into a descriptor set.
+///  Ghost update: write a binding into a descriptor set.
 pub open spec fn update_descriptor_binding(
     dset: DescriptorSetState,
     binding_num: nat,
@@ -203,9 +203,9 @@ pub open spec fn update_descriptor_binding(
     }
 }
 
-// ── Lemmas ────────────────────────────────────────────────────────────
+//  ── Lemmas ────────────────────────────────────────────────────────────
 
-/// A fresh pool (0 allocated, alive) can allocate if max_sets > 0.
+///  A fresh pool (0 allocated, alive) can allocate if max_sets > 0.
 pub proof fn lemma_fresh_pool_can_allocate(pool: DescriptorPoolState)
     requires
         pool.alive,
@@ -216,7 +216,7 @@ pub proof fn lemma_fresh_pool_can_allocate(pool: DescriptorPoolState)
 {
 }
 
-/// allocate_from_pool increments allocated_sets by exactly 1.
+///  allocate_from_pool increments allocated_sets by exactly 1.
 pub proof fn lemma_allocate_increments(pool: DescriptorPoolState)
     requires pool_can_allocate(pool),
     ensures
@@ -227,7 +227,7 @@ pub proof fn lemma_allocate_increments(pool: DescriptorPoolState)
 {
 }
 
-/// In a well-formed layout, distinct indices have distinct binding numbers.
+///  In a well-formed layout, distinct indices have distinct binding numbers.
 pub proof fn lemma_bindings_unique_distinct(
     layout: DescriptorSetLayoutState, i: nat, j: nat,
 )
@@ -241,7 +241,7 @@ pub proof fn lemma_bindings_unique_distinct(
 {
 }
 
-/// Updating one binding does not affect other bindings.
+///  Updating one binding does not affect other bindings.
 pub proof fn lemma_update_preserves_other_bindings(
     dset: DescriptorSetState,
     binding_num: nat,
@@ -259,7 +259,7 @@ pub proof fn lemma_update_preserves_other_bindings(
 {
 }
 
-/// After freeing, the pool has one fewer allocated set.
+///  After freeing, the pool has one fewer allocated set.
 pub proof fn lemma_free_decrements(pool: DescriptorPoolState)
     requires pool.allocated_sets > 0,
     ensures
@@ -269,7 +269,7 @@ pub proof fn lemma_free_decrements(pool: DescriptorPoolState)
 {
 }
 
-/// After allocating, if still under max, can allocate again.
+///  After allocating, if still under max, can allocate again.
 pub proof fn lemma_allocate_still_under_max(pool: DescriptorPoolState)
     requires
         pool_can_allocate(pool),
@@ -279,14 +279,14 @@ pub proof fn lemma_allocate_still_under_max(pool: DescriptorPoolState)
 {
 }
 
-/// Allocating then freeing restores the original count.
+///  Allocating then freeing restores the original count.
 pub proof fn lemma_allocate_free_roundtrip(pool: DescriptorPoolState)
     requires pool_can_allocate(pool),
     ensures free_to_pool(allocate_from_pool(pool)).allocated_sets == pool.allocated_sets,
 {
 }
 
-/// Writing a binding slot makes that slot non-empty.
+///  Writing a binding slot makes that slot non-empty.
 pub proof fn lemma_update_makes_bound(
     dset: DescriptorSetState,
     binding_num: nat,
@@ -301,16 +301,16 @@ pub proof fn lemma_update_makes_bound(
 {
 }
 
-/// After destroying, a descriptor pool is not alive.
-/// Caller must prove the pool is alive before destroying.
+///  After destroying, a descriptor pool is not alive.
+///  Caller must prove the pool is alive before destroying.
 pub proof fn lemma_destroy_descriptor_pool_not_alive(pool: DescriptorPoolState)
     requires pool.alive,
     ensures !destroy_descriptor_pool_ghost(pool).alive,
 {
 }
 
-/// After destroying, a descriptor set layout is not alive.
-/// Caller must prove the layout is alive before destroying.
+///  After destroying, a descriptor set layout is not alive.
+///  Caller must prove the layout is alive before destroying.
 pub proof fn lemma_destroy_descriptor_set_layout_not_alive(
     layout: DescriptorSetLayoutState,
 )
@@ -319,13 +319,13 @@ pub proof fn lemma_destroy_descriptor_set_layout_not_alive(
 {
 }
 
-/// Destroying a descriptor pool preserves its id.
+///  Destroying a descriptor pool preserves its id.
 pub proof fn lemma_destroy_descriptor_pool_preserves_id(pool: DescriptorPoolState)
     ensures destroy_descriptor_pool_ghost(pool).id == pool.id,
 {
 }
 
-/// Destroying a descriptor set layout preserves its id.
+///  Destroying a descriptor set layout preserves its id.
 pub proof fn lemma_destroy_descriptor_set_layout_preserves_id(
     layout: DescriptorSetLayoutState,
 )
@@ -333,4 +333,4 @@ pub proof fn lemma_destroy_descriptor_set_layout_preserves_id(
 {
 }
 
-} // verus!
+} //  verus!

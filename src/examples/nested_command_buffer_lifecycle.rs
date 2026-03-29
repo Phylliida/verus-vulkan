@@ -15,9 +15,9 @@ use crate::nested_command_buffers::*;
 
 verus! {
 
-// ── Device Configuration ────────────────────────────────────────────────
+//  ── Device Configuration ────────────────────────────────────────────────
 
-/// Device supports up to 3 levels of nesting with render pass inheritance.
+///  Device supports up to 3 levels of nesting with render pass inheritance.
 pub open spec fn device_limits() -> NestedCommandBufferLimits {
     NestedCommandBufferLimits {
         max_command_buffer_nesting_level: 3,
@@ -25,9 +25,9 @@ pub open spec fn device_limits() -> NestedCommandBufferLimits {
     }
 }
 
-// ── Step-by-step Proofs ─────────────────────────────────────────────────
+//  ── Step-by-step Proofs ─────────────────────────────────────────────────
 
-/// Step 1: Create initial state — level 0, not isolated.
+///  Step 1: Create initial state — level 0, not isolated.
 pub proof fn step1_initial_state()
     ensures ({
         let s = initial_nesting_state(device_limits());
@@ -41,14 +41,14 @@ pub proof fn step1_initial_state()
     lemma_initial_not_isolated(device_limits());
 }
 
-/// Step 2: Nest to level 1 (execute a secondary command buffer).
-/// Uses the checked variant — requires proof of can_nest_deeper.
+///  Step 2: Nest to level 1 (execute a secondary command buffer).
+///  Uses the checked variant — requires proof of can_nest_deeper.
 pub proof fn step2_nest_to_level_1()
     ensures ({
         let s0 = initial_nesting_state(device_limits());
         let s1 = nest_command_buffer_checked(s0, device_limits());
         nesting_depth(s1) == 1
-        && s1.state_isolated  // secondary CB state is isolated
+        && s1.state_isolated  //  secondary CB state is isolated
         && nested_cb_well_formed(s1, device_limits())
     }),
 {
@@ -57,7 +57,7 @@ pub proof fn step2_nest_to_level_1()
     lemma_checked_nest_safe(s0, device_limits());
 }
 
-/// Step 3: Nest to level 2 (secondary within secondary).
+///  Step 3: Nest to level 2 (secondary within secondary).
 pub proof fn step3_nest_to_level_2()
     ensures ({
         let s0 = initial_nesting_state(device_limits());
@@ -75,7 +75,7 @@ pub proof fn step3_nest_to_level_2()
     lemma_checked_nest_safe(s1, device_limits());
 }
 
-/// Step 4: Unnest from level 2 back to level 1.
+///  Step 4: Unnest from level 2 back to level 1.
 pub proof fn step4_unnest_to_level_1()
     ensures ({
         let s0 = initial_nesting_state(device_limits());
@@ -83,7 +83,7 @@ pub proof fn step4_unnest_to_level_1()
         let s2 = nest_command_buffer(s1);
         let s3 = unnest_command_buffer_checked(s2, device_limits());
         nesting_depth(s3) == 1
-        && !s3.state_isolated  // back to parent scope
+        && !s3.state_isolated  //  back to parent scope
         && nested_cb_well_formed(s3, device_limits())
     }),
 {
@@ -98,7 +98,7 @@ pub proof fn step4_unnest_to_level_1()
     lemma_checked_unnest_safe(s2, device_limits());
 }
 
-/// Step 5: Full roundtrip — nest twice, unnest twice, back to level 0.
+///  Step 5: Full roundtrip — nest twice, unnest twice, back to level 0.
 pub proof fn step5_full_roundtrip()
     ensures ({
         let s0 = initial_nesting_state(device_limits());
@@ -121,7 +121,7 @@ pub proof fn step5_full_roundtrip()
     lemma_unnest_preserves_well_formed(s3, device_limits());
 }
 
-/// Step 6: Nest 3 times hits the limit — can't nest further.
+///  Step 6: Nest 3 times hits the limit — can't nest further.
 pub proof fn step6_max_depth_reached()
     ensures ({
         let s0 = initial_nesting_state(device_limits());
@@ -130,7 +130,7 @@ pub proof fn step6_max_depth_reached()
         let s3 = nest_command_buffer(s2);
         nesting_depth(s3) == 3
         && nested_cb_well_formed(s3, device_limits())
-        && !can_nest_deeper(s3, device_limits())  // at the limit!
+        && !can_nest_deeper(s3, device_limits())  //  at the limit!
     }),
 {
     let s0 = initial_nesting_state(device_limits());
@@ -142,18 +142,18 @@ pub proof fn step6_max_depth_reached()
     lemma_can_nest_implies_well_formed_after(s2, device_limits());
 }
 
-/// Step 7: Parent render pass is preserved through nesting.
+///  Step 7: Parent render pass is preserved through nesting.
 pub proof fn step7_render_pass_preserved()
     ensures ({
         let s0 = NestedCommandBufferState {
             nesting_level: 0,
             max_nesting_level: 3,
             state_isolated: false,
-            parent_render_pass: Some(7),  // render pass 7 is active
+            parent_render_pass: Some(7),  //  render pass 7 is active
         };
         let s1 = nest_command_buffer(s0);
-        s1.parent_render_pass == Some(7nat)  // preserved!
-        && s1.state_isolated  // but state is isolated
+        s1.parent_render_pass == Some(7nat)  //  preserved!
+        && s1.state_isolated  //  but state is isolated
     }),
 {
     let s0 = NestedCommandBufferState {
@@ -166,7 +166,7 @@ pub proof fn step7_render_pass_preserved()
     lemma_nest_isolates_state(s0);
 }
 
-/// Step 8: Render pass inheritance validation.
+///  Step 8: Render pass inheritance validation.
 pub proof fn step8_render_pass_inheritance()
     ensures ({
         let s = NestedCommandBufferState {
@@ -175,10 +175,10 @@ pub proof fn step8_render_pass_inheritance()
             state_isolated: true,
             parent_render_pass: Some(7),
         };
-        // Device supports inheritance, so nesting inside a render pass is valid
+        //  Device supports inheritance, so nesting inside a render pass is valid
         nested_render_pass_valid(s, device_limits())
     }),
 {
 }
 
-} // verus!
+} //  verus!

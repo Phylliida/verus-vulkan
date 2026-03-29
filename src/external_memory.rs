@@ -2,9 +2,9 @@ use vstd::prelude::*;
 
 verus! {
 
-// ── Types ───────────────────────────────────────────────────────────────
+//  ── Types ───────────────────────────────────────────────────────────────
 
-/// Handle types for external memory sharing.
+///  Handle types for external memory sharing.
 pub enum ExternalMemoryHandleType {
     OpaqueFd,
     OpaqueWin32,
@@ -15,19 +15,19 @@ pub enum ExternalMemoryHandleType {
     HostAllocation,
 }
 
-/// Properties of external memory for a given handle type.
+///  Properties of external memory for a given handle type.
 pub struct ExternalMemoryProperties {
-    /// Set of handle types compatible for sharing.
+    ///  Set of handle types compatible for sharing.
     pub compatible_handle_types: Set<ExternalMemoryHandleType>,
-    /// Whether this memory can be exported.
+    ///  Whether this memory can be exported.
     pub exportable: bool,
-    /// Whether this memory can be imported.
+    ///  Whether this memory can be imported.
     pub importable: bool,
-    /// Whether a dedicated allocation is required.
+    ///  Whether a dedicated allocation is required.
     pub dedicated_only: bool,
 }
 
-/// State of an external memory allocation.
+///  State of an external memory allocation.
 pub struct ExternalMemoryState {
     pub allocation_id: nat,
     pub handle_type: ExternalMemoryHandleType,
@@ -38,14 +38,14 @@ pub struct ExternalMemoryState {
     pub dedicated_resource: Option<nat>,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// External memory properties are valid.
+///  External memory properties are valid.
 pub open spec fn external_memory_properties_valid(props: ExternalMemoryProperties) -> bool {
     props.exportable || props.importable
 }
 
-/// Whether memory can be exported given its state and properties.
+///  Whether memory can be exported given its state and properties.
 pub open spec fn can_export_memory(
     state: ExternalMemoryState,
     props: ExternalMemoryProperties,
@@ -55,7 +55,7 @@ pub open spec fn can_export_memory(
     && !state.exported
 }
 
-/// Whether memory can be imported given its state and properties.
+///  Whether memory can be imported given its state and properties.
 pub open spec fn can_import_memory(
     state: ExternalMemoryState,
     props: ExternalMemoryProperties,
@@ -65,7 +65,7 @@ pub open spec fn can_import_memory(
     && !state.imported
 }
 
-/// Ghost update: export memory.
+///  Ghost update: export memory.
 pub open spec fn export_memory(state: ExternalMemoryState) -> ExternalMemoryState {
     ExternalMemoryState {
         exported: true,
@@ -73,7 +73,7 @@ pub open spec fn export_memory(state: ExternalMemoryState) -> ExternalMemoryStat
     }
 }
 
-/// Ghost update: import memory.
+///  Ghost update: import memory.
 pub open spec fn import_memory(state: ExternalMemoryState) -> ExternalMemoryState {
     ExternalMemoryState {
         imported: true,
@@ -81,13 +81,13 @@ pub open spec fn import_memory(state: ExternalMemoryState) -> ExternalMemoryStat
     }
 }
 
-/// External memory is well-formed.
+///  External memory is well-formed.
 pub open spec fn external_memory_well_formed(state: ExternalMemoryState) -> bool {
     state.alive
     && state.size > 0
 }
 
-/// Two handle types are compatible for sharing.
+///  Two handle types are compatible for sharing.
 pub open spec fn handle_types_compatible(
     props: ExternalMemoryProperties,
     other: ExternalMemoryHandleType,
@@ -95,12 +95,12 @@ pub open spec fn handle_types_compatible(
     props.compatible_handle_types.contains(other)
 }
 
-/// Whether a dedicated allocation is required for this handle type.
+///  Whether a dedicated allocation is required for this handle type.
 pub open spec fn dedicated_allocation_required(props: ExternalMemoryProperties) -> bool {
     props.dedicated_only
 }
 
-/// Ghost update: destroy external memory.
+///  Ghost update: destroy external memory.
 pub open spec fn destroy_external_memory(state: ExternalMemoryState) -> ExternalMemoryState {
     ExternalMemoryState {
         alive: false,
@@ -108,7 +108,7 @@ pub open spec fn destroy_external_memory(state: ExternalMemoryState) -> External
     }
 }
 
-/// Create a fresh external memory state.
+///  Create a fresh external memory state.
 pub open spec fn create_external_memory(
     id: nat,
     handle_type: ExternalMemoryHandleType,
@@ -126,9 +126,9 @@ pub open spec fn create_external_memory(
     }
 }
 
-// ── Lemmas ──────────────────────────────────────────────────────────────
+//  ── Lemmas ──────────────────────────────────────────────────────────────
 
-/// Freshly created external memory is alive.
+///  Freshly created external memory is alive.
 pub proof fn lemma_create_is_alive(
     id: nat, ht: ExternalMemoryHandleType, size: nat, ded: Option<nat>,
 )
@@ -136,36 +136,36 @@ pub proof fn lemma_create_is_alive(
 {
 }
 
-/// Destroyed external memory is not alive.
+///  Destroyed external memory is not alive.
 pub proof fn lemma_destroy_not_alive(state: ExternalMemoryState)
     ensures !destroy_external_memory(state).alive,
 {
 }
 
-/// Exported memory is still alive.
+///  Exported memory is still alive.
 pub proof fn lemma_export_preserves_alive(state: ExternalMemoryState)
     requires state.alive,
     ensures export_memory(state).alive,
 {
 }
 
-/// Imported memory is still alive.
+///  Imported memory is still alive.
 pub proof fn lemma_import_preserves_alive(state: ExternalMemoryState)
     requires state.alive,
     ensures import_memory(state).alive,
 {
 }
 
-/// Destroying preserves the allocation id.
+///  Destroying preserves the allocation id.
 pub proof fn lemma_destroy_preserves_id(state: ExternalMemoryState)
     ensures destroy_external_memory(state).allocation_id == state.allocation_id,
 {
 }
 
-/// Export sets the exported flag.
+///  Export sets the exported flag.
 pub proof fn lemma_export_sets_flag(state: ExternalMemoryState)
     ensures export_memory(state).exported,
 {
 }
 
-} // verus!
+} //  verus!

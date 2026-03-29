@@ -5,9 +5,9 @@ use crate::taint::*;
 
 verus! {
 
-/// Runtime wrapper for a staging buffer (host-visible, used for GPU↔CPU transfers).
+///  Runtime wrapper for a staging buffer (host-visible, used for GPU↔CPU transfers).
 pub struct RuntimeStagingBuffer {
-    /// Ghost model of the staging buffer state.
+    ///  Ghost model of the staging buffer state.
     pub state: Ghost<StagingBufferState>,
 }
 
@@ -16,14 +16,14 @@ impl View for RuntimeStagingBuffer {
     open spec fn view(&self) -> StagingBufferState { self.state@ }
 }
 
-/// Well-formedness of the runtime staging buffer.
+///  Well-formedness of the runtime staging buffer.
 pub open spec fn runtime_staging_wf(buf: &RuntimeStagingBuffer) -> bool {
     staging_buffer_well_formed(buf@)
 }
 
-/// Runtime wrapper for a GPU-side buffer.
+///  Runtime wrapper for a GPU-side buffer.
 pub struct RuntimeGpuBuffer {
-    /// Ghost model of the GPU buffer state.
+    ///  Ghost model of the GPU buffer state.
     pub state: Ghost<GpuBufferState>,
 }
 
@@ -32,12 +32,12 @@ impl View for RuntimeGpuBuffer {
     open spec fn view(&self) -> GpuBufferState { self.state@ }
 }
 
-/// Well-formedness of the runtime GPU buffer.
+///  Well-formedness of the runtime GPU buffer.
 pub open spec fn runtime_gpu_wf(buf: &RuntimeGpuBuffer) -> bool {
     gpu_buffer_well_formed(buf@)
 }
 
-/// Exec: create a staging buffer from ghost state.
+///  Exec: create a staging buffer from ghost state.
 pub fn create_staging_buffer_exec(
     staging_state: Ghost<StagingBufferState>,
 ) -> (out: RuntimeStagingBuffer)
@@ -49,7 +49,7 @@ pub fn create_staging_buffer_exec(
     RuntimeStagingBuffer { state: staging_state }
 }
 
-/// Exec: create a GPU buffer from ghost state.
+///  Exec: create a GPU buffer from ghost state.
 pub fn create_gpu_buffer_exec(
     gpu_state: Ghost<GpuBufferState>,
 ) -> (out: RuntimeGpuBuffer)
@@ -61,7 +61,7 @@ pub fn create_gpu_buffer_exec(
     RuntimeGpuBuffer { state: gpu_state }
 }
 
-/// Exec: copy from GPU buffer to staging buffer (readback).
+///  Exec: copy from GPU buffer to staging buffer (readback).
 pub fn copy_to_staging_exec(
     staging: &mut RuntimeStagingBuffer,
     gpu: &RuntimeGpuBuffer,
@@ -88,7 +88,7 @@ pub fn copy_to_staging_exec(
     ));
 }
 
-/// Exec: copy from staging buffer to GPU buffer (upload).
+///  Exec: copy from staging buffer to GPU buffer (upload).
 pub fn copy_from_staging_exec(
     gpu: &mut RuntimeGpuBuffer,
     staging: &RuntimeStagingBuffer,
@@ -109,4 +109,4 @@ pub fn copy_from_staging_exec(
     ));
 }
 
-} // verus!
+} //  verus!

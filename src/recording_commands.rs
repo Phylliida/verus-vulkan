@@ -11,9 +11,9 @@ use crate::dynamic_rendering::*;
 
 verus! {
 
-// ── Types ───────────────────────────────────────────────────────────────
+//  ── Types ───────────────────────────────────────────────────────────────
 
-/// A recorded command in the command buffer log.
+///  A recorded command in the command buffer log.
 pub enum RecordedCommand {
     Draw,
     DrawIndexed,
@@ -55,7 +55,7 @@ pub enum RecordedCommand {
     BeginTransformFeedback,
     EndTransformFeedback,
     PipelineBarrier2 { barriers: Seq<BarrierEntry> },
-    // VK_EXT_extended_dynamic_state (Vulkan 1.3)
+    //  VK_EXT_extended_dynamic_state (Vulkan 1.3)
     SetCullMode,
     SetFrontFace,
     SetPrimitiveTopology,
@@ -66,30 +66,30 @@ pub enum RecordedCommand {
     SetStencilTestEnable,
     SetStencilOp,
     SetRasterizerDiscardEnable,
-    // VK_KHR_push_descriptor
+    //  VK_KHR_push_descriptor
     PushDescriptorSet { set_index: nat },
-    // VK_KHR_fragment_shading_rate
+    //  VK_KHR_fragment_shading_rate
     SetFragmentShadingRate,
-    // VK_EXT_shader_object
+    //  VK_EXT_shader_object
     BindShaders,
 }
 
-/// Tracks the full recording context: current state, referenced resources,
-/// and the command log.
+///  Tracks the full recording context: current state, referenced resources,
+///  and the command log.
 pub struct RecordingContext {
-    /// Current recording state (bound pipelines, descriptor sets, render pass).
+    ///  Current recording state (bound pipelines, descriptor sets, render pass).
     pub state: RecordingState,
-    /// Accumulated set of all resources referenced by recorded commands.
+    ///  Accumulated set of all resources referenced by recorded commands.
     pub referenced_resources: Set<ResourceId>,
-    /// Ordered log of recorded commands.
+    ///  Ordered log of recorded commands.
     pub command_log: Seq<RecordedCommand>,
-    /// Log of barriers inserted during recording (for sync validation).
+    ///  Log of barriers inserted during recording (for sync validation).
     pub barrier_log: BarrierLog,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// An empty recording context: initial state, no resources, no commands.
+///  An empty recording context: initial state, no resources, no commands.
 pub open spec fn initial_recording_context() -> RecordingContext {
     RecordingContext {
         state: initial_recording_state(),
@@ -99,8 +99,8 @@ pub open spec fn initial_recording_context() -> RecordingContext {
     }
 }
 
-/// A draw call is fully valid: both the recording state check and
-/// descriptor set bindings are satisfied.
+///  A draw call is fully valid: both the recording state check and
+///  descriptor set bindings are satisfied.
 pub open spec fn full_draw_call_valid(
     ctx: RecordingContext,
     pipeline: GraphicsPipelineState,
@@ -110,8 +110,8 @@ pub open spec fn full_draw_call_valid(
     && descriptor_sets_bound_for_pipeline(ctx.state, pipeline.descriptor_set_layouts)
 }
 
-/// A dispatch call is fully valid: both the recording state check and
-/// descriptor set bindings are satisfied.
+///  A dispatch call is fully valid: both the recording state check and
+///  descriptor set bindings are satisfied.
 pub open spec fn full_dispatch_call_valid(
     ctx: RecordingContext,
     pipeline: ComputePipelineState,
@@ -120,8 +120,8 @@ pub open spec fn full_dispatch_call_valid(
     && descriptor_sets_bound_for_pipeline(ctx.state, pipeline.descriptor_set_layouts)
 }
 
-/// Record a draw command: append to the log and accumulate resources.
-/// The recording state is unchanged.
+///  Record a draw command: append to the log and accumulate resources.
+///  The recording state is unchanged.
 pub open spec fn record_draw(
     ctx: RecordingContext,
     resources: Set<ResourceId>,
@@ -134,7 +134,7 @@ pub open spec fn record_draw(
     }
 }
 
-/// Record a copy-buffer command: append to the log and add both resource ids.
+///  Record a copy-buffer command: append to the log and add both resource ids.
 pub open spec fn record_copy_buffer(
     ctx: RecordingContext,
     src: nat,
@@ -150,7 +150,7 @@ pub open spec fn record_copy_buffer(
     }
 }
 
-/// Record a copy-image command: append to the log and add both resource ids.
+///  Record a copy-image command: append to the log and add both resource ids.
 pub open spec fn record_copy_image(
     ctx: RecordingContext,
     src: nat,
@@ -166,7 +166,7 @@ pub open spec fn record_copy_image(
     }
 }
 
-/// Record a blit-image command: append to the log and add both resource ids.
+///  Record a blit-image command: append to the log and add both resource ids.
 pub open spec fn record_blit_image(
     ctx: RecordingContext,
     src: nat,
@@ -182,7 +182,7 @@ pub open spec fn record_blit_image(
     }
 }
 
-/// Record a buffer-to-image copy: append to the log and add both resource ids.
+///  Record a buffer-to-image copy: append to the log and add both resource ids.
 pub open spec fn record_copy_buffer_to_image(
     ctx: RecordingContext,
     src_buffer: nat,
@@ -198,7 +198,7 @@ pub open spec fn record_copy_buffer_to_image(
     }
 }
 
-/// Record an image-to-buffer copy: append to the log and add both resource ids.
+///  Record an image-to-buffer copy: append to the log and add both resource ids.
 pub open spec fn record_copy_image_to_buffer(
     ctx: RecordingContext,
     src_image: nat,
@@ -214,7 +214,7 @@ pub open spec fn record_copy_image_to_buffer(
     }
 }
 
-/// Record an indirect draw command: append to the log and accumulate resources.
+///  Record an indirect draw command: append to the log and accumulate resources.
 pub open spec fn record_draw_indirect(
     ctx: RecordingContext,
     buffer: nat,
@@ -230,7 +230,7 @@ pub open spec fn record_draw_indirect(
     }
 }
 
-/// Record an indirect indexed draw command: append to the log and accumulate resources.
+///  Record an indirect indexed draw command: append to the log and accumulate resources.
 pub open spec fn record_draw_indexed_indirect(
     ctx: RecordingContext,
     buffer: nat,
@@ -246,7 +246,7 @@ pub open spec fn record_draw_indexed_indirect(
     }
 }
 
-/// Record an indirect dispatch command: append to the log and accumulate resources.
+///  Record an indirect dispatch command: append to the log and accumulate resources.
 pub open spec fn record_dispatch_indirect(
     ctx: RecordingContext,
     buffer: nat,
@@ -261,7 +261,7 @@ pub open spec fn record_dispatch_indirect(
     }
 }
 
-/// Record begin dynamic rendering: append to the log.
+///  Record begin dynamic rendering: append to the log.
 pub open spec fn record_begin_rendering(
     ctx: RecordingContext,
     info: DynamicRenderingInfo,
@@ -274,7 +274,7 @@ pub open spec fn record_begin_rendering(
     }
 }
 
-/// Record end dynamic rendering: append to the log.
+///  Record end dynamic rendering: append to the log.
 pub open spec fn record_end_rendering(
     ctx: RecordingContext,
 ) -> RecordingContext {
@@ -286,7 +286,7 @@ pub open spec fn record_end_rendering(
     }
 }
 
-/// Record a pipeline barrier with a single entry: appends the entry to the barrier log.
+///  Record a pipeline barrier with a single entry: appends the entry to the barrier log.
 pub open spec fn record_pipeline_barrier_single(
     ctx: RecordingContext,
     entry: BarrierEntry,
@@ -298,7 +298,7 @@ pub open spec fn record_pipeline_barrier_single(
     }
 }
 
-/// Record a pipeline barrier with multiple entries: appends all to the barrier log.
+///  Record a pipeline barrier with multiple entries: appends all to the barrier log.
 pub open spec fn record_pipeline_barrier(
     ctx: RecordingContext,
     barriers: Seq<BarrierEntry>,
@@ -322,9 +322,9 @@ pub open spec fn record_pipeline_barrier(
     }
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// full_draw_call_valid implies draw_call_valid.
+///  full_draw_call_valid implies draw_call_valid.
 pub proof fn lemma_full_draw_implies_draw_valid(
     ctx: RecordingContext,
     pipeline: GraphicsPipelineState,
@@ -335,7 +335,7 @@ pub proof fn lemma_full_draw_implies_draw_valid(
 {
 }
 
-/// full_draw_call_valid implies descriptor_sets_bound_for_pipeline.
+///  full_draw_call_valid implies descriptor_sets_bound_for_pipeline.
 pub proof fn lemma_full_draw_implies_descriptors_bound(
     ctx: RecordingContext,
     pipeline: GraphicsPipelineState,
@@ -346,7 +346,7 @@ pub proof fn lemma_full_draw_implies_descriptors_bound(
 {
 }
 
-/// Recording a draw does not change the recording state.
+///  Recording a draw does not change the recording state.
 pub proof fn lemma_record_draw_preserves_state(
     ctx: RecordingContext,
     resources: Set<ResourceId>,
@@ -355,7 +355,7 @@ pub proof fn lemma_record_draw_preserves_state(
 {
 }
 
-/// After record_draw, referenced_resources is a superset of both old and new resources.
+///  After record_draw, referenced_resources is a superset of both old and new resources.
 pub proof fn lemma_record_accumulates_resources(
     ctx: RecordingContext,
     resources: Set<ResourceId>,
@@ -370,9 +370,9 @@ pub proof fn lemma_record_accumulates_resources(
 {
 }
 
-// ── Transfer / Indirect / Dynamic Rendering Record Proofs ───────────────
+//  ── Transfer / Indirect / Dynamic Rendering Record Proofs ───────────────
 
-/// Recording a copy-image preserves state and barrier_log.
+///  Recording a copy-image preserves state and barrier_log.
 pub proof fn lemma_record_copy_image_preserves(
     ctx: RecordingContext, src: nat, dst: nat,
     src_res: ResourceId, dst_res: ResourceId,
@@ -383,7 +383,7 @@ pub proof fn lemma_record_copy_image_preserves(
 {
 }
 
-/// Recording a blit-image preserves state and barrier_log.
+///  Recording a blit-image preserves state and barrier_log.
 pub proof fn lemma_record_blit_image_preserves(
     ctx: RecordingContext, src: nat, dst: nat,
     src_res: ResourceId, dst_res: ResourceId,
@@ -394,7 +394,7 @@ pub proof fn lemma_record_blit_image_preserves(
 {
 }
 
-/// Recording an indirect draw preserves state and barrier_log.
+///  Recording an indirect draw preserves state and barrier_log.
 pub proof fn lemma_record_draw_indirect_preserves(
     ctx: RecordingContext, buffer: nat, offset: nat,
     draw_count: nat, resources: Set<ResourceId>,
@@ -405,7 +405,7 @@ pub proof fn lemma_record_draw_indirect_preserves(
 {
 }
 
-/// Recording an indirect indexed draw preserves state and barrier_log.
+///  Recording an indirect indexed draw preserves state and barrier_log.
 pub proof fn lemma_record_draw_indexed_indirect_preserves(
     ctx: RecordingContext, buffer: nat, offset: nat,
     draw_count: nat, resources: Set<ResourceId>,
@@ -416,7 +416,7 @@ pub proof fn lemma_record_draw_indexed_indirect_preserves(
 {
 }
 
-/// Recording an indirect dispatch preserves state and barrier_log.
+///  Recording an indirect dispatch preserves state and barrier_log.
 pub proof fn lemma_record_dispatch_indirect_preserves(
     ctx: RecordingContext, buffer: nat, offset: nat,
     resources: Set<ResourceId>,
@@ -427,7 +427,7 @@ pub proof fn lemma_record_dispatch_indirect_preserves(
 {
 }
 
-/// Recording begin rendering preserves state and barrier_log.
+///  Recording begin rendering preserves state and barrier_log.
 pub proof fn lemma_record_begin_rendering_preserves(
     ctx: RecordingContext, info: DynamicRenderingInfo,
 )
@@ -437,7 +437,7 @@ pub proof fn lemma_record_begin_rendering_preserves(
 {
 }
 
-/// Recording end rendering preserves state and barrier_log.
+///  Recording end rendering preserves state and barrier_log.
 pub proof fn lemma_record_end_rendering_preserves(
     ctx: RecordingContext,
 )
@@ -447,9 +447,9 @@ pub proof fn lemma_record_end_rendering_preserves(
 {
 }
 
-// ── New Recording Spec Functions ─────────────────────────────────────
+//  ── New Recording Spec Functions ─────────────────────────────────────
 
-/// Record a fill-buffer command.
+///  Record a fill-buffer command.
 pub open spec fn record_fill_buffer(
     ctx: RecordingContext,
     buffer: nat,
@@ -465,7 +465,7 @@ pub open spec fn record_fill_buffer(
     }
 }
 
-/// Record an update-buffer command.
+///  Record an update-buffer command.
 pub open spec fn record_update_buffer(
     ctx: RecordingContext,
     buffer: nat,
@@ -481,7 +481,7 @@ pub open spec fn record_update_buffer(
     }
 }
 
-/// Record a clear-color-image command.
+///  Record a clear-color-image command.
 pub open spec fn record_clear_color_image(
     ctx: RecordingContext,
     image: nat,
@@ -495,7 +495,7 @@ pub open spec fn record_clear_color_image(
     }
 }
 
-/// Record a clear-depth-stencil-image command.
+///  Record a clear-depth-stencil-image command.
 pub open spec fn record_clear_depth_stencil_image(
     ctx: RecordingContext,
     image: nat,
@@ -509,7 +509,7 @@ pub open spec fn record_clear_depth_stencil_image(
     }
 }
 
-/// Record a clear-attachments command (inside a render pass).
+///  Record a clear-attachments command (inside a render pass).
 pub open spec fn record_clear_attachments(
     ctx: RecordingContext,
 ) -> RecordingContext {
@@ -521,7 +521,7 @@ pub open spec fn record_clear_attachments(
     }
 }
 
-/// Record a resolve-image command.
+///  Record a resolve-image command.
 pub open spec fn record_resolve_image(
     ctx: RecordingContext,
     src: nat,
@@ -537,7 +537,7 @@ pub open spec fn record_resolve_image(
     }
 }
 
-/// Record a write-timestamp command.
+///  Record a write-timestamp command.
 pub open spec fn record_write_timestamp(
     ctx: RecordingContext,
     pool_id: nat,
@@ -551,7 +551,7 @@ pub open spec fn record_write_timestamp(
     }
 }
 
-/// Record a copy-query-pool-results command.
+///  Record a copy-query-pool-results command.
 pub open spec fn record_copy_query_pool_results(
     ctx: RecordingContext,
     pool_id: nat,
@@ -568,7 +568,7 @@ pub open spec fn record_copy_query_pool_results(
     }
 }
 
-/// Record a wait-events command (pushes barrier entry like pipeline_barrier).
+///  Record a wait-events command (pushes barrier entry like pipeline_barrier).
 pub open spec fn record_wait_events_single(
     ctx: RecordingContext,
     entry: BarrierEntry,
@@ -580,7 +580,7 @@ pub open spec fn record_wait_events_single(
     }
 }
 
-/// Record an indirect draw with count command.
+///  Record an indirect draw with count command.
 pub open spec fn record_draw_indirect_count(
     ctx: RecordingContext,
     buffer: nat,
@@ -598,7 +598,7 @@ pub open spec fn record_draw_indirect_count(
     }
 }
 
-/// Record an indirect indexed draw with count command.
+///  Record an indirect indexed draw with count command.
 pub open spec fn record_draw_indexed_indirect_count(
     ctx: RecordingContext,
     buffer: nat,
@@ -616,7 +616,7 @@ pub open spec fn record_draw_indexed_indirect_count(
     }
 }
 
-/// Record a trace rays command.
+///  Record a trace rays command.
 pub open spec fn record_trace_rays(
     ctx: RecordingContext,
     resources: Set<ResourceId>,
@@ -629,7 +629,7 @@ pub open spec fn record_trace_rays(
     }
 }
 
-/// Record a trace rays indirect command.
+///  Record a trace rays indirect command.
 pub open spec fn record_trace_rays_indirect(
     ctx: RecordingContext,
     buffer: nat,
@@ -643,7 +643,7 @@ pub open spec fn record_trace_rays_indirect(
     }
 }
 
-/// Record a dispatch base command.
+///  Record a dispatch base command.
 pub open spec fn record_dispatch_base(
     ctx: RecordingContext,
     base_x: nat, base_y: nat, base_z: nat,
@@ -658,7 +658,7 @@ pub open spec fn record_dispatch_base(
     }
 }
 
-/// Record a draw mesh tasks command.
+///  Record a draw mesh tasks command.
 pub open spec fn record_draw_mesh_tasks(
     ctx: RecordingContext,
     group_count_x: nat, group_count_y: nat, group_count_z: nat,
@@ -672,7 +672,7 @@ pub open spec fn record_draw_mesh_tasks(
     }
 }
 
-/// Record a draw mesh tasks indirect command.
+///  Record a draw mesh tasks indirect command.
 pub open spec fn record_draw_mesh_tasks_indirect(
     ctx: RecordingContext,
     buffer: nat, offset: nat, draw_count: nat,
@@ -686,7 +686,7 @@ pub open spec fn record_draw_mesh_tasks_indirect(
     }
 }
 
-/// Record a draw mesh tasks indirect count command.
+///  Record a draw mesh tasks indirect count command.
 pub open spec fn record_draw_mesh_tasks_indirect_count(
     ctx: RecordingContext,
     buffer: nat, offset: nat, count_buffer: nat, count_offset: nat, max_draw_count: nat,
@@ -700,7 +700,7 @@ pub open spec fn record_draw_mesh_tasks_indirect_count(
     }
 }
 
-/// Record begin transform feedback.
+///  Record begin transform feedback.
 pub open spec fn record_begin_transform_feedback(
     ctx: RecordingContext,
 ) -> RecordingContext {
@@ -712,7 +712,7 @@ pub open spec fn record_begin_transform_feedback(
     }
 }
 
-/// Record end transform feedback.
+///  Record end transform feedback.
 pub open spec fn record_end_transform_feedback(
     ctx: RecordingContext,
 ) -> RecordingContext {
@@ -724,7 +724,7 @@ pub open spec fn record_end_transform_feedback(
     }
 }
 
-/// Record a pipeline barrier 2 (pushes barrier entry, same as pipeline_barrier).
+///  Record a pipeline barrier 2 (pushes barrier entry, same as pipeline_barrier).
 pub open spec fn record_pipeline_barrier2_single(
     ctx: RecordingContext,
     entry: BarrierEntry,
@@ -736,10 +736,10 @@ pub open spec fn record_pipeline_barrier2_single(
     }
 }
 
-// ── Barrier Proofs ──────────────────────────────────────────────────────
+//  ── Barrier Proofs ──────────────────────────────────────────────────────
 
-/// After recording a single-entry barrier that covers a last write,
-/// the resource becomes readable in the updated context.
+///  After recording a single-entry barrier that covers a last write,
+///  the resource becomes readable in the updated context.
 pub proof fn lemma_barrier_establishes_readable(
     ctx: RecordingContext,
     entry: BarrierEntry,
@@ -762,12 +762,12 @@ pub proof fn lemma_barrier_establishes_readable(
             dst_access,
         ),
 {
-    // record_pipeline_barrier_single directly gives barrier_log = ctx.barrier_log.push(entry)
+    //  record_pipeline_barrier_single directly gives barrier_log = ctx.barrier_log.push(entry)
     lemma_barrier_makes_readable(ctx.barrier_log, state, entry, dst_stage, dst_access);
 }
 
-/// After recording a single-entry barrier that covers both last write and readers,
-/// the resource becomes writable in the updated context.
+///  After recording a single-entry barrier that covers both last write and readers,
+///  the resource becomes writable in the updated context.
 pub proof fn lemma_barrier_establishes_writable(
     ctx: RecordingContext,
     entry: BarrierEntry,
@@ -795,7 +795,7 @@ pub proof fn lemma_barrier_establishes_writable(
     lemma_barrier_makes_writable(ctx.barrier_log, state, entry, dst_stage, dst_access);
 }
 
-/// Recording a single-entry barrier does not change the recording state.
+///  Recording a single-entry barrier does not change the recording state.
 pub proof fn lemma_barrier_single_preserves_state(
     ctx: RecordingContext,
     entry: BarrierEntry,
@@ -804,7 +804,7 @@ pub proof fn lemma_barrier_single_preserves_state(
 {
 }
 
-/// Recording a multi-entry barrier does not change the recording state.
+///  Recording a multi-entry barrier does not change the recording state.
 pub proof fn lemma_barrier_preserves_state(
     ctx: RecordingContext,
     barriers: Seq<BarrierEntry>,
@@ -817,7 +817,7 @@ pub proof fn lemma_barrier_preserves_state(
     }
 }
 
-/// Recording a single-entry barrier preserves referenced_resources.
+///  Recording a single-entry barrier preserves referenced_resources.
 pub proof fn lemma_barrier_single_preserves_resources(
     ctx: RecordingContext,
     entry: BarrierEntry,
@@ -826,7 +826,7 @@ pub proof fn lemma_barrier_single_preserves_resources(
 {
 }
 
-/// Recording a multi-entry barrier preserves referenced_resources.
+///  Recording a multi-entry barrier preserves referenced_resources.
 pub proof fn lemma_barrier_preserves_resources(
     ctx: RecordingContext,
     barriers: Seq<BarrierEntry>,
@@ -839,21 +839,21 @@ pub proof fn lemma_barrier_preserves_resources(
     }
 }
 
-// ── Stage/Access Validity Tracking ──────────────────────────────────
+//  ── Stage/Access Validity Tracking ──────────────────────────────────
 
-/// All barriers recorded in a context have valid stage/access combinations.
+///  All barriers recorded in a context have valid stage/access combinations.
 pub open spec fn recording_barriers_valid(ctx: RecordingContext) -> bool {
     all_barriers_valid(ctx.barrier_log)
 }
 
-/// The initial recording context has valid barriers (empty log).
+///  The initial recording context has valid barriers (empty log).
 pub proof fn lemma_initial_context_barriers_valid()
     ensures recording_barriers_valid(initial_recording_context()),
 {
     lemma_empty_log_valid();
 }
 
-/// Recording a single valid barrier preserves barrier validity.
+///  Recording a single valid barrier preserves barrier validity.
 pub proof fn lemma_record_barrier_single_preserves_validity(
     ctx: RecordingContext,
     entry: BarrierEntry,
@@ -867,7 +867,7 @@ pub proof fn lemma_record_barrier_single_preserves_validity(
     lemma_append_valid_barrier(ctx.barrier_log, entry);
 }
 
-/// Recording multiple valid barriers preserves barrier validity.
+///  Recording multiple valid barriers preserves barrier validity.
 pub proof fn lemma_record_barrier_multi_preserves_validity(
     ctx: RecordingContext,
     barriers: Seq<BarrierEntry>,
@@ -881,22 +881,22 @@ pub proof fn lemma_record_barrier_multi_preserves_validity(
     decreases barriers.len(),
 {
     if barriers.len() == 0 {
-        // Empty barrier: command_log changes but barrier_log unchanged
+        //  Empty barrier: command_log changes but barrier_log unchanged
     } else if barriers.len() == 1 {
         lemma_record_barrier_single_preserves_validity(ctx, barriers[0]);
     } else {
         let prefix = barriers.subrange(0, barriers.len() - 1);
-        // prefix elements are valid
+        //  prefix elements are valid
         assert forall|i: int| 0 <= i < prefix.len()
         implies barrier_stage_access_valid(#[trigger] prefix[i]) by {
             assert(prefix[i] == barriers[i]);
         }
         lemma_record_barrier_multi_preserves_validity(ctx, prefix);
         let prev = record_pipeline_barrier(ctx, prefix);
-        // prev has valid barriers, and barriers.last() is valid
+        //  prev has valid barriers, and barriers.last() is valid
         assert(barrier_stage_access_valid(barriers.last()));
         lemma_append_valid_barrier(prev.barrier_log, barriers.last());
     }
 }
 
-} // verus!
+} //  verus!

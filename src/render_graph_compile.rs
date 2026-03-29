@@ -5,66 +5,66 @@ use crate::flags::*;
 
 verus! {
 
-// ── Types ──────────────────────────────────────────────────────────────
+//  ── Types ──────────────────────────────────────────────────────────────
 
-/// A barrier to insert between passes for synchronization.
+///  A barrier to insert between passes for synchronization.
 pub struct BarrierAction {
-    /// Resource being synchronized.
+    ///  Resource being synchronized.
     pub resource: ResourceId,
-    /// Source pipeline stages.
+    ///  Source pipeline stages.
     pub src_stages: PipelineStageFlags,
-    /// Source access mask.
+    ///  Source access mask.
     pub src_accesses: AccessFlags,
-    /// Destination pipeline stages.
+    ///  Destination pipeline stages.
     pub dst_stages: PipelineStageFlags,
-    /// Destination access mask.
+    ///  Destination access mask.
     pub dst_accesses: AccessFlags,
-    /// Image layout before the barrier.
+    ///  Image layout before the barrier.
     pub old_layout: nat,
-    /// Image layout after the barrier.
+    ///  Image layout after the barrier.
     pub new_layout: nat,
 }
 
-/// Barriers required before and after a single pass.
+///  Barriers required before and after a single pass.
 pub struct PassBarrierPlan {
-    /// Index of the pass in the execution order.
+    ///  Index of the pass in the execution order.
     pub pass_index: nat,
-    /// Barriers to insert before the pass executes.
+    ///  Barriers to insert before the pass executes.
     pub pre_barriers: Seq<BarrierAction>,
-    /// Barriers to insert after the pass executes.
+    ///  Barriers to insert after the pass executes.
     pub post_barriers: Seq<BarrierAction>,
 }
 
-/// Resource lifetime: first and last use in execution order.
+///  Resource lifetime: first and last use in execution order.
 pub struct ResourceLifetime {
-    /// Index of the first pass that uses this resource.
+    ///  Index of the first pass that uses this resource.
     pub first_use: nat,
-    /// Index of the last pass that uses this resource.
+    ///  Index of the last pass that uses this resource.
     pub last_use: nat,
 }
 
-/// A compiled render graph: the original graph plus execution order,
-/// per-pass barrier plans, and resource lifetimes.
+///  A compiled render graph: the original graph plus execution order,
+///  per-pass barrier plans, and resource lifetimes.
 pub struct CompiledGraph {
-    /// The source render graph.
+    ///  The source render graph.
     pub source_graph: RenderGraph,
-    /// Topological execution order (indices into source_graph.passes).
+    ///  Topological execution order (indices into source_graph.passes).
     pub execution_order: Seq<nat>,
-    /// Barrier plan for each pass in execution order.
+    ///  Barrier plan for each pass in execution order.
     pub barrier_plans: Seq<PassBarrierPlan>,
-    /// Lifetime of each resource (first_use, last_use in execution order).
+    ///  Lifetime of each resource (first_use, last_use in execution order).
     pub resource_lifetimes: Map<ResourceId, ResourceLifetime>,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────
 
-/// A barrier action is well-formed: non-empty stages and accesses.
+///  A barrier action is well-formed: non-empty stages and accesses.
 pub open spec fn barrier_action_well_formed(ba: BarrierAction) -> bool {
     !ba.src_stages.stages.is_empty()
     && !ba.dst_stages.stages.is_empty()
 }
 
-/// A pass barrier plan references a valid pass index.
+///  A pass barrier plan references a valid pass index.
 pub open spec fn pass_barrier_plan_well_formed(
     plan: PassBarrierPlan,
     num_passes: nat,
@@ -80,7 +80,7 @@ pub open spec fn pass_barrier_plan_well_formed(
         ==> barrier_action_well_formed(plan.post_barriers[i as int]))
 }
 
-/// The execution order contains valid pass indices.
+///  The execution order contains valid pass indices.
 pub open spec fn execution_order_valid(
     graph: RenderGraph,
     order: Seq<nat>,
@@ -91,7 +91,7 @@ pub open spec fn execution_order_valid(
         i < order.len() ==> order[i as int] < graph.passes.len())
 }
 
-/// A compiled graph is well-formed.
+///  A compiled graph is well-formed.
 pub open spec fn compiled_graph_well_formed(cg: CompiledGraph) -> bool {
     execution_order_valid(cg.source_graph, cg.execution_order)
     && cg.barrier_plans.len() == cg.execution_order.len()
@@ -104,7 +104,7 @@ pub open spec fn compiled_graph_well_formed(cg: CompiledGraph) -> bool {
         ))
 }
 
-/// True iff pass at `order_idx` writes resource `r`.
+///  True iff pass at `order_idx` writes resource `r`.
 pub open spec fn pass_writes_resource(
     graph: RenderGraph,
     order: Seq<nat>,
@@ -118,7 +118,7 @@ pub open spec fn pass_writes_resource(
     graph.passes[order[order_idx as int] as int].writes.contains(r)
 }
 
-/// True iff pass at `order_idx` reads resource `r`.
+///  True iff pass at `order_idx` reads resource `r`.
 pub open spec fn pass_reads_resource(
     graph: RenderGraph,
     order: Seq<nat>,
@@ -132,7 +132,7 @@ pub open spec fn pass_reads_resource(
     graph.passes[order[order_idx as int] as int].reads.contains(r)
 }
 
-/// A resource is used by the pass at `order_idx` (read or write).
+///  A resource is used by the pass at `order_idx` (read or write).
 pub open spec fn pass_uses_resource(
     graph: RenderGraph,
     order: Seq<nat>,
@@ -147,7 +147,7 @@ pub open spec fn pass_uses_resource(
     || pass_writes_resource(graph, order, order_idx, r)
 }
 
-/// Index of first use of a resource in execution order.
+///  Index of first use of a resource in execution order.
 pub open spec fn resource_first_use(
     graph: RenderGraph,
     order: Seq<nat>,
@@ -171,7 +171,7 @@ pub open spec fn resource_first_use(
     }
 }
 
-/// Index of last use of a resource in execution order.
+///  Index of last use of a resource in execution order.
 pub open spec fn resource_last_use(
     graph: RenderGraph,
     order: Seq<nat>,
@@ -199,7 +199,7 @@ pub open spec fn resource_last_use(
     }
 }
 
-/// A resource lifetime covers all uses in the execution order.
+///  A resource lifetime covers all uses in the execution order.
 pub open spec fn lifetime_covers_uses(
     lifetime: ResourceLifetime,
     graph: RenderGraph,
@@ -215,7 +215,7 @@ pub open spec fn lifetime_covers_uses(
         ==> lifetime.first_use <= i && i <= lifetime.last_use
 }
 
-/// Resource lifetimes are valid: every resource's lifetime covers its uses.
+///  Resource lifetimes are valid: every resource's lifetime covers its uses.
 pub open spec fn resource_lifetimes_valid(
     cg: CompiledGraph,
 ) -> bool {
@@ -230,7 +230,7 @@ pub open spec fn resource_lifetimes_valid(
         )
 }
 
-/// Two resources have non-overlapping lifetimes.
+///  Two resources have non-overlapping lifetimes.
 pub open spec fn lifetimes_non_overlapping(
     lt1: ResourceLifetime,
     lt2: ResourceLifetime,
@@ -238,7 +238,7 @@ pub open spec fn lifetimes_non_overlapping(
     lt1.last_use < lt2.first_use || lt2.last_use < lt1.first_use
 }
 
-/// Two resources can safely alias memory if their lifetimes don't overlap.
+///  Two resources can safely alias memory if their lifetimes don't overlap.
 pub open spec fn memory_reuse_safe(
     cg: CompiledGraph,
     r1: ResourceId,
@@ -252,7 +252,7 @@ pub open spec fn memory_reuse_safe(
     )
 }
 
-/// A barrier plan has a barrier for every dependency edge targeting this pass.
+///  A barrier plan has a barrier for every dependency edge targeting this pass.
 pub open spec fn barrier_plan_covers_deps(
     plan: PassBarrierPlan,
     graph: RenderGraph,
@@ -269,7 +269,7 @@ pub open spec fn barrier_plan_covers_deps(
                 == graph.edges[e as int].resource)
 }
 
-/// All barrier plans cover their dependencies.
+///  All barrier plans cover their dependencies.
 pub open spec fn all_barriers_cover_deps(cg: CompiledGraph) -> bool
     recommends compiled_graph_well_formed(cg),
 {
@@ -283,7 +283,7 @@ pub open spec fn all_barriers_cover_deps(cg: CompiledGraph) -> bool
         )
 }
 
-/// Count of total barriers in the compiled graph.
+///  Count of total barriers in the compiled graph.
 pub open spec fn total_barrier_count(cg: CompiledGraph) -> nat
     decreases cg.barrier_plans.len(),
 {
@@ -299,12 +299,12 @@ pub open spec fn total_barrier_count(cg: CompiledGraph) -> nat
     }
 }
 
-// ── Pass Type → Stage/Access Mapping ────────────────────────────────────
+//  ── Pass Type → Stage/Access Mapping ────────────────────────────────────
 //
-// Default pipeline stages and access flags for each pass type.
-// These map PassType to the appropriate Vulkan sync scope.
+//  Default pipeline stages and access flags for each pass type.
+//  These map PassType to the appropriate Vulkan sync scope.
 
-/// Default write stages for a pass type.
+///  Default write stages for a pass type.
 pub open spec fn pass_type_write_stages(pt: PassType) -> PipelineStageFlags {
     PipelineStageFlags {
         stages: Set::empty().insert(match pt {
@@ -315,7 +315,7 @@ pub open spec fn pass_type_write_stages(pt: PassType) -> PipelineStageFlags {
     }
 }
 
-/// Default write accesses for a pass type.
+///  Default write accesses for a pass type.
 pub open spec fn pass_type_write_accesses(pt: PassType) -> AccessFlags {
     AccessFlags {
         accesses: Set::empty().insert(match pt {
@@ -326,7 +326,7 @@ pub open spec fn pass_type_write_accesses(pt: PassType) -> AccessFlags {
     }
 }
 
-/// Default read stages for a pass type.
+///  Default read stages for a pass type.
 pub open spec fn pass_type_read_stages(pt: PassType) -> PipelineStageFlags {
     PipelineStageFlags {
         stages: Set::empty().insert(match pt {
@@ -337,7 +337,7 @@ pub open spec fn pass_type_read_stages(pt: PassType) -> PipelineStageFlags {
     }
 }
 
-/// Default read accesses for a pass type.
+///  Default read accesses for a pass type.
 pub open spec fn pass_type_read_accesses(pt: PassType) -> AccessFlags {
     AccessFlags {
         accesses: Set::empty().insert(match pt {
@@ -348,8 +348,8 @@ pub open spec fn pass_type_read_accesses(pt: PassType) -> AccessFlags {
     }
 }
 
-/// Compile barriers for a given pass (all dependency edges targeting it).
-/// Uses pass types to determine proper pipeline stages and access flags.
+///  Compile barriers for a given pass (all dependency edges targeting it).
+///  Uses pass types to determine proper pipeline stages and access flags.
 pub open spec fn compile_barriers_for_pass(
     graph: RenderGraph,
     pass_idx: nat,
@@ -383,70 +383,70 @@ pub open spec fn compile_barriers_for_pass(
     )
 }
 
-// ── Subpass Resource Tracking ───────────────────────────────────────────
+//  ── Subpass Resource Tracking ───────────────────────────────────────────
 //
-// Per-subpass resource state within a render pass.
-// Enables tracking which subpass reads/writes which resources.
+//  Per-subpass resource state within a render pass.
+//  Enables tracking which subpass reads/writes which resources.
 
-/// Per-subpass resource state within a render pass.
+///  Per-subpass resource state within a render pass.
 pub struct SubpassResourceState {
-    /// Subpass index within the render pass.
+    ///  Subpass index within the render pass.
     pub subpass_index: nat,
-    /// Resources read by this subpass.
+    ///  Resources read by this subpass.
     pub reads: Set<ResourceId>,
-    /// Resources written by this subpass.
+    ///  Resources written by this subpass.
     pub writes: Set<ResourceId>,
 }
 
-/// Decomposition of a render pass into subpasses with their dependencies.
+///  Decomposition of a render pass into subpasses with their dependencies.
 pub struct PassSubpassDecomposition {
-    /// Per-subpass resource state.
+    ///  Per-subpass resource state.
     pub subpass_resources: Seq<SubpassResourceState>,
-    /// Subpass dependencies (indices into subpass_resources).
+    ///  Subpass dependencies (indices into subpass_resources).
     pub subpass_deps: Seq<SubpassDepEdge>,
 }
 
-/// A dependency edge between two subpasses.
+///  A dependency edge between two subpasses.
 pub struct SubpassDepEdge {
-    /// Source subpass index.
+    ///  Source subpass index.
     pub src_subpass: nat,
-    /// Destination subpass index.
+    ///  Destination subpass index.
     pub dst_subpass: nat,
-    /// Resource being transferred.
+    ///  Resource being transferred.
     pub resource: ResourceId,
-    /// Source stages.
+    ///  Source stages.
     pub src_stages: PipelineStageFlags,
-    /// Destination stages.
+    ///  Destination stages.
     pub dst_stages: PipelineStageFlags,
 }
 
-/// A subpass decomposition is valid: all indices are in bounds
-/// and the union of subpass reads/writes matches the pass reads/writes.
+///  A subpass decomposition is valid: all indices are in bounds
+///  and the union of subpass reads/writes matches the pass reads/writes.
 pub open spec fn subpass_decomposition_valid(
     decomp: PassSubpassDecomposition,
     pass: RenderPassNode,
 ) -> bool {
-    // Non-empty
+    //  Non-empty
     decomp.subpass_resources.len() > 0
-    // Subpass indices match their position
+    //  Subpass indices match their position
     && (forall|i: nat|
         #![trigger decomp.subpass_resources[i as int]]
         i < decomp.subpass_resources.len()
         ==> decomp.subpass_resources[i as int].subpass_index == i)
-    // Dependencies reference valid subpasses
+    //  Dependencies reference valid subpasses
     && (forall|d: nat|
         #![trigger decomp.subpass_deps[d as int]]
         d < decomp.subpass_deps.len()
         ==> decomp.subpass_deps[d as int].src_subpass < decomp.subpass_resources.len()
             && decomp.subpass_deps[d as int].dst_subpass < decomp.subpass_resources.len()
             && decomp.subpass_deps[d as int].src_subpass < decomp.subpass_deps[d as int].dst_subpass)
-    // Union of subpass reads covers pass reads
+    //  Union of subpass reads covers pass reads
     && (forall|r: ResourceId|
         pass.reads.contains(r)
         ==> exists|i: nat|
             i < decomp.subpass_resources.len()
             && (#[trigger] decomp.subpass_resources[i as int]).reads.contains(r))
-    // Union of subpass writes covers pass writes
+    //  Union of subpass writes covers pass writes
     && (forall|r: ResourceId|
         pass.writes.contains(r)
         ==> exists|i: nat|
@@ -454,7 +454,7 @@ pub open spec fn subpass_decomposition_valid(
             && (#[trigger] decomp.subpass_resources[i as int]).writes.contains(r))
 }
 
-/// A subpass dependency covers a resource transfer within the pass.
+///  A subpass dependency covers a resource transfer within the pass.
 pub open spec fn subpass_dep_covers(
     dep: SubpassDepEdge,
     decomp: PassSubpassDecomposition,
@@ -465,7 +465,7 @@ pub open spec fn subpass_dep_covers(
     && decomp.subpass_resources[dep.dst_subpass as int].reads.contains(dep.resource)
 }
 
-/// All intra-pass resource transfers are covered by subpass dependencies.
+///  All intra-pass resource transfers are covered by subpass dependencies.
 pub open spec fn intra_pass_deps_satisfied(
     decomp: PassSubpassDecomposition,
 ) -> bool {
@@ -483,24 +483,24 @@ pub open spec fn intra_pass_deps_satisfied(
             && decomp.subpass_deps[d as int].dst_subpass >= dst
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────
 
-/// A compiled graph with a valid execution order has
-/// the same number of passes as the source graph.
+///  A compiled graph with a valid execution order has
+///  the same number of passes as the source graph.
 pub proof fn lemma_compiled_order_length(cg: CompiledGraph)
     requires compiled_graph_well_formed(cg),
     ensures cg.execution_order.len() == cg.source_graph.passes.len(),
 {
 }
 
-/// Barrier plans have one entry per pass.
+///  Barrier plans have one entry per pass.
 pub proof fn lemma_barrier_plans_match_passes(cg: CompiledGraph)
     requires compiled_graph_well_formed(cg),
     ensures cg.barrier_plans.len() == cg.execution_order.len(),
 {
 }
 
-/// Non-overlapping lifetimes allow safe memory reuse.
+///  Non-overlapping lifetimes allow safe memory reuse.
 pub proof fn lemma_non_overlapping_lifetimes_aliasable(
     cg: CompiledGraph,
     r1: ResourceId,
@@ -517,7 +517,7 @@ pub proof fn lemma_non_overlapping_lifetimes_aliasable(
 {
 }
 
-/// Lifetimes that don't overlap are commutative.
+///  Lifetimes that don't overlap are commutative.
 pub proof fn lemma_lifetime_non_overlap_symmetric(
     lt1: ResourceLifetime,
     lt2: ResourceLifetime,
@@ -527,7 +527,7 @@ pub proof fn lemma_lifetime_non_overlap_symmetric(
 {
 }
 
-/// A compiled graph with zero passes has zero barriers.
+///  A compiled graph with zero passes has zero barriers.
 pub proof fn lemma_empty_graph_zero_barriers()
     ensures
         total_barrier_count(CompiledGraph {
@@ -542,7 +542,7 @@ pub proof fn lemma_empty_graph_zero_barriers()
 {
 }
 
-/// A well-formed compiled graph has all barrier plans well-formed.
+///  A well-formed compiled graph has all barrier plans well-formed.
 pub proof fn lemma_compiled_all_plans_well_formed(
     cg: CompiledGraph,
     plan_idx: nat,
@@ -557,15 +557,15 @@ pub proof fn lemma_compiled_all_plans_well_formed(
 {
 }
 
-/// Well-formed compiled graph implies valid execution order.
+///  Well-formed compiled graph implies valid execution order.
 pub proof fn lemma_compiled_has_valid_order(cg: CompiledGraph)
     requires compiled_graph_well_formed(cg),
     ensures execution_order_valid(cg.source_graph, cg.execution_order),
 {
 }
 
-/// If lifetimes are valid and a resource is used at index i, the
-/// lifetime contains i.
+///  If lifetimes are valid and a resource is used at index i, the
+///  lifetime contains i.
 pub proof fn lemma_lifetime_contains_use(
     cg: CompiledGraph,
     r: ResourceId,
@@ -584,8 +584,8 @@ pub proof fn lemma_lifetime_contains_use(
 {
 }
 
-/// Two resources with non-overlapping lifetimes are never used
-/// in the same pass (useful for aliasing correctness).
+///  Two resources with non-overlapping lifetimes are never used
+///  in the same pass (useful for aliasing correctness).
 pub proof fn lemma_non_overlapping_no_concurrent_use(
     cg: CompiledGraph,
     r1: ResourceId,
@@ -608,21 +608,21 @@ pub proof fn lemma_non_overlapping_no_concurrent_use(
         !(cg.source_graph.passes[cg.execution_order[i as int] as int].reads.contains(r2)
             || cg.source_graph.passes[cg.execution_order[i as int] as int].writes.contains(r2)),
 {
-    // r1 is used at i, so first_use(r1) <= i <= last_use(r1)
-    // By non-overlapping, r2's lifetime doesn't overlap r1's
-    // So i is outside r2's lifetime
-    // Since r2's lifetime covers all uses, r2 is not used at i
+    //  r1 is used at i, so first_use(r1) <= i <= last_use(r1)
+    //  By non-overlapping, r2's lifetime doesn't overlap r1's
+    //  So i is outside r2's lifetime
+    //  Since r2's lifetime covers all uses, r2 is not used at i
     let lt1 = cg.resource_lifetimes[r1];
     let lt2 = cg.resource_lifetimes[r2];
     assert(lt1.first_use <= i && i <= lt1.last_use);
-    // Non-overlapping: lt1.last_use < lt2.first_use || lt2.last_use < lt1.first_use
-    // Case 1: lt1.last_use < lt2.first_use => i <= lt1.last_use < lt2.first_use
-    //         So i < lt2.first_use. If r2 were used at i, then lt2.first_use <= i. Contradiction.
-    // Case 2: lt2.last_use < lt1.first_use => lt2.last_use < lt1.first_use <= i
-    //         So i > lt2.last_use. If r2 were used at i, then i <= lt2.last_use. Contradiction.
+    //  Non-overlapping: lt1.last_use < lt2.first_use || lt2.last_use < lt1.first_use
+    //  Case 1: lt1.last_use < lt2.first_use => i <= lt1.last_use < lt2.first_use
+    //          So i < lt2.first_use. If r2 were used at i, then lt2.first_use <= i. Contradiction.
+    //  Case 2: lt2.last_use < lt1.first_use => lt2.last_use < lt1.first_use <= i
+    //          So i > lt2.last_use. If r2 were used at i, then i <= lt2.last_use. Contradiction.
 }
 
-/// An empty barrier plan trivially covers deps for a pass with no incoming edges.
+///  An empty barrier plan trivially covers deps for a pass with no incoming edges.
 pub proof fn lemma_empty_plan_no_deps(
     graph: RenderGraph,
     pass_idx: nat,
@@ -643,7 +643,7 @@ pub proof fn lemma_empty_plan_no_deps(
 {
 }
 
-/// Execution order indices are bounded.
+///  Execution order indices are bounded.
 pub proof fn lemma_execution_order_bounded(
     cg: CompiledGraph,
     i: nat,
@@ -656,7 +656,7 @@ pub proof fn lemma_execution_order_bounded(
 {
 }
 
-/// A lifetime with first_use == last_use covers exactly one pass.
+///  A lifetime with first_use == last_use covers exactly one pass.
 pub proof fn lemma_single_use_lifetime(
     lt: ResourceLifetime,
     graph: RenderGraph,
@@ -673,7 +673,7 @@ pub proof fn lemma_single_use_lifetime(
         graph.passes[order[i as int] as int].reads.contains(r)
             || graph.passes[order[i as int] as int].writes.contains(r),
     ensures
-        // No other pass uses r
+        //  No other pass uses r
         forall|j: nat|
             #![trigger order[j as int]]
             j < order.len()
@@ -690,17 +690,17 @@ pub proof fn lemma_single_use_lifetime(
             || graph.passes[order[j as int] as int].writes.contains(r)) by {
         if graph.passes[order[j as int] as int].reads.contains(r)
             || graph.passes[order[j as int] as int].writes.contains(r) {
-            // lifetime covers j => first_use <= j <= last_use
-            // But first_use == last_use == i, so j == i. Contradiction with j != i.
+            //  lifetime covers j => first_use <= j <= last_use
+            //  But first_use == last_use == i, so j == i. Contradiction with j != i.
             assert(lt.first_use <= j && j <= lt.last_use);
             assert(j == i);
         }
     }
 }
 
-// ── Extended Specs ──────────────────────────────────────────────────
+//  ── Extended Specs ──────────────────────────────────────────────────
 
-/// A pass has a barrier for resource r in its pre-barriers.
+///  A pass has a barrier for resource r in its pre-barriers.
 pub open spec fn pass_has_pre_barrier(
     plan: PassBarrierPlan,
     r: ResourceId,
@@ -711,7 +711,7 @@ pub open spec fn pass_has_pre_barrier(
         && plan.pre_barriers[b as int].resource == r
 }
 
-/// A pass has a barrier for resource r in its post-barriers.
+///  A pass has a barrier for resource r in its post-barriers.
 pub open spec fn pass_has_post_barrier(
     plan: PassBarrierPlan,
     r: ResourceId,
@@ -722,22 +722,22 @@ pub open spec fn pass_has_post_barrier(
         && plan.post_barriers[b as int].resource == r
 }
 
-/// Total pre-barriers in a plan.
+///  Total pre-barriers in a plan.
 pub open spec fn plan_pre_barrier_count(plan: PassBarrierPlan) -> nat {
     plan.pre_barriers.len()
 }
 
-/// Total post-barriers in a plan.
+///  Total post-barriers in a plan.
 pub open spec fn plan_post_barrier_count(plan: PassBarrierPlan) -> nat {
     plan.post_barriers.len()
 }
 
-/// Total barriers in a plan (pre + post).
+///  Total barriers in a plan (pre + post).
 pub open spec fn plan_total_barriers(plan: PassBarrierPlan) -> nat {
     plan.pre_barriers.len() + plan.post_barriers.len()
 }
 
-/// Execution order is a permutation (all values distinct).
+///  Execution order is a permutation (all values distinct).
 pub open spec fn execution_order_permutation(order: Seq<nat>) -> bool {
     forall|i: nat, j: nat|
         #![trigger order[i as int], order[j as int]]
@@ -745,27 +745,27 @@ pub open spec fn execution_order_permutation(order: Seq<nat>) -> bool {
         ==> order[i as int] != order[j as int]
 }
 
-/// Number of distinct resources used in the graph.
+///  Number of distinct resources used in the graph.
 pub open spec fn graph_resource_count(graph: RenderGraph) -> nat {
     graph.edges.len()
 }
 
-/// A lifetime is valid (first_use <= last_use).
+///  A lifetime is valid (first_use <= last_use).
 pub open spec fn lifetime_valid(lt: ResourceLifetime) -> bool {
     lt.first_use <= lt.last_use
 }
 
-/// A barrier action performs a layout transition.
+///  A barrier action performs a layout transition.
 pub open spec fn is_layout_transition(ba: BarrierAction) -> bool {
     ba.old_layout != ba.new_layout
 }
 
-/// A barrier action is an identity barrier (same layout).
+///  A barrier action is an identity barrier (same layout).
 pub open spec fn is_identity_barrier(ba: BarrierAction) -> bool {
     ba.old_layout == ba.new_layout
 }
 
-/// Memory reuse is safe symmetrically.
+///  Memory reuse is safe symmetrically.
 pub open spec fn memory_reuse_safe_symmetric(
     cg: CompiledGraph,
     r1: ResourceId,
@@ -774,7 +774,7 @@ pub open spec fn memory_reuse_safe_symmetric(
     memory_reuse_safe(cg, r1, r2) && memory_reuse_safe(cg, r2, r1)
 }
 
-/// A compiled graph has no barriers (empty barrier plans).
+///  A compiled graph has no barriers (empty barrier plans).
 pub open spec fn has_no_barriers(cg: CompiledGraph) -> bool {
     forall|i: nat|
         #![trigger cg.barrier_plans[i as int]]
@@ -783,7 +783,7 @@ pub open spec fn has_no_barriers(cg: CompiledGraph) -> bool {
             && cg.barrier_plans[i as int].post_barriers.len() == 0
 }
 
-/// A resource is read-only through the graph (never written).
+///  A resource is read-only through the graph (never written).
 pub open spec fn resource_read_only(
     graph: RenderGraph,
     order: Seq<nat>,
@@ -796,7 +796,7 @@ pub open spec fn resource_read_only(
         ==> !graph.passes[order[i as int] as int].writes.contains(r)
 }
 
-/// A resource is write-only through the graph (never read).
+///  A resource is write-only through the graph (never read).
 pub open spec fn resource_write_only(
     graph: RenderGraph,
     order: Seq<nat>,
@@ -809,9 +809,9 @@ pub open spec fn resource_write_only(
         ==> !graph.passes[order[i as int] as int].reads.contains(r)
 }
 
-// ── Extended Proofs ────────────────────────────────────────────────
+//  ── Extended Proofs ────────────────────────────────────────────────
 
-/// Memory reuse safety is symmetric.
+///  Memory reuse safety is symmetric.
 pub proof fn lemma_memory_reuse_safe_symmetric(
     cg: CompiledGraph,
     r1: ResourceId,
@@ -826,7 +826,7 @@ pub proof fn lemma_memory_reuse_safe_symmetric(
     );
 }
 
-/// An empty barrier plan has zero total barriers.
+///  An empty barrier plan has zero total barriers.
 pub proof fn lemma_empty_plan_zero_barriers(pass_idx: nat)
     ensures plan_total_barriers(PassBarrierPlan {
         pass_index: pass_idx,
@@ -836,7 +836,7 @@ pub proof fn lemma_empty_plan_zero_barriers(pass_idx: nat)
 {
 }
 
-/// A valid lifetime has first_use <= last_use.
+///  A valid lifetime has first_use <= last_use.
 pub proof fn lemma_valid_lifetime_ordered(
     cg: CompiledGraph,
     r: ResourceId,
@@ -861,14 +861,14 @@ pub proof fn lemma_valid_lifetime_ordered(
     assert(lt.first_use <= i && i <= lt.last_use);
 }
 
-/// Plan total barriers is sum of pre and post.
+///  Plan total barriers is sum of pre and post.
 pub proof fn lemma_plan_total_is_sum(plan: PassBarrierPlan)
     ensures plan_total_barriers(plan)
         == plan_pre_barrier_count(plan) + plan_post_barrier_count(plan),
 {
 }
 
-/// A read-only resource needs no write barriers.
+///  A read-only resource needs no write barriers.
 pub proof fn lemma_read_only_no_writes(
     graph: RenderGraph,
     order: Seq<nat>,
@@ -884,7 +884,7 @@ pub proof fn lemma_read_only_no_writes(
 {
 }
 
-/// A graph with no barriers has zero total barrier count.
+///  A graph with no barriers has zero total barrier count.
 pub proof fn lemma_no_barriers_zero_total(cg: CompiledGraph)
     requires has_no_barriers(cg),
     ensures total_barrier_count(cg) == 0,
@@ -911,21 +911,21 @@ pub proof fn lemma_no_barriers_zero_total(cg: CompiledGraph)
     }
 }
 
-/// Layout transition implies barrier is not identity.
+///  Layout transition implies barrier is not identity.
 pub proof fn lemma_layout_transition_not_identity(ba: BarrierAction)
     requires is_layout_transition(ba),
     ensures !is_identity_barrier(ba),
 {
 }
 
-/// Identity barrier implies no layout transition.
+///  Identity barrier implies no layout transition.
 pub proof fn lemma_identity_no_layout_transition(ba: BarrierAction)
     requires is_identity_barrier(ba),
     ensures !is_layout_transition(ba),
 {
 }
 
-/// A pass with a pre-barrier for r has a non-empty pre-barrier list.
+///  A pass with a pre-barrier for r has a non-empty pre-barrier list.
 pub proof fn lemma_pre_barrier_implies_nonempty(
     plan: PassBarrierPlan,
     r: ResourceId,
@@ -935,7 +935,7 @@ pub proof fn lemma_pre_barrier_implies_nonempty(
 {
 }
 
-/// A pass with a post-barrier for r has a non-empty post-barrier list.
+///  A pass with a post-barrier for r has a non-empty post-barrier list.
 pub proof fn lemma_post_barrier_implies_nonempty(
     plan: PassBarrierPlan,
     r: ResourceId,
@@ -945,9 +945,9 @@ pub proof fn lemma_post_barrier_implies_nonempty(
 {
 }
 
-// ── Subpass Proofs ────────────────────────────────────────────────
+//  ── Subpass Proofs ────────────────────────────────────────────────
 
-/// A single-subpass decomposition is trivially valid if it matches the pass.
+///  A single-subpass decomposition is trivially valid if it matches the pass.
 pub proof fn lemma_single_subpass_valid(
     pass: RenderPassNode,
 )
@@ -971,11 +971,11 @@ pub proof fn lemma_single_subpass_valid(
         }],
         subpass_deps: Seq::empty(),
     };
-    // Non-empty
+    //  Non-empty
     assert(decomp.subpass_resources.len() > 0);
-    // Subpass indices match position
+    //  Subpass indices match position
     assert(decomp.subpass_resources[0].subpass_index == 0);
-    // Reads covered
+    //  Reads covered
     assert forall|r: ResourceId|
         pass.reads.contains(r)
         implies exists|i: nat|
@@ -983,7 +983,7 @@ pub proof fn lemma_single_subpass_valid(
             && (#[trigger] decomp.subpass_resources[i as int]).reads.contains(r) by {
         assert(decomp.subpass_resources[0].reads.contains(r));
     }
-    // Writes covered
+    //  Writes covered
     assert forall|r: ResourceId|
         pass.writes.contains(r)
         implies exists|i: nat|
@@ -993,8 +993,8 @@ pub proof fn lemma_single_subpass_valid(
     }
 }
 
-/// A single-subpass decomposition has trivially satisfied intra-pass deps
-/// (no subpass pairs with src < dst).
+///  A single-subpass decomposition has trivially satisfied intra-pass deps
+///  (no subpass pairs with src < dst).
 pub proof fn lemma_single_subpass_deps_trivial(
     pass: RenderPassNode,
 )
@@ -1011,7 +1011,7 @@ pub proof fn lemma_single_subpass_deps_trivial(
 {
 }
 
-/// Pass-level barriers imply write stages/accesses are non-empty for proper pass types.
+///  Pass-level barriers imply write stages/accesses are non-empty for proper pass types.
 pub proof fn lemma_pass_type_write_stages_nonempty(pt: PassType)
     ensures !pass_type_write_stages(pt).stages.is_empty(),
 {
@@ -1028,7 +1028,7 @@ pub proof fn lemma_pass_type_write_stages_nonempty(pt: PassType)
     }
 }
 
-/// Pass-level barriers imply read stages/accesses are non-empty for proper pass types.
+///  Pass-level barriers imply read stages/accesses are non-empty for proper pass types.
 pub proof fn lemma_pass_type_read_stages_nonempty(pt: PassType)
     ensures !pass_type_read_stages(pt).stages.is_empty(),
 {
@@ -1045,4 +1045,4 @@ pub proof fn lemma_pass_type_read_stages_nonempty(pt: PassType)
     }
 }
 
-} // verus!
+} //  verus!

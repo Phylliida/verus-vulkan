@@ -2,9 +2,9 @@ use vstd::prelude::*;
 
 verus! {
 
-// ── Pipeline stage constants ──────────────────────────────────────────
-// Each stage gets a distinct nat so we can use Set<nat> for stage masks.
-// Numbering follows the Vulkan pipeline order (canonical source of truth).
+//  ── Pipeline stage constants ──────────────────────────────────────────
+//  Each stage gets a distinct nat so we can use Set<nat> for stage masks.
+//  Numbering follows the Vulkan pipeline order (canonical source of truth).
 
 pub open spec fn STAGE_TOP_OF_PIPE() -> nat { 0 }
 pub open spec fn STAGE_DRAW_INDIRECT() -> nat { 1 }
@@ -26,13 +26,13 @@ pub open spec fn STAGE_TESSELLATION_CONTROL_SHADER() -> nat { 16 }
 pub open spec fn STAGE_TESSELLATION_EVALUATION_SHADER() -> nat { 17 }
 pub open spec fn STAGE_GEOMETRY_SHADER() -> nat { 18 }
 
-/// A set of pipeline stages.
+///  A set of pipeline stages.
 pub struct PipelineStageFlags {
     pub stages: Set<nat>,
 }
 
-// ── Access type constants ─────────────────────────────────────────────
-// Numbering follows the Vulkan spec order (canonical source of truth).
+//  ── Access type constants ─────────────────────────────────────────────
+//  Numbering follows the Vulkan spec order (canonical source of truth).
 
 pub open spec fn ACCESS_INDIRECT_COMMAND_READ() -> nat { 0 }
 pub open spec fn ACCESS_INDEX_READ() -> nat { 1 }
@@ -55,8 +55,8 @@ pub open spec fn ACCESS_FRAGMENT_SHADING_RATE_ATTACHMENT_READ() -> nat { 17 }
 pub open spec fn ACCESS_ACCELERATION_STRUCTURE_READ() -> nat { 18 }
 pub open spec fn ACCESS_ACCELERATION_STRUCTURE_WRITE() -> nat { 19 }
 
-// ── Buffer/Image usage flag constants ─────────────────────────────────
-// Each usage flag gets a distinct nat for Set<nat>-based usage tracking.
+//  ── Buffer/Image usage flag constants ─────────────────────────────────
+//  Each usage flag gets a distinct nat for Set<nat>-based usage tracking.
 
 pub open spec fn USAGE_VERTEX_BUFFER() -> nat { 0 }
 pub open spec fn USAGE_INDEX_BUFFER() -> nat { 1 }
@@ -73,12 +73,12 @@ pub open spec fn USAGE_INDIRECT_BUFFER() -> nat { 11 }
 pub open spec fn USAGE_SHADING_RATE_IMAGE() -> nat { 12 }
 pub open spec fn USAGE_FRAGMENT_DENSITY_MAP() -> nat { 13 }
 
-/// A set of access types.
+///  A set of access types.
 pub struct AccessFlags {
     pub accesses: Set<nat>,
 }
 
-/// True iff the access set contains any write access.
+///  True iff the access set contains any write access.
 pub open spec fn has_write_access(flags: AccessFlags) -> bool {
     flags.accesses.contains(ACCESS_SHADER_WRITE())
     || flags.accesses.contains(ACCESS_COLOR_ATTACHMENT_WRITE())
@@ -89,7 +89,7 @@ pub open spec fn has_write_access(flags: AccessFlags) -> bool {
     || flags.accesses.contains(ACCESS_MEMORY_WRITE())
 }
 
-/// True iff the access set contains any read access.
+///  True iff the access set contains any read access.
 pub open spec fn has_read_access(flags: AccessFlags) -> bool {
     flags.accesses.contains(ACCESS_INDIRECT_COMMAND_READ())
     || flags.accesses.contains(ACCESS_INDEX_READ())
@@ -106,35 +106,35 @@ pub open spec fn has_read_access(flags: AccessFlags) -> bool {
     || flags.accesses.contains(ACCESS_ACCELERATION_STRUCTURE_READ())
 }
 
-/// An empty stage set.
+///  An empty stage set.
 pub open spec fn no_stages() -> PipelineStageFlags {
     PipelineStageFlags { stages: Set::empty() }
 }
 
-/// An empty access set.
+///  An empty access set.
 pub open spec fn no_access() -> AccessFlags {
     AccessFlags { accesses: Set::empty() }
 }
 
-/// True iff `sub` is a subset of `sup` (for stages).
+///  True iff `sub` is a subset of `sup` (for stages).
 pub open spec fn stages_subset(sub: PipelineStageFlags, sup: PipelineStageFlags) -> bool {
     sub.stages.subset_of(sup.stages)
 }
 
-/// True iff `sub` is a subset of `sup` (for accesses).
+///  True iff `sub` is a subset of `sup` (for accesses).
 pub open spec fn access_subset(sub: AccessFlags, sup: AccessFlags) -> bool {
     sub.accesses.subset_of(sup.accesses)
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// stages_subset is reflexive.
+///  stages_subset is reflexive.
 pub proof fn lemma_stages_subset_reflexive(s: PipelineStageFlags)
     ensures stages_subset(s, s),
 {
 }
 
-/// stages_subset is transitive.
+///  stages_subset is transitive.
 pub proof fn lemma_stages_subset_transitive(
     a: PipelineStageFlags, b: PipelineStageFlags, c: PipelineStageFlags,
 )
@@ -143,13 +143,13 @@ pub proof fn lemma_stages_subset_transitive(
 {
 }
 
-/// access_subset is reflexive.
+///  access_subset is reflexive.
 pub proof fn lemma_access_subset_reflexive(a: AccessFlags)
     ensures access_subset(a, a),
 {
 }
 
-/// access_subset is transitive.
+///  access_subset is transitive.
 pub proof fn lemma_access_subset_transitive(
     a: AccessFlags, b: AccessFlags, c: AccessFlags,
 )
@@ -158,31 +158,31 @@ pub proof fn lemma_access_subset_transitive(
 {
 }
 
-/// Empty stages are a subset of any stages.
+///  Empty stages are a subset of any stages.
 pub proof fn lemma_empty_stages_subset(s: PipelineStageFlags)
     ensures stages_subset(no_stages(), s),
 {
 }
 
-/// Empty accesses are a subset of any accesses.
+///  Empty accesses are a subset of any accesses.
 pub proof fn lemma_empty_access_subset(a: AccessFlags)
     ensures access_subset(no_access(), a),
 {
 }
 
-/// An empty access set has no write access.
+///  An empty access set has no write access.
 pub proof fn lemma_empty_no_write_access()
     ensures !has_write_access(no_access()),
 {
 }
 
-/// An empty access set has no read access.
+///  An empty access set has no read access.
 pub proof fn lemma_empty_no_read_access()
     ensures !has_read_access(no_access()),
 {
 }
 
-/// All stage constants are distinct (core stages).
+///  All stage constants are distinct (core stages).
 pub proof fn lemma_stage_constants_distinct()
     ensures
         STAGE_TOP_OF_PIPE() != STAGE_DRAW_INDIRECT(),
@@ -209,7 +209,7 @@ pub proof fn lemma_stage_constants_distinct()
 {
 }
 
-/// All access constants are distinct (core accesses).
+///  All access constants are distinct (core accesses).
 pub proof fn lemma_access_constants_distinct()
     ensures
         ACCESS_INDIRECT_COMMAND_READ() != ACCESS_INDEX_READ(),
@@ -229,7 +229,7 @@ pub proof fn lemma_access_constants_distinct()
 {
 }
 
-/// stages_subset of no_stages holds only if the sub is also empty.
+///  stages_subset of no_stages holds only if the sub is also empty.
 pub proof fn lemma_no_stages_minimal(s: PipelineStageFlags)
     requires stages_subset(s, no_stages()),
     ensures s.stages == Set::<nat>::empty(),
@@ -238,8 +238,8 @@ pub proof fn lemma_no_stages_minimal(s: PipelineStageFlags)
     assert(s.stages =~= Set::<nat>::empty());
 }
 
-// ── Pipeline stage enum ────────────────────────────────────────────────
-// Typed enum for pipeline stages, used in bitmask conversion for FFI coupling.
+//  ── Pipeline stage enum ────────────────────────────────────────────────
+//  Typed enum for pipeline stages, used in bitmask conversion for FFI coupling.
 
 pub enum PipelineStage {
     TopOfPipe,
@@ -260,7 +260,7 @@ pub enum PipelineStage {
     FragmentShadingRateAttachment,
 }
 
-/// Map a PipelineStage enum variant to its abstract stage ID (nat).
+///  Map a PipelineStage enum variant to its abstract stage ID (nat).
 pub open spec fn stage_to_id(stage: PipelineStage) -> nat {
     match stage {
         PipelineStage::TopOfPipe => STAGE_TOP_OF_PIPE(),
@@ -282,7 +282,7 @@ pub open spec fn stage_to_id(stage: PipelineStage) -> nat {
     }
 }
 
-/// Map a PipelineStage enum variant to its Vulkan VkPipelineStageFlagBits value.
+///  Map a PipelineStage enum variant to its Vulkan VkPipelineStageFlagBits value.
 pub open spec fn stage_vk_bit(stage: PipelineStage) -> u32 {
     match stage {
         PipelineStage::TopOfPipe => 0x00000001u32,
@@ -304,8 +304,8 @@ pub open spec fn stage_vk_bit(stage: PipelineStage) -> u32 {
     }
 }
 
-/// Compute the Vulkan u32 bitmask for a set of abstract stages.
-/// Since all bits are distinct powers of 2, sum == bitwise OR.
+///  Compute the Vulkan u32 bitmask for a set of abstract stages.
+///  Since all bits are distinct powers of 2, sum == bitwise OR.
 pub open spec fn stages_to_vk_bitmask(flags: PipelineStageFlags) -> u32 {
     (  if flags.stages.contains(stage_to_id(PipelineStage::TopOfPipe))             { stage_vk_bit(PipelineStage::TopOfPipe) } else { 0u32 }
      + if flags.stages.contains(stage_to_id(PipelineStage::DrawIndirect))           { stage_vk_bit(PipelineStage::DrawIndirect) } else { 0u32 }
@@ -326,7 +326,7 @@ pub open spec fn stages_to_vk_bitmask(flags: PipelineStageFlags) -> u32 {
     ) as u32
 }
 
-/// All usage flag constants are distinct.
+///  All usage flag constants are distinct.
 pub proof fn lemma_usage_constants_distinct()
     ensures
         USAGE_VERTEX_BUFFER() != USAGE_INDEX_BUFFER(),
@@ -346,7 +346,7 @@ pub proof fn lemma_usage_constants_distinct()
 {
 }
 
-/// Extension stage constants are distinct from each other and from core stages.
+///  Extension stage constants are distinct from each other and from core stages.
 pub proof fn lemma_extension_stage_constants_distinct()
     ensures
         STAGE_TASK_SHADER() != STAGE_MESH_SHADER(),
@@ -374,7 +374,7 @@ pub proof fn lemma_extension_stage_constants_distinct()
 {
 }
 
-/// Extension access constants are distinct.
+///  Extension access constants are distinct.
 pub proof fn lemma_extension_access_constants_distinct()
     ensures
         ACCESS_FRAGMENT_SHADING_RATE_ATTACHMENT_READ() != ACCESS_ACCELERATION_STRUCTURE_READ(),
@@ -393,4 +393,4 @@ pub proof fn lemma_extension_access_constants_distinct()
 {
 }
 
-} // verus!
+} //  verus!

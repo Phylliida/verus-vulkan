@@ -9,9 +9,9 @@ use winit::{
     window::{Window, WindowId, WindowAttributes},
 };
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Matrix math — simple [f32; 16] column-major helpers
-// ═══════════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════════
+//  Matrix math — simple [f32; 16] column-major helpers
+//  ═══════════════════════════════════════════════════════════════════════════
 
 fn mat4_identity() -> [f32; 16] {
     [
@@ -77,9 +77,9 @@ fn mat4_mul(a: &[f32; 16], b: &[f32; 16]) -> [f32; 16] {
     out
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Vulkan backend
-// ═══════════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════════
+//  Vulkan backend
+//  ═══════════════════════════════════════════════════════════════════════════
 
 mod vulkan {
     use super::*;
@@ -127,11 +127,11 @@ mod vulkan {
         format: vk::Format,
         width: u32,
         height: u32,
-        // Depth buffer
+        //  Depth buffer
         depth_image: RuntimeImage,
         depth_memory: vk::DeviceMemory,
         depth_view: RuntimeImageView,
-        // Animation
+        //  Animation
         start_time: Instant,
     }
 
@@ -160,7 +160,7 @@ mod vulkan {
             let width = size.width.max(1);
             let height = size.height.max(1);
 
-            // 1. Required surface extensions
+            //  1. Required surface extensions
             let display_handle = window.display_handle().unwrap();
             let surface_extensions =
                 ash_window::enumerate_required_extensions(display_handle.as_raw())
@@ -168,12 +168,12 @@ mod vulkan {
 
             let device_exts: Vec<*const i8> = vec![ash::khr::swapchain::NAME.as_ptr()];
 
-            // 2. Create VulkanContext
+            //  2. Create VulkanContext
             let ctx = unsafe {
                 VulkanContext::new("cube", true, surface_extensions, &device_exts, 0)
             };
 
-            // 3. Create surface
+            //  3. Create surface
             let raw_surface = unsafe {
                 ash_window::create_surface(
                     &ctx.entry,
@@ -186,11 +186,11 @@ mod vulkan {
             .expect("Failed to create Vulkan surface");
             let surface = ffi::vk_create_surface(&ctx, Ghost::assume_new(), raw_surface.as_raw());
 
-            // 4. Device + queue
+            //  4. Device + queue
             let mut dev = ffi::vk_create_device(&ctx, Ghost::assume_new());
             let queue = ffi::vk_get_device_queue(&ctx, 0, 0, Ghost::assume_new());
 
-            // 5. Surface format
+            //  5. Surface format
             let surface_formats = unsafe {
                 ctx.surface_loader
                     .get_physical_device_surface_formats(ctx.physical_device, raw_surface)
@@ -202,7 +202,7 @@ mod vulkan {
                 .unwrap_or(&surface_formats[0])
                 .format;
 
-            // 6. Swapchain
+            //  6. Swapchain
             let image_count = 2u64;
             let swapchain = ffi::vk_create_swapchain(
                 &ctx,
@@ -216,7 +216,7 @@ mod vulkan {
                 vk::ImageUsageFlags::COLOR_ATTACHMENT.as_raw(),
             );
 
-            // 7. Swapchain image views
+            //  7. Swapchain image views
             let images = ffi::vk_get_swapchain_images(&ctx, &swapchain);
             let mut image_views = Vec::new();
             for &img in images.iter() {
@@ -230,7 +230,7 @@ mod vulkan {
                 image_views.push(view);
             }
 
-            // 8. Depth buffer
+            //  8. Depth buffer
             let depth_format = vk::Format::D32_SFLOAT;
             let depth_image = ffi::vk_create_image(
                 &ctx,
@@ -266,7 +266,7 @@ mod vulkan {
                 vk::ImageAspectFlags::DEPTH.as_raw() as u32,
             );
 
-            // 9. Render pass (color + depth)
+            //  9. Render pass (color + depth)
             let render_pass = ffi::vk_create_render_pass_depth(
                 &ctx,
                 Ghost::assume_new(),
@@ -277,7 +277,7 @@ mod vulkan {
                 vk::SampleCountFlags::TYPE_1.as_raw() as u32,
             );
 
-            // 10. Framebuffers (color view + depth view per swapchain image)
+            //  10. Framebuffers (color view + depth view per swapchain image)
             let mut framebuffers = Vec::new();
             for view in &image_views {
                 let fb = ffi::vk_create_framebuffer(
@@ -291,23 +291,23 @@ mod vulkan {
                 framebuffers.push(fb);
             }
 
-            // 11. Shader modules
+            //  11. Shader modules
             let vert_code = spv_to_u32(include_bytes!("shaders/cube.vert.spv"));
             let vert_module = ffi::vk_create_shader_module(&ctx, Ghost::assume_new(), &vert_code);
 
             let frag_code = spv_to_u32(include_bytes!("shaders/cube.frag.spv"));
             let frag_module = ffi::vk_create_shader_module(&ctx, Ghost::assume_new(), &frag_code);
 
-            // 12. Pipeline layout with push constant (mat4 = 64 bytes at VERTEX stage)
+            //  12. Pipeline layout with push constant (mat4 = 64 bytes at VERTEX stage)
             let pipeline_layout_handle = ffi::vk_create_pipeline_layout_push(
                 &ctx,
                 &[],
                 vk::ShaderStageFlags::VERTEX.as_raw(),
                 0,
-                64, // sizeof(mat4)
+                64, //  sizeof(mat4)
             );
 
-            // 13. Graphics pipeline (depth test + back-face cull)
+            //  13. Graphics pipeline (depth test + back-face cull)
             let pipeline = ffi::vk_create_graphics_pipeline(
                 &ctx,
                 Ghost::assume_new(),
@@ -321,7 +321,7 @@ mod vulkan {
                 vk::CompareOp::LESS_OR_EQUAL.as_raw() as u32,
             );
 
-            // 14. Command pool + buffers
+            //  14. Command pool + buffers
             let command_pool = ffi::vk_create_command_pool(&ctx, Ghost::assume_new(), 0, true);
             let mut command_buffers = Vec::new();
             for _ in 0..image_count {
@@ -333,7 +333,7 @@ mod vulkan {
                 command_buffers.push(cb);
             }
 
-            // 15. Sync objects
+            //  15. Sync objects
             let in_flight_fence = ffi::vk_create_fence(&ctx, Ghost::assume_new(), true);
             let image_available_sem = ffi::vk_create_semaphore(&ctx, Ghost::assume_new());
             let render_finished_sem = ffi::vk_create_semaphore(&ctx, Ghost::assume_new());
@@ -357,17 +357,17 @@ mod vulkan {
             }
             self.width = width;
             self.height = height;
-            // TODO: recreate swapchain + framebuffers + depth buffer for resize
+            //  TODO: recreate swapchain + framebuffers + depth buffer for resize
         }
 
         pub fn render(&mut self) {
-            // Wait for previous frame
+            //  Wait for previous frame
             ffi::vk_wait_for_fences(
                 &self.ctx, &mut self.in_flight_fence, Ghost::assume_new(), u64::MAX,
             );
             ffi::vk_reset_fences(&self.ctx, &mut self.in_flight_fence);
 
-            // Acquire next image
+            //  Acquire next image
             let idx = ffi::vk_acquire_next_image(
                 &self.ctx,
                 &mut self.swapchain,
@@ -378,7 +378,7 @@ mod vulkan {
 
             let cb = &mut self.command_buffers[idx as usize];
 
-            // Compute MVP
+            //  Compute MVP
             let elapsed = self.start_time.elapsed().as_secs_f32();
             let aspect = self.width as f32 / self.height as f32;
             let proj = mat4_perspective(std::f32::consts::FRAC_PI_4, aspect, 0.1, 100.0);
@@ -389,7 +389,7 @@ mod vulkan {
                 std::slice::from_raw_parts(mvp.as_ptr() as *const u8, 64)
             };
 
-            // Record commands
+            //  Record commands
             ffi::vk_begin_command_buffer(&self.ctx, cb);
             ffi::vk_cmd_begin_render_pass_depth(
                 &self.ctx,
@@ -400,8 +400,8 @@ mod vulkan {
                 self.framebuffers[idx as usize].handle,
                 self.width,
                 self.height,
-                0.1, 0.1, 0.1, 1.0, // clear color
-                1.0, 0,              // clear depth/stencil
+                0.1, 0.1, 0.1, 1.0, //  clear color
+                1.0, 0,              //  clear depth/stencil
             );
             ffi::vk_cmd_bind_pipeline(
                 &self.ctx,
@@ -429,11 +429,11 @@ mod vulkan {
                 0,
                 mvp_bytes,
             );
-            ffi::vk_cmd_draw(&self.ctx, cb, 36, 1, 0, 0); // 36 vertices = 12 triangles
+            ffi::vk_cmd_draw(&self.ctx, cb, 36, 1, 0, 0); //  36 vertices = 12 triangles
             ffi::vk_cmd_end_render_pass(&self.ctx, cb);
             ffi::vk_end_command_buffer(&self.ctx, cb);
 
-            // Submit
+            //  Submit
             let wait_stage = vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT.as_raw();
             ffi::vk_queue_submit(
                 &self.ctx,
@@ -448,7 +448,7 @@ mod vulkan {
                 self.in_flight_fence.handle,
             );
 
-            // Present
+            //  Present
             ffi::vk_queue_present_khr(
                 &self.ctx,
                 &self.queue,
@@ -471,7 +471,7 @@ mod vulkan {
                 for iv in &self.image_views {
                     self.ctx.device.destroy_image_view(vk::ImageView::from_raw(iv.handle), None);
                 }
-                // Depth buffer cleanup
+                //  Depth buffer cleanup
                 self.ctx.device.destroy_image_view(vk::ImageView::from_raw(self.depth_view.handle), None);
                 self.ctx.device.destroy_image(vk::Image::from_raw(self.depth_image.handle), None);
                 self.ctx.device.free_memory(self.depth_memory, None);
@@ -495,9 +495,9 @@ mod vulkan {
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Application handler
-// ═══════════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════════
+//  Application handler
+//  ═══════════════════════════════════════════════════════════════════════════
 
 struct App {
     window: Option<std::sync::Arc<Window>>,

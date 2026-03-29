@@ -2,9 +2,9 @@ use vstd::prelude::*;
 
 verus! {
 
-// ── Types ───────────────────────────────────────────────────────────────
+//  ── Types ───────────────────────────────────────────────────────────────
 
-/// A viewport transformation (maps NDC to framebuffer coordinates).
+///  A viewport transformation (maps NDC to framebuffer coordinates).
 pub struct Viewport {
     pub x: int,
     pub y: int,
@@ -14,7 +14,7 @@ pub struct Viewport {
     pub max_depth: int,
 }
 
-/// A scissor rectangle (clips fragments outside the rectangle).
+///  A scissor rectangle (clips fragments outside the rectangle).
 pub struct ScissorRect {
     pub x: int,
     pub y: int,
@@ -22,15 +22,15 @@ pub struct ScissorRect {
     pub height: nat,
 }
 
-/// Viewport/scissor state for a graphics pipeline.
+///  Viewport/scissor state for a graphics pipeline.
 pub struct ViewportScissorState {
     pub viewports: Seq<Viewport>,
     pub scissors: Seq<ScissorRect>,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// Viewport dimensions are valid (non-zero, within device limits).
+///  Viewport dimensions are valid (non-zero, within device limits).
 pub open spec fn viewport_valid(
     vp: Viewport,
     max_width: nat,
@@ -42,7 +42,7 @@ pub open spec fn viewport_valid(
     && vp.height <= max_height
 }
 
-/// Scissor dimensions are valid (within framebuffer bounds).
+///  Scissor dimensions are valid (within framebuffer bounds).
 pub open spec fn scissor_valid(
     scissor: ScissorRect,
     fb_width: nat,
@@ -54,14 +54,14 @@ pub open spec fn scissor_valid(
     && (scissor.y as nat) + scissor.height <= fb_height
 }
 
-/// Viewport and scissor counts must match.
+///  Viewport and scissor counts must match.
 pub open spec fn viewport_scissor_counts_match(
     state: ViewportScissorState,
 ) -> bool {
     state.viewports.len() == state.scissors.len()
 }
 
-/// All viewports are valid.
+///  All viewports are valid.
 pub open spec fn all_viewports_valid(
     state: ViewportScissorState,
     max_width: nat,
@@ -71,7 +71,7 @@ pub open spec fn all_viewports_valid(
         ==> viewport_valid(#[trigger] state.viewports[i], max_width, max_height)
 }
 
-/// All scissors are valid.
+///  All scissors are valid.
 pub open spec fn all_scissors_valid(
     state: ViewportScissorState,
     fb_width: nat,
@@ -81,7 +81,7 @@ pub open spec fn all_scissors_valid(
         ==> scissor_valid(#[trigger] state.scissors[i], fb_width, fb_height)
 }
 
-/// Viewport/scissor state is well-formed.
+///  Viewport/scissor state is well-formed.
 pub open spec fn viewport_scissor_well_formed(
     state: ViewportScissorState,
     max_viewports: nat,
@@ -94,7 +94,7 @@ pub open spec fn viewport_scissor_well_formed(
     && all_viewports_valid(state, max_width, max_height)
 }
 
-/// A single fullscreen viewport/scissor.
+///  A single fullscreen viewport/scissor.
 pub open spec fn fullscreen_viewport_scissor(
     width: nat,
     height: nat,
@@ -110,16 +110,16 @@ pub open spec fn fullscreen_viewport_scissor(
     }
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// Fullscreen viewport/scissor has matching counts.
+///  Fullscreen viewport/scissor has matching counts.
 pub proof fn lemma_fullscreen_counts_match(width: nat, height: nat)
     ensures
         viewport_scissor_counts_match(fullscreen_viewport_scissor(width, height)),
 {
 }
 
-/// Fullscreen viewport is valid when dimensions are within limits.
+///  Fullscreen viewport is valid when dimensions are within limits.
 pub proof fn lemma_fullscreen_viewport_valid(
     width: nat,
     height: nat,
@@ -138,7 +138,7 @@ pub proof fn lemma_fullscreen_viewport_valid(
 {
 }
 
-/// Fullscreen scissor is valid when used with matching framebuffer.
+///  Fullscreen scissor is valid when used with matching framebuffer.
 pub proof fn lemma_fullscreen_scissor_valid(width: nat, height: nat)
     ensures
         all_scissors_valid(
@@ -149,7 +149,7 @@ pub proof fn lemma_fullscreen_scissor_valid(width: nat, height: nat)
 {
 }
 
-/// A single viewport/scissor with valid dimensions is well-formed.
+///  A single viewport/scissor with valid dimensions is well-formed.
 pub proof fn lemma_single_viewport_well_formed(
     width: nat,
     height: nat,
@@ -171,7 +171,7 @@ pub proof fn lemma_single_viewport_well_formed(
 {
 }
 
-/// Well-formed viewport/scissor has at least one viewport.
+///  Well-formed viewport/scissor has at least one viewport.
 pub proof fn lemma_well_formed_nonempty(
     state: ViewportScissorState,
     max_viewports: nat, max_width: nat, max_height: nat,
@@ -181,7 +181,7 @@ pub proof fn lemma_well_formed_nonempty(
 {
 }
 
-/// Well-formed viewport/scissor has matching counts.
+///  Well-formed viewport/scissor has matching counts.
 pub proof fn lemma_well_formed_counts_match(
     state: ViewportScissorState,
     max_viewports: nat, max_width: nat, max_height: nat,
@@ -191,7 +191,7 @@ pub proof fn lemma_well_formed_counts_match(
 {
 }
 
-/// Well-formed viewport/scissor respects max_viewports limit.
+///  Well-formed viewport/scissor respects max_viewports limit.
 pub proof fn lemma_well_formed_respects_limit(
     state: ViewportScissorState,
     max_viewports: nat, max_width: nat, max_height: nat,
@@ -201,4 +201,4 @@ pub proof fn lemma_well_formed_respects_limit(
 {
 }
 
-} // verus!
+} //  verus!

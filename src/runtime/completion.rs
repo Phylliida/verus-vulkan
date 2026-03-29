@@ -12,13 +12,13 @@ use super::device::RuntimeDevice;
 
 verus! {
 
-/// Runtime completion tracker: ghost tracking of pending submissions and completion state.
+///  Runtime completion tracker: ghost tracking of pending submissions and completion state.
 pub struct RuntimeCompletionTracker {
-    /// Ghost pending submission records.
+    ///  Ghost pending submission records.
     pub pending: Ghost<Seq<SubmissionRecord>>,
 }
 
-/// Create an empty completion tracker (no pending submissions).
+///  Create an empty completion tracker (no pending submissions).
 pub fn create_completion_tracker_exec() -> (out: RuntimeCompletionTracker)
     ensures out.pending@.len() == 0,
 {
@@ -27,8 +27,8 @@ pub fn create_completion_tracker_exec() -> (out: RuntimeCompletionTracker)
     }
 }
 
-/// Record a submission's semaphore signaling.
-/// Ghost-only: updates the tracker's pending list with a new submission record.
+///  Record a submission's semaphore signaling.
+///  Ghost-only: updates the tracker's pending list with a new submission record.
 pub fn add_submission_exec(
     tracker: &mut RuntimeCompletionTracker,
     record: Ghost<SubmissionRecord>,
@@ -38,8 +38,8 @@ pub fn add_submission_exec(
     tracker.pending = Ghost(tracker.pending@.push(record@));
 }
 
-/// Mark a submission as completed by submission id.
-/// Updates the ghost state to reflect GPU completion.
+///  Mark a submission as completed by submission id.
+///  Updates the ghost state to reflect GPU completion.
 pub fn mark_completed_exec(
     tracker: &mut RuntimeCompletionTracker,
     sub_id: Ghost<nat>,
@@ -63,8 +63,8 @@ pub fn mark_completed_exec(
     ));
 }
 
-/// Signal semaphores for a completed submission.
-/// Ghost update: applies signal_semaphores_ghost to the provided sem states.
+///  Signal semaphores for a completed submission.
+///  Ghost update: applies signal_semaphores_ghost to the provided sem states.
 pub fn signal_semaphores_exec(
     sems: Ghost<Seq<nat>>,
     sem_states: Ghost<Map<nat, SemaphoreState>>,
@@ -75,8 +75,8 @@ pub fn signal_semaphores_exec(
     Ghost(signal_semaphores_ghost(sems@, sem_states@, resource_states@))
 }
 
-/// Complete a submission: transition CBs, signal semaphores, signal fence.
-/// Ghost update: applies complete_submission_ghost.
+///  Complete a submission: transition CBs, signal semaphores, signal fence.
+///  Ghost update: applies complete_submission_ghost.
 pub fn complete_submission_exec(
     record: Ghost<SubmissionRecord>,
     cb_states: Ghost<Map<nat, CommandBufferState>>,
@@ -89,8 +89,8 @@ pub fn complete_submission_exec(
     Ghost(complete_submission_ghost(record@, cb_states@, sem_states@, fence_states@, resource_states@))
 }
 
-/// Fence wait: mark all submissions with this fence as completed, clean up, reset fence.
-/// Ghost update: applies fence_wait_ghost.
+///  Fence wait: mark all submissions with this fence as completed, clean up, reset fence.
+///  Ghost update: applies fence_wait_ghost.
 pub fn fence_wait_exec(
     dev_state: Ghost<DeviceState>,
     fence_id: Ghost<nat>,
@@ -102,16 +102,16 @@ pub fn fence_wait_exec(
     Ghost(fence_wait_ghost(dev_state@, fence_id@, fence_states@))
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────
 
-/// An empty tracker has no pending submissions.
+///  An empty tracker has no pending submissions.
 pub proof fn lemma_empty_tracker_no_pending()
     ensures
         Seq::<SubmissionRecord>::empty().len() == 0,
 {
 }
 
-/// After adding a submission, the tracker has one more entry.
+///  After adding a submission, the tracker has one more entry.
 pub proof fn lemma_add_submission_increases_count(
     tracker: RuntimeCompletionTracker,
     record: SubmissionRecord,
@@ -121,4 +121,4 @@ pub proof fn lemma_add_submission_increases_count(
 {
 }
 
-} // verus!
+} //  verus!

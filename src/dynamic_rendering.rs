@@ -4,60 +4,60 @@ use crate::msaa::*;
 
 verus! {
 
-// ── Types ───────────────────────────────────────────────────────────────
+//  ── Types ───────────────────────────────────────────────────────────────
 
-/// A color attachment for dynamic rendering (VK_KHR_dynamic_rendering).
+///  A color attachment for dynamic rendering (VK_KHR_dynamic_rendering).
 pub struct DynamicColorAttachment {
-    /// Image view id.
+    ///  Image view id.
     pub image_view: nat,
-    /// Current image layout.
+    ///  Current image layout.
     pub image_layout: ImageLayout,
-    /// Optional resolve image view.
+    ///  Optional resolve image view.
     pub resolve_image_view: Option<nat>,
-    /// Resolve image layout.
+    ///  Resolve image layout.
     pub resolve_image_layout: ImageLayout,
-    /// Sample count.
+    ///  Sample count.
     pub samples: SampleCount,
 }
 
-/// A depth/stencil attachment for dynamic rendering.
+///  A depth/stencil attachment for dynamic rendering.
 pub struct DynamicDepthStencilAttachment {
     pub image_view: nat,
     pub image_layout: ImageLayout,
     pub samples: SampleCount,
 }
 
-/// Rendering info for VK_KHR_dynamic_rendering (replaces VkRenderPass + VkFramebuffer).
+///  Rendering info for VK_KHR_dynamic_rendering (replaces VkRenderPass + VkFramebuffer).
 pub struct DynamicRenderingInfo {
-    /// Render area.
+    ///  Render area.
     pub render_area_width: nat,
     pub render_area_height: nat,
-    /// Color attachments.
+    ///  Color attachments.
     pub color_attachments: Seq<DynamicColorAttachment>,
-    /// Optional depth attachment.
+    ///  Optional depth attachment.
     pub depth_attachment: Option<DynamicDepthStencilAttachment>,
-    /// Optional stencil attachment.
+    ///  Optional stencil attachment.
     pub stencil_attachment: Option<DynamicDepthStencilAttachment>,
-    /// Number of layers.
+    ///  Number of layers.
     pub layer_count: nat,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// A color attachment layout is valid for rendering.
+///  A color attachment layout is valid for rendering.
 pub open spec fn color_attachment_layout_valid(layout: ImageLayout) -> bool {
     layout == ImageLayout::ColorAttachmentOptimal
     || layout == ImageLayout::General
 }
 
-/// A depth attachment layout is valid for rendering.
+///  A depth attachment layout is valid for rendering.
 pub open spec fn depth_attachment_layout_valid(layout: ImageLayout) -> bool {
     layout == ImageLayout::DepthStencilAttachmentOptimal
     || layout == ImageLayout::DepthStencilReadOnlyOptimal
     || layout == ImageLayout::General
 }
 
-/// All color attachments have valid layouts.
+///  All color attachments have valid layouts.
 pub open spec fn all_color_layouts_valid(
     info: DynamicRenderingInfo,
 ) -> bool {
@@ -66,7 +66,7 @@ pub open spec fn all_color_layouts_valid(
             (#[trigger] info.color_attachments[i]).image_layout)
 }
 
-/// Depth/stencil attachment layout is valid.
+///  Depth/stencil attachment layout is valid.
 pub open spec fn depth_stencil_layout_valid(
     info: DynamicRenderingInfo,
 ) -> bool {
@@ -80,7 +80,7 @@ pub open spec fn depth_stencil_layout_valid(
     })
 }
 
-/// Dynamic rendering info is well-formed.
+///  Dynamic rendering info is well-formed.
 pub open spec fn dynamic_rendering_well_formed(
     info: DynamicRenderingInfo,
 ) -> bool {
@@ -91,7 +91,7 @@ pub open spec fn dynamic_rendering_well_formed(
     && depth_stencil_layout_valid(info)
 }
 
-/// All sample counts in the rendering match.
+///  All sample counts in the rendering match.
 pub open spec fn dynamic_rendering_samples_match(
     info: DynamicRenderingInfo,
     pipeline_samples: SampleCount,
@@ -104,52 +104,52 @@ pub open spec fn dynamic_rendering_samples_match(
     })
 }
 
-/// Number of color attachments in the dynamic rendering.
+///  Number of color attachments in the dynamic rendering.
 pub open spec fn dynamic_color_attachment_count(
     info: DynamicRenderingInfo,
 ) -> nat {
     info.color_attachments.len()
 }
 
-/// Whether dynamic rendering has a depth attachment.
+///  Whether dynamic rendering has a depth attachment.
 pub open spec fn dynamic_has_depth(info: DynamicRenderingInfo) -> bool {
     info.depth_attachment.is_some()
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// ColorAttachmentOptimal is a valid color layout.
+///  ColorAttachmentOptimal is a valid color layout.
 pub proof fn lemma_color_optimal_valid()
     ensures color_attachment_layout_valid(ImageLayout::ColorAttachmentOptimal),
 {
 }
 
-/// DepthStencilAttachmentOptimal is a valid depth layout.
+///  DepthStencilAttachmentOptimal is a valid depth layout.
 pub proof fn lemma_depth_optimal_valid()
     ensures depth_attachment_layout_valid(ImageLayout::DepthStencilAttachmentOptimal),
 {
 }
 
-/// Undefined is NOT a valid color attachment layout.
+///  Undefined is NOT a valid color attachment layout.
 pub proof fn lemma_undefined_not_color()
     ensures !color_attachment_layout_valid(ImageLayout::Undefined),
 {
 }
 
-/// TransferSrcOptimal is NOT a valid color attachment layout.
+///  TransferSrcOptimal is NOT a valid color attachment layout.
 pub proof fn lemma_transfer_src_not_color()
     ensures !color_attachment_layout_valid(ImageLayout::TransferSrcOptimal),
 {
 }
 
-/// Empty color attachments are trivially valid.
+///  Empty color attachments are trivially valid.
 pub proof fn lemma_empty_colors_valid(info: DynamicRenderingInfo)
     requires info.color_attachments.len() == 0,
     ensures all_color_layouts_valid(info),
 {
 }
 
-/// No depth/stencil attachment is trivially valid.
+///  No depth/stencil attachment is trivially valid.
 pub proof fn lemma_no_depth_stencil_valid(info: DynamicRenderingInfo)
     requires
         info.depth_attachment.is_none(),
@@ -158,4 +158,4 @@ pub proof fn lemma_no_depth_stencil_valid(info: DynamicRenderingInfo)
 {
 }
 
-} // verus!
+} //  verus!

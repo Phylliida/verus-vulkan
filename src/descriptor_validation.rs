@@ -12,16 +12,16 @@ use crate::resource::*;
 
 verus! {
 
-// ── Alignment Specs ─────────────────────────────────────────────────────
+//  ── Alignment Specs ─────────────────────────────────────────────────────
 
-/// Whether `offset` is a multiple of `alignment`.
+///  Whether `offset` is a multiple of `alignment`.
 pub open spec fn is_aligned(offset: nat, alignment: nat) -> bool
     recommends alignment > 0,
 {
     offset % alignment == 0
 }
 
-/// Whether a buffer descriptor offset is correctly aligned for its type.
+///  Whether a buffer descriptor offset is correctly aligned for its type.
 pub open spec fn buffer_offset_aligned(
     offset: nat,
     desc_type: DescriptorType,
@@ -40,7 +40,7 @@ pub open spec fn buffer_offset_aligned(
     }
 }
 
-/// Whether a descriptor binding's buffer offset is aligned for the given type.
+///  Whether a descriptor binding's buffer offset is aligned for the given type.
 pub open spec fn descriptor_binding_aligned(
     binding: DescriptorBinding,
     desc_type: DescriptorType,
@@ -53,16 +53,16 @@ pub open spec fn descriptor_binding_aligned(
     }
 }
 
-// ── Alignment Lemmas ────────────────────────────────────────────────────
+//  ── Alignment Lemmas ────────────────────────────────────────────────────
 
-/// Zero offset is always aligned (for any positive alignment).
+///  Zero offset is always aligned (for any positive alignment).
 pub proof fn lemma_zero_offset_aligned(alignment: nat)
     requires alignment > 0,
     ensures is_aligned(0, alignment),
 {
 }
 
-/// Image bindings are always considered aligned (alignment is a buffer concept).
+///  Image bindings are always considered aligned (alignment is a buffer concept).
 pub proof fn lemma_image_binding_always_aligned(
     image_id: nat, layout: ImageLayout,
     desc_type: DescriptorType, limits: DeviceLimits,
@@ -74,7 +74,7 @@ pub proof fn lemma_image_binding_always_aligned(
 {
 }
 
-/// A multiple of the alignment is aligned.
+///  A multiple of the alignment is aligned.
 pub proof fn lemma_multiple_aligned(k: nat, alignment: nat)
     requires alignment > 0,
     ensures is_aligned(k * alignment, alignment),
@@ -83,7 +83,7 @@ pub proof fn lemma_multiple_aligned(k: nat, alignment: nat)
         requires alignment > 0;
 }
 
-/// Non-buffer descriptor types (images, samplers) have trivially aligned offsets.
+///  Non-buffer descriptor types (images, samplers) have trivially aligned offsets.
 pub proof fn lemma_non_buffer_type_always_aligned(
     offset: nat, limits: DeviceLimits,
 )
@@ -95,14 +95,14 @@ pub proof fn lemma_non_buffer_type_always_aligned(
 {
 }
 
-// ── Dynamic Offset Validation ───────────────────────────────────────────
+//  ── Dynamic Offset Validation ───────────────────────────────────────────
 
-/// Whether a descriptor type is a dynamic buffer type.
+///  Whether a descriptor type is a dynamic buffer type.
 pub open spec fn is_dynamic_descriptor_type(desc_type: DescriptorType) -> bool {
     matches!(desc_type, DescriptorType::UniformBufferDynamic | DescriptorType::StorageBufferDynamic)
 }
 
-/// Whether a dynamic offset is correctly aligned for its descriptor type.
+///  Whether a dynamic offset is correctly aligned for its descriptor type.
 pub open spec fn dynamic_offset_aligned(
     offset: nat,
     desc_type: DescriptorType,
@@ -117,7 +117,7 @@ pub open spec fn dynamic_offset_aligned(
     }
 }
 
-/// Whether a dynamic offset keeps the access within the buffer bounds.
+///  Whether a dynamic offset keeps the access within the buffer bounds.
 pub open spec fn dynamic_offset_in_bounds(
     static_offset: nat,
     dynamic_offset: nat,
@@ -127,7 +127,7 @@ pub open spec fn dynamic_offset_in_bounds(
     static_offset + dynamic_offset + range <= buffer_size
 }
 
-/// Zero dynamic offset is always aligned (for any descriptor type with positive alignment).
+///  Zero dynamic offset is always aligned (for any descriptor type with positive alignment).
 pub proof fn lemma_zero_dynamic_offset_valid(
     desc_type: DescriptorType,
     limits: DeviceLimits,
@@ -141,7 +141,7 @@ pub proof fn lemma_zero_dynamic_offset_valid(
     lemma_zero_offset_aligned(limits.min_storage_buffer_offset_alignment);
 }
 
-/// Zero dynamic offset preserves buffer bounds (if static offset + range <= buffer_size).
+///  Zero dynamic offset preserves buffer bounds (if static offset + range <= buffer_size).
 pub proof fn lemma_zero_dynamic_offset_in_bounds(
     static_offset: nat,
     range: nat,
@@ -152,12 +152,12 @@ pub proof fn lemma_zero_dynamic_offset_in_bounds(
 {
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// A descriptor set at set_index is valid for a pipeline if:
-/// - The set is bound at that index in the recording state.
-/// - The set is fully bound with respect to its layout.
-/// - The layout id matches the pipeline's expected layout id at that index.
+///  A descriptor set at set_index is valid for a pipeline if:
+///  - The set is bound at that index in the recording state.
+///  - The set is fully bound with respect to its layout.
+///  - The layout id matches the pipeline's expected layout id at that index.
 pub open spec fn descriptor_set_valid_for_pipeline(
     state: RecordingState,
     set_index: nat,
@@ -171,7 +171,7 @@ pub open spec fn descriptor_set_valid_for_pipeline(
     && descriptor_set_fully_bound(dset, layout)
 }
 
-/// All descriptor sets required by a graphics pipeline are valid.
+///  All descriptor sets required by a graphics pipeline are valid.
 pub open spec fn all_descriptor_sets_valid(
     state: RecordingState,
     pipeline: GraphicsPipelineState,
@@ -193,7 +193,7 @@ pub open spec fn all_descriptor_sets_valid(
         }
 }
 
-/// Writing all bindings in a layout produces a fully-bound descriptor set.
+///  Writing all bindings in a layout produces a fully-bound descriptor set.
 pub open spec fn all_bindings_written(
     dset: DescriptorSetState,
     layout: DescriptorSetLayoutState,
@@ -205,7 +205,7 @@ pub open spec fn all_bindings_written(
     }
 }
 
-/// Binding a descriptor set at a given index makes that index bound.
+///  Binding a descriptor set at a given index makes that index bound.
 pub open spec fn bind_and_check(
     state: RecordingState,
     set_index: nat,
@@ -215,9 +215,9 @@ pub open spec fn bind_and_check(
     bind_descriptor_set(state, set_index, set_id, layout_id, Seq::empty())
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// all_bindings_written is equivalent to descriptor_set_fully_bound.
+///  all_bindings_written is equivalent to descriptor_set_fully_bound.
 pub proof fn lemma_all_bindings_written_is_fully_bound(
     dset: DescriptorSetState,
     layout: DescriptorSetLayoutState,
@@ -227,7 +227,7 @@ pub proof fn lemma_all_bindings_written_is_fully_bound(
 {
 }
 
-/// After binding a descriptor set, that set index is bound in the state.
+///  After binding a descriptor set, that set index is bound in the state.
 pub proof fn lemma_bind_makes_bound(
     state: RecordingState,
     set_index: nat,
@@ -251,7 +251,7 @@ pub proof fn lemma_bind_makes_bound(
 {
 }
 
-/// Binding a descriptor set at one index preserves bindings at other indices.
+///  Binding a descriptor set at one index preserves bindings at other indices.
 pub proof fn lemma_bind_preserves_other_sets(
     state: RecordingState,
     set_index: nat,
@@ -272,7 +272,7 @@ pub proof fn lemma_bind_preserves_other_sets(
 {
 }
 
-/// bound_set_layouts is consistent with actual descriptor set layout IDs.
+///  bound_set_layouts is consistent with actual descriptor set layout IDs.
 pub open spec fn bound_layouts_consistent(
     state: RecordingState,
     dsets: Map<nat, DescriptorSetState>,
@@ -284,8 +284,8 @@ pub open spec fn bound_layouts_consistent(
             && state.bound_set_layouts[idx] == dsets[state.bound_descriptor_sets[idx]].layout_id
 }
 
-/// If all_descriptor_sets_valid holds and bound_set_layouts is consistent with the
-/// actual descriptor set layout IDs, then descriptor_sets_bound_for_pipeline holds.
+///  If all_descriptor_sets_valid holds and bound_set_layouts is consistent with the
+///  actual descriptor set layout IDs, then descriptor_sets_bound_for_pipeline holds.
 pub proof fn lemma_valid_sets_implies_bound_for_pipeline(
     state: RecordingState,
     pipeline: GraphicsPipelineState,
@@ -303,18 +303,18 @@ pub proof fn lemma_valid_sets_implies_bound_for_pipeline(
             && state.bound_set_layouts.contains_key(i as nat)
             && state.bound_set_layouts[i as nat] == pipeline.descriptor_set_layouts[i]
         ) by {
-        // Trigger all_descriptor_sets_valid
+        //  Trigger all_descriptor_sets_valid
         let _ = pipeline.descriptor_set_layouts[i];
-        // This gives us: bound_descriptor_sets.contains_key(i as nat)
-        //   && dsets[bound_descriptor_sets[i as nat]].layout_id == pipeline_layouts[i]
-        // bound_layouts_consistent triggers on bound_descriptor_sets.contains_key(i as nat)
-        // giving us: bound_set_layouts[i as nat] == dsets[bound_descriptor_sets[i as nat]].layout_id
-        // Chain: bound_set_layouts[i as nat] == pipeline_layouts[i]
+        //  This gives us: bound_descriptor_sets.contains_key(i as nat)
+        //    && dsets[bound_descriptor_sets[i as nat]].layout_id == pipeline_layouts[i]
+        //  bound_layouts_consistent triggers on bound_descriptor_sets.contains_key(i as nat)
+        //  giving us: bound_set_layouts[i as nat] == dsets[bound_descriptor_sets[i as nat]].layout_id
+        //  Chain: bound_set_layouts[i as nat] == pipeline_layouts[i]
     }
 }
 
-/// Updating a descriptor binding preserves fully-bound status if the updated
-/// binding is non-Empty and the set was already fully bound.
+///  Updating a descriptor binding preserves fully-bound status if the updated
+///  binding is non-Empty and the set was already fully bound.
 pub proof fn lemma_update_preserves_fully_bound(
     dset: DescriptorSetState,
     layout: DescriptorSetLayoutState,
@@ -339,16 +339,16 @@ pub proof fn lemma_update_preserves_fully_bound(
         }) by {
         let b = layout.bindings[i].binding;
         if b == binding_num {
-            // Updated binding: new_binding is non-Empty
+            //  Updated binding: new_binding is non-Empty
         } else {
-            // Preserved from original dset
+            //  Preserved from original dset
             lemma_update_preserves_other_bindings(dset, binding_num, new_binding, b);
         }
     }
 }
 
-/// Binding all required descriptor sets satisfies descriptor_sets_bound_for_pipeline.
-/// (For a pipeline with N layouts, binding sets at indices 0..N-1 with matching layouts suffices.)
+///  Binding all required descriptor sets satisfies descriptor_sets_bound_for_pipeline.
+///  (For a pipeline with N layouts, binding sets at indices 0..N-1 with matching layouts suffices.)
 pub proof fn lemma_sequential_binds_satisfy_pipeline(
     state: RecordingState,
     pipeline_layouts: Seq<nat>,
@@ -365,9 +365,9 @@ pub proof fn lemma_sequential_binds_satisfy_pipeline(
 {
 }
 
-// ── Buffer Descriptor Range Validation ────────────────────────────────
+//  ── Buffer Descriptor Range Validation ────────────────────────────────
 
-/// A buffer descriptor's offset + range does not exceed the buffer's size.
+///  A buffer descriptor's offset + range does not exceed the buffer's size.
 pub open spec fn buffer_descriptor_range_valid(
     binding: DescriptorBinding,
     buffers: Map<nat, BufferState>,
@@ -380,7 +380,7 @@ pub open spec fn buffer_descriptor_range_valid(
     }
 }
 
-/// All buffer descriptor bindings in a descriptor set have valid ranges.
+///  All buffer descriptor bindings in a descriptor set have valid ranges.
 pub open spec fn all_descriptor_buffer_ranges_valid(
     dset: DescriptorSetState,
     layout: DescriptorSetLayoutState,
@@ -394,7 +394,7 @@ pub open spec fn all_descriptor_buffer_ranges_valid(
         }
 }
 
-/// Empty bindings trivially have valid buffer ranges.
+///  Empty bindings trivially have valid buffer ranges.
 pub proof fn lemma_empty_binding_range_trivial(
     buffers: Map<nat, BufferState>,
 )
@@ -402,7 +402,7 @@ pub proof fn lemma_empty_binding_range_trivial(
 {
 }
 
-/// A BoundBuffer with offset + range <= size has a valid range.
+///  A BoundBuffer with offset + range <= size has a valid range.
 pub proof fn lemma_bound_buffer_range_valid(
     buffer_id: nat, offset: nat, range: nat,
     buffers: Map<nat, BufferState>,
@@ -417,11 +417,11 @@ pub proof fn lemma_bound_buffer_range_valid(
 {
 }
 
-// ── Phase 1: Descriptor Resource Liveness ────────────────────────────
+//  ── Phase 1: Descriptor Resource Liveness ────────────────────────────
 
-/// Whether a single descriptor binding's resource is alive.
-/// Empty bindings are trivially alive. BoundBuffer checks buffer alive,
-/// BoundImage checks image alive.
+///  Whether a single descriptor binding's resource is alive.
+///  Empty bindings are trivially alive. BoundBuffer checks buffer alive,
+///  BoundImage checks image alive.
 pub open spec fn descriptor_binding_resource_alive(
     binding: DescriptorBinding,
     buffers: Map<nat, BufferState>,
@@ -436,7 +436,7 @@ pub open spec fn descriptor_binding_resource_alive(
     }
 }
 
-/// All resources referenced by bindings in a descriptor set are alive.
+///  All resources referenced by bindings in a descriptor set are alive.
 pub open spec fn all_descriptor_resources_alive(
     dset: DescriptorSetState,
     layout: DescriptorSetLayoutState,
@@ -451,7 +451,7 @@ pub open spec fn all_descriptor_resources_alive(
         }
 }
 
-/// All descriptor sets bound by a pipeline have live resources.
+///  All descriptor sets bound by a pipeline have live resources.
 pub open spec fn all_pipeline_descriptor_resources_alive(
     state: RecordingState,
     pipeline: GraphicsPipelineState,
@@ -475,7 +475,7 @@ pub open spec fn all_pipeline_descriptor_resources_alive(
         }
 }
 
-/// An Empty binding has no resource to check — trivially alive.
+///  An Empty binding has no resource to check — trivially alive.
 pub proof fn lemma_empty_binding_trivially_alive(
     buffers: Map<nat, BufferState>,
     images: Map<nat, ImageState>,
@@ -486,7 +486,7 @@ pub proof fn lemma_empty_binding_trivially_alive(
 {
 }
 
-/// A BoundBuffer binding passes liveness if the buffer is alive.
+///  A BoundBuffer binding passes liveness if the buffer is alive.
 pub proof fn lemma_alive_buffer_satisfies_liveness(
     buffer_id: nat, offset: nat, range: nat,
     buffers: Map<nat, BufferState>,
@@ -502,7 +502,7 @@ pub proof fn lemma_alive_buffer_satisfies_liveness(
 {
 }
 
-/// A BoundImage binding passes liveness if the image is alive.
+///  A BoundImage binding passes liveness if the image is alive.
 pub proof fn lemma_alive_image_satisfies_liveness(
     image_id: nat, layout: ImageLayout,
     buffers: Map<nat, BufferState>,
@@ -518,31 +518,31 @@ pub proof fn lemma_alive_image_satisfies_liveness(
 {
 }
 
-// ── Phase 2: Descriptor Usage Validation ─────────────────────────────
+//  ── Phase 2: Descriptor Usage Validation ─────────────────────────────
 
-/// The required buffer usage flag for a given descriptor type.
+///  The required buffer usage flag for a given descriptor type.
 pub open spec fn required_buffer_usage(desc_type: DescriptorType) -> nat {
     match desc_type {
         DescriptorType::UniformBuffer => USAGE_UNIFORM_BUFFER(),
         DescriptorType::UniformBufferDynamic => USAGE_UNIFORM_BUFFER(),
         DescriptorType::StorageBuffer => USAGE_STORAGE_BUFFER(),
         DescriptorType::StorageBufferDynamic => USAGE_STORAGE_BUFFER(),
-        _ => 0,  // non-buffer types — no buffer usage required
+        _ => 0,  //  non-buffer types — no buffer usage required
     }
 }
 
-/// The required image usage flag for a given descriptor type.
+///  The required image usage flag for a given descriptor type.
 pub open spec fn required_image_usage(desc_type: DescriptorType) -> nat {
     match desc_type {
         DescriptorType::SampledImage => USAGE_SAMPLED(),
         DescriptorType::CombinedImageSampler => USAGE_SAMPLED(),
         DescriptorType::StorageImage => USAGE_STORAGE_IMAGE(),
         DescriptorType::InputAttachment => USAGE_INPUT_ATTACHMENT(),
-        _ => 0,  // non-image types — no image usage required
+        _ => 0,  //  non-image types — no image usage required
     }
 }
 
-/// A descriptor binding's resource has the correct usage flag for the descriptor type.
+///  A descriptor binding's resource has the correct usage flag for the descriptor type.
 pub open spec fn descriptor_binding_usage_valid(
     binding: DescriptorBinding,
     desc_type: DescriptorType,
@@ -560,7 +560,7 @@ pub open spec fn descriptor_binding_usage_valid(
     }
 }
 
-/// A uniform/storage buffer descriptor requires the matching buffer usage flag.
+///  A uniform/storage buffer descriptor requires the matching buffer usage flag.
 pub proof fn lemma_buffer_descriptor_needs_usage(
     buffer_id: nat, offset: nat, range: nat,
     desc_type: DescriptorType,
@@ -577,7 +577,7 @@ pub proof fn lemma_buffer_descriptor_needs_usage(
 {
 }
 
-/// A sampled/storage/input image descriptor requires the matching image usage flag.
+///  A sampled/storage/input image descriptor requires the matching image usage flag.
 pub proof fn lemma_image_descriptor_needs_usage(
     image_id: nat, layout: ImageLayout,
     desc_type: DescriptorType,
@@ -594,9 +594,9 @@ pub proof fn lemma_image_descriptor_needs_usage(
 {
 }
 
-// ── Phase 5: Descriptor Update Synchronization ───────────────────────
+//  ── Phase 5: Descriptor Update Synchronization ───────────────────────
 
-/// A descriptor set is safe to update if the thread holds exclusive access.
+///  A descriptor set is safe to update if the thread holds exclusive access.
 pub open spec fn descriptor_set_safe_to_update(
     set_id: nat,
     thread: ThreadId,
@@ -605,7 +605,7 @@ pub open spec fn descriptor_set_safe_to_update(
     holds_exclusive(reg, SyncObjectId::Handle(set_id), thread)
 }
 
-/// A descriptor set is not referenced by any in-flight (uncompleted) submission.
+///  A descriptor set is not referenced by any in-flight (uncompleted) submission.
 pub open spec fn descriptor_set_not_in_flight(
     set_id: nat,
     pending: Seq<SubmissionRecord>,
@@ -615,7 +615,7 @@ pub open spec fn descriptor_set_not_in_flight(
         || !pending[i].referenced_resources.contains(ResourceId::DescriptorSet { id: set_id })
 }
 
-/// A descriptor set update is safe: exclusive access AND not in flight.
+///  A descriptor set update is safe: exclusive access AND not in flight.
 pub open spec fn update_descriptor_safe(
     set_id: nat,
     thread: ThreadId,
@@ -626,7 +626,7 @@ pub open spec fn update_descriptor_safe(
     && descriptor_set_not_in_flight(set_id, pending)
 }
 
-/// Exclusive access + not in flight → safe to update.
+///  Exclusive access + not in flight → safe to update.
 pub proof fn lemma_exclusive_access_enables_update(
     set_id: nat,
     thread: ThreadId,
@@ -640,8 +640,8 @@ pub proof fn lemma_exclusive_access_enables_update(
 {
 }
 
-/// After vkDeviceWaitIdle (all submissions completed), any set is safe to update
-/// given exclusive access.
+///  After vkDeviceWaitIdle (all submissions completed), any set is safe to update
+///  given exclusive access.
 pub proof fn lemma_idle_device_safe_to_update(
     set_id: nat,
     thread: ThreadId,
@@ -655,7 +655,7 @@ pub proof fn lemma_idle_device_safe_to_update(
 {
 }
 
-/// Completed submissions don't block descriptor set updates.
+///  Completed submissions don't block descriptor set updates.
 pub proof fn lemma_completed_submission_frees_set(
     set_id: nat,
     pending: Seq<SubmissionRecord>,
@@ -666,4 +666,4 @@ pub proof fn lemma_completed_submission_frees_set(
 {
 }
 
-} // verus!
+} //  verus!

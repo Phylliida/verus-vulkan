@@ -15,9 +15,9 @@ use crate::device::*;
 use crate::runtime::descriptor::*;
 use super::device::RuntimeDevice;
 
-// ─── Spec functions ────────────────────────────────────────────
+//  ─── Spec functions ────────────────────────────────────────────
 
-/// Combined validity for a descriptor update: alignment + liveness + usage + safe to update.
+///  Combined validity for a descriptor update: alignment + liveness + usage + safe to update.
 pub open spec fn validated_descriptor_wf(
     binding: DescriptorBinding,
     desc_type: DescriptorType,
@@ -35,7 +35,7 @@ pub open spec fn validated_descriptor_wf(
     && update_descriptor_safe(set_id, thread, reg, pending)
 }
 
-/// Whether a pipeline's descriptor state is fully valid: all sets bound, valid, and resources alive.
+///  Whether a pipeline's descriptor state is fully valid: all sets bound, valid, and resources alive.
 pub open spec fn descriptor_update_safe_for_pipeline(
     state: RecordingState,
     pipeline: GraphicsPipelineState,
@@ -55,7 +55,7 @@ pub open spec fn descriptor_update_safe_for_pipeline(
     )
 }
 
-/// Batch validity: all updates in a sequence are valid.
+///  Batch validity: all updates in a sequence are valid.
 pub open spec fn all_updates_valid(
     updates: Seq<DescriptorBinding>,
     desc_types: Seq<DescriptorType>,
@@ -73,10 +73,10 @@ pub open spec fn all_updates_valid(
             && descriptor_binding_usage_valid(updates[i], desc_types[i], buffers, images)
 }
 
-// ─── Exec functions ────────────────────────────────────────────
+//  ─── Exec functions ────────────────────────────────────────────
 
-/// Exec: perform a validated buffer descriptor update.
-/// Combines alignment, liveness, usage, and update-safety checks.
+///  Exec: perform a validated buffer descriptor update.
+///  Combines alignment, liveness, usage, and update-safety checks.
 pub fn validated_buffer_descriptor_update_exec(
     ds: &mut RuntimeDescriptorSet,
     layout: Ghost<DescriptorSetLayoutState>,
@@ -92,13 +92,13 @@ pub fn validated_buffer_descriptor_update_exec(
     images: Ghost<Map<nat, ImageState>>,
 )
     requires
-        // Standard update preconditions
+        //  Standard update preconditions
         old(ds)@.layout_id == layout@.id,
         layout_contains_binding(layout@, binding_num@),
         !(new_binding@ === DescriptorBinding::Empty),
         descriptor_binding_aligned(new_binding@, desc_type@, limits@),
         can_access_child(pool_ownership@, old(ds)@.id, thread@, reg@),
-        // Validation extras
+        //  Validation extras
         descriptor_binding_resource_alive(new_binding@, buffers@, images@),
         descriptor_binding_usage_valid(new_binding@, desc_type@, buffers@, images@),
         update_descriptor_safe(old(ds)@.id, thread@, reg@, dev@.pending_submissions),
@@ -110,7 +110,7 @@ pub fn validated_buffer_descriptor_update_exec(
     update_descriptor_set_exec(ds, layout, binding_num, new_binding, desc_type, limits, thread, pool_ownership, reg, dev);
 }
 
-/// Exec: perform a validated image descriptor update.
+///  Exec: perform a validated image descriptor update.
 pub fn validated_image_descriptor_update_exec(
     ds: &mut RuntimeDescriptorSet,
     layout: Ghost<DescriptorSetLayoutState>,
@@ -142,7 +142,7 @@ pub fn validated_image_descriptor_update_exec(
     update_descriptor_set_exec(ds, layout, binding_num, new_binding, desc_type, limits, thread, pool_ownership, reg, dev);
 }
 
-/// Exec: ghost-level check that all pipeline descriptors are valid and alive.
+///  Exec: ghost-level check that all pipeline descriptors are valid and alive.
 pub fn validate_pipeline_descriptors_exec(
     state: Ghost<RecordingState>,
     pipeline: Ghost<GraphicsPipelineState>,
@@ -161,9 +161,9 @@ pub fn validate_pipeline_descriptors_exec(
     ))
 }
 
-// ─── Proof functions ───────────────────────────────────────────
+//  ─── Proof functions ───────────────────────────────────────────
 
-/// A validated update ensures the binding's resource is alive.
+///  A validated update ensures the binding's resource is alive.
 pub proof fn lemma_validated_update_resources_alive(
     binding: DescriptorBinding,
     desc_type: DescriptorType,
@@ -180,10 +180,10 @@ pub proof fn lemma_validated_update_resources_alive(
     ensures
         descriptor_binding_resource_alive(binding, buffers, images),
 {
-    // Direct from validated_descriptor_wf definition
+    //  Direct from validated_descriptor_wf definition
 }
 
-/// A validated update ensures the binding's usage is valid.
+///  A validated update ensures the binding's usage is valid.
 pub proof fn lemma_validated_update_usage_valid(
     binding: DescriptorBinding,
     desc_type: DescriptorType,
@@ -200,10 +200,10 @@ pub proof fn lemma_validated_update_usage_valid(
     ensures
         descriptor_binding_usage_valid(binding, desc_type, buffers, images),
 {
-    // Direct from validated_descriptor_wf definition
+    //  Direct from validated_descriptor_wf definition
 }
 
-/// A validated update preserves layout compatibility (the layout_id is unchanged by update).
+///  A validated update preserves layout compatibility (the layout_id is unchanged by update).
 pub proof fn lemma_validated_update_preserves_layout(
     ds: DescriptorSetState,
     binding_num: nat,
@@ -212,10 +212,10 @@ pub proof fn lemma_validated_update_preserves_layout(
     ensures
         update_descriptor_binding(ds, binding_num, new_binding).layout_id == ds.layout_id,
 {
-    // update_descriptor_binding only changes bindings map, not layout_id
+    //  update_descriptor_binding only changes bindings map, not layout_id
 }
 
-/// If all pipeline descriptors are valid and alive, then the pipeline is ready for draw.
+///  If all pipeline descriptors are valid and alive, then the pipeline is ready for draw.
 pub proof fn lemma_pipeline_descriptors_valid_implies_bound(
     state: RecordingState,
     pipeline: GraphicsPipelineState,
@@ -232,7 +232,7 @@ pub proof fn lemma_pipeline_descriptors_valid_implies_bound(
             state, pipeline, ds_states, layouts, buffers, images,
         ),
 {
-    // Direct from descriptor_update_safe_for_pipeline definition
+    //  Direct from descriptor_update_safe_for_pipeline definition
 }
 
-} // verus!
+} //  verus!

@@ -18,9 +18,9 @@ use crate::ray_tracing_maintenance::*;
 
 verus! {
 
-// ── Scene Objects ───────────────────────────────────────────────────────
+//  ── Scene Objects ───────────────────────────────────────────────────────
 
-/// A BLAS containing a single AABB geometry (bounding the sphere).
+///  A BLAS containing a single AABB geometry (bounding the sphere).
 pub open spec fn sphere_blas() -> AccelerationStructureState {
     AccelerationStructureState {
         id: 10,
@@ -28,7 +28,7 @@ pub open spec fn sphere_blas() -> AccelerationStructureState {
         geometries: seq![
             ASGeometryDesc {
                 geometry_type: ASGeometryType::AABBs,
-                primitive_count: 1,  // one sphere
+                primitive_count: 1,  //  one sphere
                 vertex_buffer: 200,
                 index_buffer: None,
                 transform_buffer: None,
@@ -43,7 +43,7 @@ pub open spec fn sphere_blas() -> AccelerationStructureState {
     }
 }
 
-/// A TLAS with a single instance referencing the sphere BLAS.
+///  A TLAS with a single instance referencing the sphere BLAS.
 pub open spec fn scene_tlas() -> AccelerationStructureState {
     AccelerationStructureState {
         id: 20,
@@ -51,8 +51,8 @@ pub open spec fn scene_tlas() -> AccelerationStructureState {
         geometries: Seq::empty(),
         instances: seq![
             ASInstanceDesc {
-                blas_id: 10,  // references sphere_blas
-                transform: 0, // identity
+                blas_id: 10,  //  references sphere_blas
+                transform: 0, //  identity
                 custom_index: 0,
                 mask: 0xFF,
             },
@@ -65,7 +65,7 @@ pub open spec fn scene_tlas() -> AccelerationStructureState {
     }
 }
 
-/// An SBT with raygen (camera rays), miss (sky color), and closest-hit (sphere shading).
+///  An SBT with raygen (camera rays), miss (sky color), and closest-hit (sphere shading).
 pub open spec fn sphere_sbt() -> ShaderBindingTable {
     ShaderBindingTable {
         ray_gen: seq![RayGenShader { id: 0 }],
@@ -73,27 +73,27 @@ pub open spec fn sphere_sbt() -> ShaderBindingTable {
         hit: seq![HitGroup {
             closest_hit: Some(2),
             any_hit: None,
-            intersection: Some(3),  // custom sphere intersection
+            intersection: Some(3),  //  custom sphere intersection
         }],
         callable: Seq::empty(),
         buffer_id: 400,
     }
 }
 
-/// An RT pipeline for the sphere scene.
+///  An RT pipeline for the sphere scene.
 pub open spec fn sphere_rt_pipeline() -> RayTracingPipelineState {
     RayTracingPipelineState {
         id: 50,
-        max_recursion_depth: 1,  // no secondary rays
-        shader_groups: seq![0, 1, 2],  // raygen, miss, hit
+        max_recursion_depth: 1,  //  no secondary rays
+        shader_groups: seq![0, 1, 2],  //  raygen, miss, hit
         sbt: sphere_sbt(),
         alive: true,
     }
 }
 
-// ── Step-by-step Proofs ─────────────────────────────────────────────────
+//  ── Step-by-step Proofs ─────────────────────────────────────────────────
 
-/// Step 1: The sphere BLAS is well-formed (alive, bottom-level, has geometry).
+///  Step 1: The sphere BLAS is well-formed (alive, bottom-level, has geometry).
 pub proof fn step1_blas_well_formed()
     ensures
         blas_well_formed(sphere_blas()),
@@ -102,14 +102,14 @@ pub proof fn step1_blas_well_formed()
 {
 }
 
-/// Step 2: Build the BLAS. After building, it's still well-formed and now built.
+///  Step 2: Build the BLAS. After building, it's still well-formed and now built.
 pub proof fn step2_build_blas()
     ensures ({
         let built_blas = build_as_ghost(sphere_blas(), ASBuildMode::Build);
         blas_well_formed(built_blas)
         && built_blas.built
-        && built_blas.generation == 1  // incremented from 0
-        && built_blas.id == 10  // id preserved
+        && built_blas.generation == 1  //  incremented from 0
+        && built_blas.id == 10  //  id preserved
     }),
 {
     lemma_build_preserves_blas_well_formed(sphere_blas(), ASBuildMode::Build);
@@ -118,7 +118,7 @@ pub proof fn step2_build_blas()
     lemma_build_preserves_id(sphere_blas(), ASBuildMode::Build);
 }
 
-/// Step 3: The TLAS is well-formed.
+///  Step 3: The TLAS is well-formed.
 pub proof fn step3_tlas_well_formed()
     ensures
         tlas_well_formed(scene_tlas()),
@@ -126,8 +126,8 @@ pub proof fn step3_tlas_well_formed()
 {
 }
 
-/// Step 4: After the BLAS is built, all BLAS references in the TLAS are valid.
-/// Then build the TLAS itself.
+///  Step 4: After the BLAS is built, all BLAS references in the TLAS are valid.
+///  Then build the TLAS itself.
 pub proof fn step4_build_tlas()
     ensures ({
         let built_blas = build_as_ghost(sphere_blas(), ASBuildMode::Build);
@@ -141,7 +141,7 @@ pub proof fn step4_build_tlas()
     let built_blas = build_as_ghost(sphere_blas(), ASBuildMode::Build);
     let blas_map = Map::<nat, AccelerationStructureState>::empty().insert(10nat, built_blas);
 
-    // Prove BLAS references valid: instance 0 references blas_id=10, which is in the map and built
+    //  Prove BLAS references valid: instance 0 references blas_id=10, which is in the map and built
     assert forall|i: nat|
         i < scene_tlas().instances.len()
     implies
@@ -158,7 +158,7 @@ pub proof fn step4_build_tlas()
     lemma_build_makes_built(scene_tlas(), ASBuildMode::Build);
 }
 
-/// Step 5: The RT pipeline is well-formed (alive, has groups, SBT well-formed).
+///  Step 5: The RT pipeline is well-formed (alive, has groups, SBT well-formed).
 pub proof fn step5_pipeline_well_formed()
     ensures
         rt_pipeline_well_formed(sphere_rt_pipeline()),
@@ -167,8 +167,8 @@ pub proof fn step5_pipeline_well_formed()
 {
 }
 
-/// Step 6: Direct trace rays is valid.
-/// Pipeline alive + TLAS built + positive dispatch dims + SBT covers pipeline.
+///  Step 6: Direct trace rays is valid.
+///  Pipeline alive + TLAS built + positive dispatch dims + SBT covers pipeline.
 pub proof fn step6_trace_rays_valid()
     ensures ({
         let built_tlas = build_as_ghost(scene_tlas(), ASBuildMode::Build);
@@ -182,14 +182,14 @@ pub proof fn step6_trace_rays_valid()
     lemma_build_makes_built(scene_tlas(), ASBuildMode::Build);
 }
 
-/// Step 7: Indirect trace rays (VK_KHR_ray_tracing_maintenance1).
-/// Same scene but dispatched indirectly from a GPU buffer.
+///  Step 7: Indirect trace rays (VK_KHR_ray_tracing_maintenance1).
+///  Same scene but dispatched indirectly from a GPU buffer.
 pub proof fn step7_indirect_trace_rays()
     ensures ({
         let built_tlas = build_as_ghost(scene_tlas(), ASBuildMode::Build);
         let params = IndirectTraceRaysParams {
             indirect_buffer_id: 500,
-            indirect_offset: 0,  // 4-byte aligned, offset + 16 <= buffer_size
+            indirect_offset: 0,  //  4-byte aligned, offset + 16 <= buffer_size
         };
         indirect_trace_rays_valid(sphere_rt_pipeline(), built_tlas, 256, params)
     }),
@@ -198,7 +198,7 @@ pub proof fn step7_indirect_trace_rays()
     lemma_build_makes_built(scene_tlas(), ASBuildMode::Build);
 }
 
-/// Bonus: Validate SBT regions for vkCmdTraceRaysKHR2 (maintenance1 path).
+///  Bonus: Validate SBT regions for vkCmdTraceRaysKHR2 (maintenance1 path).
 pub proof fn step8_trace_rays_with_regions()
     ensures ({
         let built_tlas = build_as_ghost(scene_tlas(), ASBuildMode::Build);
@@ -207,7 +207,7 @@ pub proof fn step8_trace_rays_with_regions()
         let hit    = StridedDeviceAddressRegion { device_address: 12288, stride: 32, size: 32 };
         let callable = StridedDeviceAddressRegion { device_address: 16384, stride: 32, size: 32 };
         let params = TraceRaysParams { width: 1920, height: 1080, depth: 1 };
-        // raygen.stride == raygen.size (single entry)
+        //  raygen.stride == raygen.size (single entry)
         raygen.stride == raygen.size
         && trace_rays_with_regions_valid(
             sphere_rt_pipeline(), built_tlas, raygen, miss, hit, callable, params,
@@ -218,7 +218,7 @@ pub proof fn step8_trace_rays_with_regions()
     lemma_build_makes_built(scene_tlas(), ASBuildMode::Build);
 }
 
-/// Bonus: The maintenance1 state ties to our pipeline.
+///  Bonus: The maintenance1 state ties to our pipeline.
 pub proof fn step9_maintenance1_state()
     ensures ({
         let m1 = create_maintenance1_state(50, false, 32);
@@ -229,4 +229,4 @@ pub proof fn step9_maintenance1_state()
 {
 }
 
-} // verus!
+} //  verus!

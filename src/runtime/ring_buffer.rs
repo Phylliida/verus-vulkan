@@ -3,9 +3,9 @@ use crate::ring_buffer::*;
 
 verus! {
 
-/// Runtime wrapper for ring buffer frame resource management.
+///  Runtime wrapper for ring buffer frame resource management.
 pub struct RuntimeRingBuffer {
-    /// Ghost model of the ring buffer state.
+    ///  Ghost model of the ring buffer state.
     pub state: Ghost<RingBufferState>,
 }
 
@@ -14,12 +14,12 @@ impl View for RuntimeRingBuffer {
     open spec fn view(&self) -> RingBufferState { self.state@ }
 }
 
-/// Well-formedness of the runtime ring buffer.
+///  Well-formedness of the runtime ring buffer.
 pub open spec fn runtime_ring_wf(ring: &RuntimeRingBuffer) -> bool {
     ring_well_formed(ring@)
 }
 
-/// Exec: create a ring buffer from initial ghost state.
+///  Exec: create a ring buffer from initial ghost state.
 pub fn create_ring_buffer_exec(
     ring_state: Ghost<RingBufferState>,
 ) -> (out: RuntimeRingBuffer)
@@ -32,7 +32,7 @@ pub fn create_ring_buffer_exec(
     RuntimeRingBuffer { state: ring_state }
 }
 
-/// Exec: acquire a new frame slot (advance write head).
+///  Exec: acquire a new frame slot (advance write head).
 pub fn ring_acquire_exec(ring: &mut RuntimeRingBuffer)
     requires
         runtime_ring_wf(&*old(ring)),
@@ -45,7 +45,7 @@ pub fn ring_acquire_exec(ring: &mut RuntimeRingBuffer)
     ring.state = Ghost(ring_acquire(ring.state@));
 }
 
-/// Exec: retire an old frame (advance read head after fence wait).
+///  Exec: retire an old frame (advance read head after fence wait).
 pub fn ring_retire_exec(ring: &mut RuntimeRingBuffer)
     requires
         runtime_ring_wf(&*old(ring)),
@@ -58,7 +58,7 @@ pub fn ring_retire_exec(ring: &mut RuntimeRingBuffer)
     ring.state = Ghost(ring_retire(ring.state@));
 }
 
-/// Exec: full frame cycle (retire + acquire).
+///  Exec: full frame cycle (retire + acquire).
 pub fn ring_frame_cycle_exec(ring: &mut RuntimeRingBuffer)
     requires
         runtime_ring_wf(&*old(ring)),
@@ -71,4 +71,4 @@ pub fn ring_frame_cycle_exec(ring: &mut RuntimeRingBuffer)
     ring.state = Ghost(ring_frame_cycle(ring.state@));
 }
 
-} // verus!
+} //  verus!

@@ -9,31 +9,31 @@ use crate::recording_commands::*;
 
 verus! {
 
-// ── Types ───────────────────────────────────────────────────────────────
+//  ── Types ───────────────────────────────────────────────────────────────
 
-/// Combined image memory barrier: sync + layout transition in one call.
+///  Combined image memory barrier: sync + layout transition in one call.
 ///
-/// In Vulkan, VkImageMemoryBarrier performs both synchronization (execution +
-/// memory dependency) and an image layout transition atomically. This struct
-/// unifies the currently-separate BarrierEntry (sync.rs) and ImageLayoutMap
-/// (image_layout_fsm.rs) models.
+///  In Vulkan, VkImageMemoryBarrier performs both synchronization (execution +
+///  memory dependency) and an image layout transition atomically. This struct
+///  unifies the currently-separate BarrierEntry (sync.rs) and ImageLayoutMap
+///  (image_layout_fsm.rs) models.
 pub struct ImageBarrierEntry {
-    /// The synchronization half (stages + accesses + resource).
+    ///  The synchronization half (stages + accesses + resource).
     pub sync: BarrierEntry,
-    /// Image layout before the barrier.
+    ///  Image layout before the barrier.
     pub old_layout: ImageLayout,
-    /// Image layout after the barrier.
+    ///  Image layout after the barrier.
     pub new_layout: ImageLayout,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// Extract the sync half of an image barrier.
+///  Extract the sync half of an image barrier.
 pub open spec fn image_barrier_to_entry(ibe: ImageBarrierEntry) -> BarrierEntry {
     ibe.sync
 }
 
-/// Apply the layout transition half of an image barrier to a layout map.
+///  Apply the layout transition half of an image barrier to a layout map.
 pub open spec fn image_barrier_apply_layout(
     ibe: ImageBarrierEntry,
     layout_map: ImageLayoutMap,
@@ -41,16 +41,16 @@ pub open spec fn image_barrier_apply_layout(
     apply_layout_transition(layout_map, ibe.sync.resource, ibe.new_layout)
 }
 
-/// An image barrier is well-formed: the layout transition is valid
-/// (new_layout is a usable layout).
+///  An image barrier is well-formed: the layout transition is valid
+///  (new_layout is a usable layout).
 pub open spec fn image_barrier_well_formed(ibe: ImageBarrierEntry) -> bool {
     layout_transition_valid(ibe.old_layout, ibe.new_layout)
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// A well-formed image barrier that covers a last write establishes both
-/// readability (via sync) AND the new layout (via transition).
+///  A well-formed image barrier that covers a last write establishes both
+///  readability (via sync) AND the new layout (via transition).
 pub proof fn lemma_image_barrier_establishes_readable_and_layout(
     ctx: RecordingContext,
     ibe: ImageBarrierEntry,
@@ -84,8 +84,8 @@ pub proof fn lemma_image_barrier_establishes_readable_and_layout(
     lemma_transition_updates_target(layout_map, ibe.sync.resource, ibe.new_layout);
 }
 
-/// A well-formed image barrier that covers both last write and readers
-/// establishes both writability (via sync) AND the new layout (via transition).
+///  A well-formed image barrier that covers both last write and readers
+///  establishes both writability (via sync) AND the new layout (via transition).
 pub proof fn lemma_image_barrier_establishes_writable_and_layout(
     ctx: RecordingContext,
     ibe: ImageBarrierEntry,
@@ -121,7 +121,7 @@ pub proof fn lemma_image_barrier_establishes_writable_and_layout(
     lemma_transition_updates_target(layout_map, ibe.sync.resource, ibe.new_layout);
 }
 
-/// An image barrier's layout transition does not affect other resources.
+///  An image barrier's layout transition does not affect other resources.
 pub proof fn lemma_image_barrier_preserves_other_layouts(
     ibe: ImageBarrierEntry,
     layout_map: ImageLayoutMap,
@@ -137,4 +137,4 @@ pub proof fn lemma_image_barrier_preserves_other_layouts(
     lemma_transition_preserves_others(layout_map, ibe.sync.resource, ibe.new_layout, other);
 }
 
-} // verus!
+} //  verus!

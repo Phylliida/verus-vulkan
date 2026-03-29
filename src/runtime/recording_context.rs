@@ -20,18 +20,18 @@ use crate::vk_context::VulkanContext;
 use crate::runtime::command_buffer::*;
 use crate::runtime::image_layout::RuntimeImageLayoutTracker;
 
-// ─── Types ─────────────────────────────────────────────────────
+//  ─── Types ─────────────────────────────────────────────────────
 
-/// Runtime recording context: wraps a RuntimeCommandBuffer with a ghost RecordingContext
-/// to keep CB ghost state and full recording context in sync.
+///  Runtime recording context: wraps a RuntimeCommandBuffer with a ghost RecordingContext
+///  to keep CB ghost state and full recording context in sync.
 pub struct RuntimeRecordingContext {
     pub cb: RuntimeCommandBuffer,
     pub ctx: Ghost<RecordingContext>,
 }
 
-// ─── Spec functions ────────────────────────────────────────────
+//  ─── Spec functions ────────────────────────────────────────────
 
-/// Well-formedness: CB is recording, CB wf, and ghost state is in sync.
+///  Well-formedness: CB is recording, CB wf, and ghost state is in sync.
 pub open spec fn recording_context_wf(rctx: &RuntimeRecordingContext) -> bool {
     is_recording(&rctx.cb)
     && runtime_cb_wf(&rctx.cb)
@@ -39,19 +39,19 @@ pub open spec fn recording_context_wf(rctx: &RuntimeRecordingContext) -> bool {
     && rctx.ctx@.barrier_log == rctx.cb.barrier_log@
 }
 
-/// The set of resources referenced so far.
+///  The set of resources referenced so far.
 pub open spec fn recording_context_resources(rctx: &RuntimeRecordingContext) -> Set<ResourceId> {
     rctx.ctx@.referenced_resources
 }
 
-/// The barrier log so far.
+///  The barrier log so far.
 pub open spec fn recording_context_barrier_log(rctx: &RuntimeRecordingContext) -> BarrierLog {
     rctx.ctx@.barrier_log
 }
 
-// ─── Exec functions ────────────────────────────────────────────
+//  ─── Exec functions ────────────────────────────────────────────
 
-/// Create a recording context from a just-begun command buffer.
+///  Create a recording context from a just-begun command buffer.
 pub fn create_recording_context_exec(
     cb: RuntimeCommandBuffer,
     thread: Ghost<ThreadId>,
@@ -76,7 +76,7 @@ pub fn create_recording_context_exec(
     }
 }
 
-/// Record a draw command through the recording context.
+///  Record a draw command through the recording context.
 pub fn record_draw_ctx_exec(
     vk: &VulkanContext,
     rctx: &mut RuntimeRecordingContext,
@@ -129,7 +129,7 @@ pub fn record_draw_ctx_exec(
     rctx.ctx = Ghost(record_draw(old(rctx).ctx@, resources@));
 }
 
-/// Record a pipeline barrier through the recording context.
+///  Record a pipeline barrier through the recording context.
 pub fn record_pipeline_barrier_ctx_exec(
     vk: &VulkanContext,
     rctx: &mut RuntimeRecordingContext,
@@ -154,7 +154,7 @@ pub fn record_pipeline_barrier_ctx_exec(
     rctx.ctx = Ghost(record_pipeline_barrier_single(old(rctx).ctx@, entry@));
 }
 
-/// Record a buffer copy through the recording context.
+///  Record a buffer copy through the recording context.
 pub fn record_copy_buffer_ctx_exec(
     vk: &VulkanContext,
     rctx: &mut RuntimeRecordingContext,
@@ -195,8 +195,8 @@ pub fn record_copy_buffer_ctx_exec(
     rctx.ctx = Ghost(record_copy_buffer(old(rctx).ctx@, src_buffer@, dst_buffer@, src_res@, dst_res@));
 }
 
-/// Bind a graphics pipeline through the recording context.
-/// Caller must prove the pipeline is alive and the id matches.
+///  Bind a graphics pipeline through the recording context.
+///  Caller must prove the pipeline is alive and the id matches.
 pub fn record_bind_graphics_pipeline_ctx_exec(
     vk: &VulkanContext,
     rctx: &mut RuntimeRecordingContext,
@@ -227,9 +227,9 @@ pub fn record_bind_graphics_pipeline_ctx_exec(
     rctx.ctx = Ghost(new_ctx);
 }
 
-// ─── Transfer wrappers ──────────────────────────────────────────
+//  ─── Transfer wrappers ──────────────────────────────────────────
 
-/// Record a copy-image command through the recording context.
+///  Record a copy-image command through the recording context.
 pub fn record_copy_image_ctx_exec(
     vk: &VulkanContext,
     rctx: &mut RuntimeRecordingContext,
@@ -275,7 +275,7 @@ pub fn record_copy_image_ctx_exec(
     rctx.ctx = Ghost(record_copy_image(old(rctx).ctx@, 0nat, 0nat, src_res@, dst_res@));
 }
 
-/// Record a blit-image command through the recording context.
+///  Record a blit-image command through the recording context.
 pub fn record_blit_image_ctx_exec(
     vk: &VulkanContext,
     rctx: &mut RuntimeRecordingContext,
@@ -321,7 +321,7 @@ pub fn record_blit_image_ctx_exec(
     rctx.ctx = Ghost(record_blit_image(old(rctx).ctx@, 0nat, 0nat, src_res@, dst_res@));
 }
 
-/// Record a buffer-to-image copy through the recording context.
+///  Record a buffer-to-image copy through the recording context.
 pub fn record_copy_buffer_to_image_ctx_exec(
     vk: &VulkanContext,
     rctx: &mut RuntimeRecordingContext,
@@ -364,7 +364,7 @@ pub fn record_copy_buffer_to_image_ctx_exec(
     rctx.ctx = Ghost(record_copy_buffer_to_image(old(rctx).ctx@, src_buffer@, 0nat, src_res@, dst_res@));
 }
 
-/// Record an image-to-buffer copy through the recording context.
+///  Record an image-to-buffer copy through the recording context.
 pub fn record_copy_image_to_buffer_ctx_exec(
     vk: &VulkanContext,
     rctx: &mut RuntimeRecordingContext,
@@ -407,9 +407,9 @@ pub fn record_copy_image_to_buffer_ctx_exec(
     rctx.ctx = Ghost(record_copy_image_to_buffer(old(rctx).ctx@, 0nat, dst_buffer@, src_res@, dst_res@));
 }
 
-// ─── Indirect wrappers ─────────────────────────────────────────
+//  ─── Indirect wrappers ─────────────────────────────────────────
 
-/// Record an indirect draw through the recording context.
+///  Record an indirect draw through the recording context.
 pub fn record_draw_indirect_ctx_exec(
     vk: &VulkanContext,
     rctx: &mut RuntimeRecordingContext,
@@ -447,7 +447,7 @@ pub fn record_draw_indirect_ctx_exec(
     rctx.ctx = Ghost(record_draw_indirect(old(rctx).ctx@, indirect_params@.buffer_id, indirect_params@.offset, indirect_params@.draw_count, resources@));
 }
 
-/// Record an indirect indexed draw through the recording context.
+///  Record an indirect indexed draw through the recording context.
 pub fn record_draw_indexed_indirect_ctx_exec(
     vk: &VulkanContext,
     rctx: &mut RuntimeRecordingContext,
@@ -485,7 +485,7 @@ pub fn record_draw_indexed_indirect_ctx_exec(
     rctx.ctx = Ghost(record_draw_indexed_indirect(old(rctx).ctx@, indirect_params@.buffer_id, indirect_params@.offset, indirect_params@.draw_count, resources@));
 }
 
-/// Record an indirect dispatch through the recording context.
+///  Record an indirect dispatch through the recording context.
 pub fn record_dispatch_indirect_ctx_exec(
     vk: &VulkanContext,
     rctx: &mut RuntimeRecordingContext,
@@ -519,9 +519,9 @@ pub fn record_dispatch_indirect_ctx_exec(
     rctx.ctx = Ghost(record_dispatch_indirect(old(rctx).ctx@, buffer_id@, offset@, resources@));
 }
 
-// ─── Dynamic rendering wrappers ────────────────────────────────
+//  ─── Dynamic rendering wrappers ────────────────────────────────
 
-/// Begin dynamic rendering through the recording context.
+///  Begin dynamic rendering through the recording context.
 pub fn record_begin_rendering_ctx_exec(
     vk: &VulkanContext,
     rctx: &mut RuntimeRecordingContext,
@@ -549,7 +549,7 @@ pub fn record_begin_rendering_ctx_exec(
     rctx.ctx = Ghost(record_begin_rendering(old(rctx).ctx@, info@));
 }
 
-/// End dynamic rendering through the recording context.
+///  End dynamic rendering through the recording context.
 pub fn record_end_rendering_ctx_exec(
     vk: &VulkanContext,
     rctx: &mut RuntimeRecordingContext,
@@ -570,7 +570,7 @@ pub fn record_end_rendering_ctx_exec(
     rctx.ctx = Ghost(record_end_rendering(old(rctx).ctx@));
 }
 
-/// Finish recording and extract the command buffer + ghost context.
+///  Finish recording and extract the command buffer + ghost context.
 pub fn finish_recording_context_exec(
     vk: &VulkanContext,
     rctx: RuntimeRecordingContext,
@@ -594,9 +594,9 @@ pub fn finish_recording_context_exec(
     (cb, ctx)
 }
 
-// ─── Proof functions ───────────────────────────────────────────
+//  ─── Proof functions ───────────────────────────────────────────
 
-/// Creating a context from a fresh recording CB produces a well-formed context.
+///  Creating a context from a fresh recording CB produces a well-formed context.
 pub proof fn lemma_create_context_wf(
     cb: RuntimeCommandBuffer,
 )
@@ -612,10 +612,10 @@ pub proof fn lemma_create_context_wf(
             && ctx.barrier_log == cb.barrier_log@
         }),
 {
-    // Direct from definitions
+    //  Direct from definitions
 }
 
-/// Recording a draw preserves wf (state and barrier_log sync).
+///  Recording a draw preserves wf (state and barrier_log sync).
 pub proof fn lemma_record_draw_preserves_wf(
     ctx: RecordingContext,
     resources: Set<ResourceId>,
@@ -624,10 +624,10 @@ pub proof fn lemma_record_draw_preserves_wf(
         record_draw(ctx, resources).state == ctx.state,
         record_draw(ctx, resources).barrier_log == ctx.barrier_log,
 {
-    // Direct from record_draw definition
+    //  Direct from record_draw definition
 }
 
-/// Recording a barrier preserves wf (state sync, barrier_log = push).
+///  Recording a barrier preserves wf (state sync, barrier_log = push).
 pub proof fn lemma_record_barrier_preserves_wf(
     ctx: RecordingContext,
     entry: BarrierEntry,
@@ -636,10 +636,10 @@ pub proof fn lemma_record_barrier_preserves_wf(
         record_pipeline_barrier_single(ctx, entry).state == ctx.state,
         record_pipeline_barrier_single(ctx, entry).barrier_log == ctx.barrier_log.push(entry),
 {
-    // Direct from record_pipeline_barrier_single definition
+    //  Direct from record_pipeline_barrier_single definition
 }
 
-/// After finish, the CB is executable and the context captures all resources.
+///  After finish, the CB is executable and the context captures all resources.
 pub proof fn lemma_finish_produces_executable(
     rctx: RuntimeRecordingContext,
 )
@@ -649,7 +649,7 @@ pub proof fn lemma_finish_produces_executable(
         rctx.ctx@.referenced_resources == recording_context_resources(&rctx),
         rctx.ctx@.barrier_log == recording_context_barrier_log(&rctx),
 {
-    // Direct from spec fn definitions
+    //  Direct from spec fn definitions
 }
 
-} // verus!
+} //  verus!

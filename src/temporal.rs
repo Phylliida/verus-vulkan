@@ -5,9 +5,9 @@ use crate::lifetime::*;
 
 verus! {
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// A resource budget: upper bounds on live resource counts.
+///  A resource budget: upper bounds on live resource counts.
 pub struct ResourceBudget {
     pub max_buffers: nat,
     pub max_images: nat,
@@ -16,7 +16,7 @@ pub struct ResourceBudget {
     pub max_pending_submissions: nat,
 }
 
-/// The device is within budget.
+///  The device is within budget.
 pub open spec fn within_budget(dev: DeviceState, budget: ResourceBudget) -> bool {
     dev.live_buffers <= budget.max_buffers
     && dev.live_images <= budget.max_images
@@ -25,14 +25,14 @@ pub open spec fn within_budget(dev: DeviceState, budget: ResourceBudget) -> bool
     && dev.pending_submissions.len() <= budget.max_pending_submissions
 }
 
-/// A single frame iteration: create some resources, destroy same number.
-/// Models a frame that creates `n_bufs` transient buffers and `n_imgs`
-/// transient images, uses them, and destroys them before the frame ends.
+///  A single frame iteration: create some resources, destroy same number.
+///  Models a frame that creates `n_bufs` transient buffers and `n_imgs`
+///  transient images, uses them, and destroys them before the frame ends.
 pub open spec fn balanced_frame_buffers(dev: DeviceState, n: nat) -> DeviceState {
     balanced_destroys_buffers(balanced_creates_buffers(dev, n), n)
 }
 
-/// Create n buffers.
+///  Create n buffers.
 pub open spec fn balanced_creates_buffers(dev: DeviceState, n: nat) -> DeviceState
     decreases n,
 {
@@ -43,7 +43,7 @@ pub open spec fn balanced_creates_buffers(dev: DeviceState, n: nat) -> DeviceSta
     }
 }
 
-/// Destroy n buffers.
+///  Destroy n buffers.
 pub open spec fn balanced_destroys_buffers(dev: DeviceState, n: nat) -> DeviceState
     recommends dev.live_buffers >= n,
     decreases n,
@@ -55,7 +55,7 @@ pub open spec fn balanced_destroys_buffers(dev: DeviceState, n: nat) -> DeviceSt
     }
 }
 
-/// A submission lifecycle: add a submission, then retire it (via completion).
+///  A submission lifecycle: add a submission, then retire it (via completion).
 pub open spec fn submit_and_retire(
     dev: DeviceState,
     record: SubmissionRecord,
@@ -63,7 +63,7 @@ pub open spec fn submit_and_retire(
     retire_submission(submit_ghost_dev(dev, record))
 }
 
-/// Ghost submit: append a submission record.
+///  Ghost submit: append a submission record.
 pub open spec fn submit_ghost_dev(
     dev: DeviceState,
     record: SubmissionRecord,
@@ -74,7 +74,7 @@ pub open spec fn submit_ghost_dev(
     }
 }
 
-/// Ghost retire: remove the oldest submission (FIFO).
+///  Ghost retire: remove the oldest submission (FIFO).
 pub open spec fn retire_submission(dev: DeviceState) -> DeviceState
     recommends dev.pending_submissions.len() > 0,
 {
@@ -84,9 +84,9 @@ pub open spec fn retire_submission(dev: DeviceState) -> DeviceState
     }
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// N balanced creates increase live_buffers by n.
+///  N balanced creates increase live_buffers by n.
 pub proof fn lemma_balanced_creates_count(dev: DeviceState, n: nat)
     ensures
         balanced_creates_buffers(dev, n).live_buffers == dev.live_buffers + n,
@@ -97,7 +97,7 @@ pub proof fn lemma_balanced_creates_count(dev: DeviceState, n: nat)
     }
 }
 
-/// N balanced destroys decrease live_buffers by n.
+///  N balanced destroys decrease live_buffers by n.
 pub proof fn lemma_balanced_destroys_count(dev: DeviceState, n: nat)
     requires dev.live_buffers >= n,
     ensures
@@ -112,7 +112,7 @@ pub proof fn lemma_balanced_destroys_count(dev: DeviceState, n: nat)
     }
 }
 
-/// A balanced frame (create n, then destroy n) preserves the live buffer count.
+///  A balanced frame (create n, then destroy n) preserves the live buffer count.
 pub proof fn lemma_balanced_frame_preserves_buffers(dev: DeviceState, n: nat)
     ensures
         balanced_frame_buffers(dev, n).live_buffers == dev.live_buffers,
@@ -123,7 +123,7 @@ pub proof fn lemma_balanced_frame_preserves_buffers(dev: DeviceState, n: nat)
     lemma_balanced_destroys_count(after_creates, n);
 }
 
-/// A balanced frame preserves within_budget for the buffer count.
+///  A balanced frame preserves within_budget for the buffer count.
 pub proof fn lemma_balanced_frame_within_budget(
     dev: DeviceState,
     budget: ResourceBudget,
@@ -137,7 +137,7 @@ pub proof fn lemma_balanced_frame_within_budget(
     lemma_balanced_frame_preserves_buffers(dev, n);
 }
 
-/// Submit then retire preserves pending_submissions length.
+///  Submit then retire preserves pending_submissions length.
 pub proof fn lemma_submit_retire_preserves_length(
     dev: DeviceState,
     record: SubmissionRecord,
@@ -153,8 +153,8 @@ pub proof fn lemma_submit_retire_preserves_length(
     assert(after_retire.pending_submissions.len() == after_submit.pending_submissions.len() - 1);
 }
 
-/// Submit then retire on empty starts at 0, goes to 1, can't retire (need non-empty).
-/// Instead: submit-only increases length by 1.
+///  Submit then retire on empty starts at 0, goes to 1, can't retire (need non-empty).
+///  Instead: submit-only increases length by 1.
 pub proof fn lemma_submit_increases_pending(
     dev: DeviceState,
     record: SubmissionRecord,
@@ -165,7 +165,7 @@ pub proof fn lemma_submit_increases_pending(
 {
 }
 
-/// Retire decreases pending submissions by 1.
+///  Retire decreases pending submissions by 1.
 pub proof fn lemma_retire_decreases_pending(dev: DeviceState)
     requires dev.pending_submissions.len() > 0,
     ensures
@@ -174,21 +174,21 @@ pub proof fn lemma_retire_decreases_pending(dev: DeviceState)
 {
 }
 
-/// Creating buffers does not affect pending submissions.
+///  Creating buffers does not affect pending submissions.
 pub proof fn lemma_create_buffer_preserves_pending(dev: DeviceState)
     ensures
         create_buffer_ghost(dev).pending_submissions == dev.pending_submissions,
 {
 }
 
-/// Destroying buffers does not affect pending submissions.
+///  Destroying buffers does not affect pending submissions.
 pub proof fn lemma_destroy_buffer_preserves_pending(dev: DeviceState)
     ensures
         destroy_buffer_ghost(dev).pending_submissions == dev.pending_submissions,
 {
 }
 
-/// A balanced frame does not affect pending submissions.
+///  A balanced frame does not affect pending submissions.
 pub proof fn lemma_balanced_frame_preserves_pending(dev: DeviceState, n: nat)
     ensures
         balanced_frame_buffers(dev, n).pending_submissions == dev.pending_submissions,
@@ -198,7 +198,7 @@ pub proof fn lemma_balanced_frame_preserves_pending(dev: DeviceState, n: nat)
     lemma_balanced_destroys_preserves_pending(after_creates, n);
 }
 
-/// N creates preserve pending submissions.
+///  N creates preserve pending submissions.
 proof fn lemma_balanced_creates_preserves_pending(dev: DeviceState, n: nat)
     ensures
         balanced_creates_buffers(dev, n).pending_submissions == dev.pending_submissions,
@@ -209,7 +209,7 @@ proof fn lemma_balanced_creates_preserves_pending(dev: DeviceState, n: nat)
     }
 }
 
-/// N destroys preserve pending submissions.
+///  N destroys preserve pending submissions.
 proof fn lemma_balanced_destroys_preserves_pending(dev: DeviceState, n: nat)
     ensures
         balanced_destroys_buffers(dev, n).pending_submissions == dev.pending_submissions,
@@ -220,7 +220,7 @@ proof fn lemma_balanced_destroys_preserves_pending(dev: DeviceState, n: nat)
     }
 }
 
-/// Creating buffers does not affect images, pipelines, or descriptor pools.
+///  Creating buffers does not affect images, pipelines, or descriptor pools.
 pub proof fn lemma_balanced_creates_no_cross_effect(dev: DeviceState, n: nat)
     ensures
         balanced_creates_buffers(dev, n).live_images == dev.live_images,
@@ -233,7 +233,7 @@ pub proof fn lemma_balanced_creates_no_cross_effect(dev: DeviceState, n: nat)
     }
 }
 
-/// Destroying buffers does not affect images, pipelines, or descriptor pools.
+///  Destroying buffers does not affect images, pipelines, or descriptor pools.
 pub proof fn lemma_balanced_destroys_no_cross_effect(dev: DeviceState, n: nat)
     ensures
         balanced_destroys_buffers(dev, n).live_images == dev.live_images,
@@ -246,7 +246,7 @@ pub proof fn lemma_balanced_destroys_no_cross_effect(dev: DeviceState, n: nat)
     }
 }
 
-/// A balanced frame preserves all non-buffer resource counts.
+///  A balanced frame preserves all non-buffer resource counts.
 pub proof fn lemma_balanced_frame_preserves_other_resources(dev: DeviceState, n: nat)
     ensures
         balanced_frame_buffers(dev, n).live_images == dev.live_images,
@@ -258,7 +258,7 @@ pub proof fn lemma_balanced_frame_preserves_other_resources(dev: DeviceState, n:
     lemma_balanced_destroys_no_cross_effect(after_creates, n);
 }
 
-/// The main temporal invariant: a balanced frame preserves within_budget entirely.
+///  The main temporal invariant: a balanced frame preserves within_budget entirely.
 pub proof fn lemma_balanced_frame_full_budget_invariant(
     dev: DeviceState,
     budget: ResourceBudget,
@@ -277,4 +277,4 @@ pub proof fn lemma_balanced_frame_full_budget_invariant(
     lemma_balanced_frame_preserves_pending(dev, n);
 }
 
-} // verus!
+} //  verus!

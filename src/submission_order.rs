@@ -3,23 +3,23 @@ use crate::lifetime::*;
 
 verus! {
 
-// ── Types ───────────────────────────────────────────────────────────────
+//  ── Types ───────────────────────────────────────────────────────────────
 
-/// Represents the ordering of submissions within a single queue.
+///  Represents the ordering of submissions within a single queue.
 ///
-/// Vulkan guarantees that submissions to the same queue execute in
-/// submission order. Submissions to different queues have no implicit
-/// ordering (require explicit semaphore synchronization).
+///  Vulkan guarantees that submissions to the same queue execute in
+///  submission order. Submissions to different queues have no implicit
+///  ordering (require explicit semaphore synchronization).
 pub struct SubmissionOrderState {
-    /// Queue id.
+    ///  Queue id.
     pub queue_id: nat,
-    /// Ordered sequence of submission ids.
+    ///  Ordered sequence of submission ids.
     pub submission_ids: Seq<nat>,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// Submission a is ordered before submission b on the same queue.
+///  Submission a is ordered before submission b on the same queue.
 pub open spec fn submission_ordered_before(
     state: SubmissionOrderState,
     sub_a: nat,
@@ -31,7 +31,7 @@ pub open spec fn submission_ordered_before(
         && #[trigger] state.submission_ids[j] == sub_b
 }
 
-/// Append a new submission to the queue.
+///  Append a new submission to the queue.
 pub open spec fn append_submission(
     state: SubmissionOrderState,
     sub_id: nat,
@@ -42,7 +42,7 @@ pub open spec fn append_submission(
     }
 }
 
-/// A submission is in the queue's history.
+///  A submission is in the queue's history.
 pub open spec fn submission_in_queue(
     state: SubmissionOrderState,
     sub_id: nat,
@@ -51,7 +51,7 @@ pub open spec fn submission_in_queue(
         && (#[trigger] state.submission_ids[i]) == sub_id
 }
 
-/// All submissions in the queue are distinct.
+///  All submissions in the queue are distinct.
 pub open spec fn submissions_distinct(state: SubmissionOrderState) -> bool {
     forall|i: int, j: int|
         0 <= i < state.submission_ids.len()
@@ -61,8 +61,8 @@ pub open spec fn submissions_distinct(state: SubmissionOrderState) -> bool {
             != (#[trigger] state.submission_ids[j])
 }
 
-/// Signal-before-wait ordering: on the same queue, a semaphore signal
-/// must be submitted before the wait that consumes it.
+///  Signal-before-wait ordering: on the same queue, a semaphore signal
+///  must be submitted before the wait that consumes it.
 pub open spec fn signal_before_wait(
     state: SubmissionOrderState,
     signal_sub: nat,
@@ -71,7 +71,7 @@ pub open spec fn signal_before_wait(
     submission_ordered_before(state, signal_sub, wait_sub)
 }
 
-/// Two submissions on the same queue have an implicit execution dependency.
+///  Two submissions on the same queue have an implicit execution dependency.
 pub open spec fn implicit_execution_dependency(
     state: SubmissionOrderState,
     earlier: nat,
@@ -80,7 +80,7 @@ pub open spec fn implicit_execution_dependency(
     submission_ordered_before(state, earlier, later)
 }
 
-/// An empty queue.
+///  An empty queue.
 pub open spec fn empty_queue(queue_id: nat) -> SubmissionOrderState {
     SubmissionOrderState {
         queue_id,
@@ -88,9 +88,9 @@ pub open spec fn empty_queue(queue_id: nat) -> SubmissionOrderState {
     }
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// After appending, the new submission is in the queue.
+///  After appending, the new submission is in the queue.
 pub proof fn lemma_append_in_queue(
     state: SubmissionOrderState,
     sub_id: nat,
@@ -103,7 +103,7 @@ pub proof fn lemma_append_in_queue(
     assert(new_state.submission_ids[i] == sub_id);
 }
 
-/// After appending, existing submissions are still in the queue.
+///  After appending, existing submissions are still in the queue.
 pub proof fn lemma_append_preserves_membership(
     state: SubmissionOrderState,
     sub_id: nat,
@@ -118,7 +118,7 @@ pub proof fn lemma_append_preserves_membership(
     assert(new_state.submission_ids[i] == existing);
 }
 
-/// After appending, all previously submitted work is ordered before the new one.
+///  After appending, all previously submitted work is ordered before the new one.
 pub proof fn lemma_append_ordered_before(
     state: SubmissionOrderState,
     sub_id: nat,
@@ -140,7 +140,7 @@ pub proof fn lemma_append_ordered_before(
     assert(new_state.submission_ids[j] == sub_id);
 }
 
-/// Ordering is transitive.
+///  Ordering is transitive.
 pub proof fn lemma_ordering_transitive(
     state: SubmissionOrderState,
     a: nat,
@@ -170,16 +170,16 @@ pub proof fn lemma_ordering_transitive(
         0 <= ib2 < j < state.submission_ids.len()
         && state.submission_ids[ib2] == b
         && #[trigger] state.submission_ids[j] == c;
-    // Since submissions are distinct, jb == ib2 (both have value b)
-    // and ia < jb <= ib2 < jc, so ia < jc
+    //  Since submissions are distinct, jb == ib2 (both have value b)
+    //  and ia < jb <= ib2 < jc, so ia < jc
     assert(state.submission_ids[ia] == a);
     assert(state.submission_ids[jc] == c);
 }
 
-/// An empty queue has no submissions.
+///  An empty queue has no submissions.
 pub proof fn lemma_empty_queue_no_submissions(queue_id: nat, sub: nat)
     ensures !submission_in_queue(empty_queue(queue_id), sub),
 {
 }
 
-} // verus!
+} //  verus!

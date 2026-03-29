@@ -8,13 +8,13 @@ use crate::sync_token::*;
 
 verus! {
 
-/// Runtime wrapper for a Vulkan logical device.
+///  Runtime wrapper for a Vulkan logical device.
 pub struct RuntimeDevice {
-    /// Opaque handle (maps to VkDevice).
+    ///  Opaque handle (maps to VkDevice).
     pub handle: u64,
-    /// Ghost logical ID for sync token tracking.
+    ///  Ghost logical ID for sync token tracking.
     pub device_id: Ghost<nat>,
-    /// Ghost model of the device state.
+    ///  Ghost model of the device state.
     pub state: Ghost<DeviceState>,
 }
 
@@ -23,12 +23,12 @@ impl View for RuntimeDevice {
     open spec fn view(&self) -> DeviceState { self.state@ }
 }
 
-/// Well-formedness of the runtime device.
+///  Well-formedness of the runtime device.
 pub open spec fn runtime_device_wf(dev: &RuntimeDevice) -> bool {
     device_well_formed(dev@)
 }
 
-/// Ghost-level create device: returns a well-formed initial state.
+///  Ghost-level create device: returns a well-formed initial state.
 pub open spec fn create_device_spec(
     num_heaps: nat,
     heap_caps: Map<nat, nat>,
@@ -57,8 +57,8 @@ pub open spec fn create_device_spec(
     }
 }
 
-/// Exec: create a buffer (increments live_buffers in ghost state).
-/// Caller must prove exclusive access to the device.
+///  Exec: create a buffer (increments live_buffers in ghost state).
+///  Caller must prove exclusive access to the device.
 pub fn create_buffer_exec(
     dev: &mut RuntimeDevice,
     thread: Ghost<ThreadId>,
@@ -74,8 +74,8 @@ pub fn create_buffer_exec(
     dev.state = Ghost(create_buffer_ghost(dev.state@));
 }
 
-/// Exec: destroy a buffer (decrements live_buffers in ghost state).
-/// Caller must prove exclusive access to the device and no pending GPU references.
+///  Exec: destroy a buffer (decrements live_buffers in ghost state).
+///  Caller must prove exclusive access to the device and no pending GPU references.
 pub fn destroy_buffer_exec(
     dev: &mut RuntimeDevice,
     resource: Ghost<ResourceId>,
@@ -94,8 +94,8 @@ pub fn destroy_buffer_exec(
     dev.state = Ghost(destroy_buffer_ghost(dev.state@));
 }
 
-/// Exec: create an image (increments live_images in ghost state).
-/// Caller must prove exclusive access to the device.
+///  Exec: create an image (increments live_images in ghost state).
+///  Caller must prove exclusive access to the device.
 pub fn create_image_exec(
     dev: &mut RuntimeDevice,
     thread: Ghost<ThreadId>,
@@ -111,8 +111,8 @@ pub fn create_image_exec(
     dev.state = Ghost(create_image_ghost(dev.state@));
 }
 
-/// Exec: destroy an image (decrements live_images in ghost state).
-/// Caller must prove exclusive access to the device and no pending GPU references.
+///  Exec: destroy an image (decrements live_images in ghost state).
+///  Caller must prove exclusive access to the device and no pending GPU references.
 pub fn destroy_image_exec(
     dev: &mut RuntimeDevice,
     resource: Ghost<ResourceId>,
@@ -131,8 +131,8 @@ pub fn destroy_image_exec(
     dev.state = Ghost(destroy_image_ghost(dev.state@));
 }
 
-/// Exec: allocate memory on a specific heap.
-/// Caller must prove exclusive access to the device.
+///  Exec: allocate memory on a specific heap.
+///  Caller must prove exclusive access to the device.
 pub fn allocate_memory_exec(
     dev: &mut RuntimeDevice,
     heap_idx: u64,
@@ -151,8 +151,8 @@ pub fn allocate_memory_exec(
     dev.state = Ghost(allocate_memory_ghost(dev.state@, heap_idx as nat, size as nat));
 }
 
-/// Exec: free memory on a specific heap.
-/// Caller must prove exclusive access to the device.
+///  Exec: free memory on a specific heap.
+///  Caller must prove exclusive access to the device.
 pub fn free_memory_exec(
     dev: &mut RuntimeDevice,
     heap_idx: u64,
@@ -173,8 +173,8 @@ pub fn free_memory_exec(
     dev.state = Ghost(free_memory_ghost(dev.state@, heap_idx as nat, size as nat));
 }
 
-/// Exec: device wait idle — all pending submissions complete.
-/// Caller must prove exclusive access to the device.
+///  Exec: device wait idle — all pending submissions complete.
+///  Caller must prove exclusive access to the device.
 pub fn device_wait_idle_exec(
     dev: &mut RuntimeDevice,
     thread: Ghost<ThreadId>,
@@ -190,29 +190,29 @@ pub fn device_wait_idle_exec(
     dev.state = Ghost(device_wait_idle_ghost(dev.state@));
 }
 
-// ── Extended Specs & Proofs ──────────────────────────────────────────
+//  ── Extended Specs & Proofs ──────────────────────────────────────────
 
-/// Device has no pending work.
+///  Device has no pending work.
 pub open spec fn device_idle(dev: &RuntimeDevice) -> bool {
     dev@.pending_submissions.len() == 0
 }
 
-/// Device has live resources.
+///  Device has live resources.
 pub open spec fn device_has_resources(dev: &RuntimeDevice) -> bool {
     dev@.live_buffers > 0 || dev@.live_images > 0
 }
 
-/// Device buffer count.
+///  Device buffer count.
 pub open spec fn device_buffer_count(dev: &RuntimeDevice) -> nat {
     dev@.live_buffers
 }
 
-/// Device image count.
+///  Device image count.
 pub open spec fn device_image_count(dev: &RuntimeDevice) -> nat {
     dev@.live_images
 }
 
-/// Proof: creating a buffer preserves well-formedness.
+///  Proof: creating a buffer preserves well-formedness.
 pub proof fn lemma_create_buffer_exec_wf(dev: &RuntimeDevice)
     requires runtime_device_wf(dev),
     ensures runtime_device_wf(&RuntimeDevice {
@@ -224,7 +224,7 @@ pub proof fn lemma_create_buffer_exec_wf(dev: &RuntimeDevice)
     lemma_create_buffer_preserves_well_formed(dev@);
 }
 
-/// Proof: destroying a buffer preserves well-formedness.
+///  Proof: destroying a buffer preserves well-formedness.
 pub proof fn lemma_destroy_buffer_exec_wf(dev: &RuntimeDevice)
     requires
         runtime_device_wf(dev),
@@ -238,7 +238,7 @@ pub proof fn lemma_destroy_buffer_exec_wf(dev: &RuntimeDevice)
     lemma_destroy_buffer_preserves_well_formed(dev@);
 }
 
-/// Proof: wait idle preserves well-formedness.
+///  Proof: wait idle preserves well-formedness.
 pub proof fn lemma_wait_idle_exec_wf(dev: &RuntimeDevice)
     requires runtime_device_wf(dev),
     ensures runtime_device_wf(&RuntimeDevice {
@@ -250,7 +250,7 @@ pub proof fn lemma_wait_idle_exec_wf(dev: &RuntimeDevice)
     lemma_wait_idle_preserves_well_formed(dev@);
 }
 
-/// Proof: create buffer increments live count.
+///  Proof: create buffer increments live count.
 pub proof fn lemma_create_buffer_exec_increments(dev: &RuntimeDevice)
     requires runtime_device_wf(dev),
     ensures create_buffer_ghost(dev@).live_buffers == dev@.live_buffers + 1,
@@ -258,7 +258,7 @@ pub proof fn lemma_create_buffer_exec_increments(dev: &RuntimeDevice)
     lemma_create_buffer_increments(dev@);
 }
 
-/// Proof: destroy buffer decrements live count.
+///  Proof: destroy buffer decrements live count.
 pub proof fn lemma_destroy_buffer_exec_decrements(dev: &RuntimeDevice)
     requires
         runtime_device_wf(dev),
@@ -268,7 +268,7 @@ pub proof fn lemma_destroy_buffer_exec_decrements(dev: &RuntimeDevice)
     lemma_destroy_buffer_decrements(dev@);
 }
 
-/// Proof: create image increments live count.
+///  Proof: create image increments live count.
 pub proof fn lemma_create_image_exec_increments(dev: &RuntimeDevice)
     requires runtime_device_wf(dev),
     ensures create_image_ghost(dev@).live_images == dev@.live_images + 1,
@@ -276,4 +276,4 @@ pub proof fn lemma_create_image_exec_increments(dev: &RuntimeDevice)
     lemma_create_image_increments(dev@);
 }
 
-} // verus!
+} //  verus!

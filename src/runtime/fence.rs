@@ -6,11 +6,11 @@ use super::device::RuntimeDevice;
 
 verus! {
 
-/// Runtime wrapper for a Vulkan fence.
+///  Runtime wrapper for a Vulkan fence.
 pub struct RuntimeFence {
-    /// Opaque handle (maps to VkFence).
+    ///  Opaque handle (maps to VkFence).
     pub handle: u64,
-    /// Ghost model of the fence state.
+    ///  Ghost model of the fence state.
     pub state: Ghost<FenceState>,
 }
 
@@ -19,12 +19,12 @@ impl View for RuntimeFence {
     open spec fn view(&self) -> FenceState { self.state@ }
 }
 
-/// Well-formedness of the runtime fence.
+///  Well-formedness of the runtime fence.
 pub open spec fn runtime_fence_wf(fence: &RuntimeFence) -> bool {
     fence_well_formed(fence@)
 }
 
-/// Exec: create a fence.
+///  Exec: create a fence.
 pub fn create_fence_exec(id: Ghost<nat>, signaled: bool) -> (out: RuntimeFence)
     ensures
         out@ == create_fence_ghost(id@, signaled),
@@ -36,8 +36,8 @@ pub fn create_fence_exec(id: Ghost<nat>, signaled: bool) -> (out: RuntimeFence)
     }
 }
 
-/// Exec: reset a fence to unsignaled.
-/// Caller must prove exclusive access to the fence.
+///  Exec: reset a fence to unsignaled.
+///  Caller must prove exclusive access to the fence.
 pub fn reset_fence_exec(
     fence: &mut RuntimeFence,
     dev: &RuntimeDevice,
@@ -54,8 +54,8 @@ pub fn reset_fence_exec(
     fence.state = Ghost(reset_fence_ghost(fence.state@));
 }
 
-/// Exec: wait for a fence (marks as signaled in ghost state).
-/// Caller must prove exclusive access to the fence.
+///  Exec: wait for a fence (marks as signaled in ghost state).
+///  Caller must prove exclusive access to the fence.
 pub fn wait_fence_exec(
     fence: &mut RuntimeFence,
     sub_id: Ghost<nat>,
@@ -72,8 +72,8 @@ pub fn wait_fence_exec(
     fence.state = Ghost(signal_fence_ghost(fence.state@, sub_id@));
 }
 
-/// Exec: destroy a fence.
-/// Caller must prove no pending submission references this fence and exclusive access.
+///  Exec: destroy a fence.
+///  Caller must prove no pending submission references this fence and exclusive access.
 pub fn destroy_fence_exec(
     fence: &mut RuntimeFence,
     dev: &RuntimeDevice,
@@ -91,19 +91,19 @@ pub fn destroy_fence_exec(
     fence.state = Ghost(destroy_fence_ghost(fence.state@));
 }
 
-// ── Extended Specs & Proofs ──────────────────────────────────────────
+//  ── Extended Specs & Proofs ──────────────────────────────────────────
 
-/// Fence is signaled.
+///  Fence is signaled.
 pub open spec fn is_signaled(fence: &RuntimeFence) -> bool {
     fence@.signaled
 }
 
-/// Fence is alive.
+///  Fence is alive.
 pub open spec fn fence_alive(fence: &RuntimeFence) -> bool {
     fence@.alive
 }
 
-/// Proof: created fence is well-formed.
+///  Proof: created fence is well-formed.
 pub proof fn lemma_create_fence_wf(id: Ghost<nat>, signaled: bool)
     ensures runtime_fence_wf(&RuntimeFence {
         handle: 0,
@@ -113,7 +113,7 @@ pub proof fn lemma_create_fence_wf(id: Ghost<nat>, signaled: bool)
     lemma_create_fence_well_formed(id@, signaled);
 }
 
-/// Proof: reset makes fence unsignaled.
+///  Proof: reset makes fence unsignaled.
 pub proof fn lemma_reset_unsignaled(fence: &RuntimeFence)
     requires runtime_fence_wf(fence),
     ensures !reset_fence_ghost(fence@).signaled,
@@ -121,7 +121,7 @@ pub proof fn lemma_reset_unsignaled(fence: &RuntimeFence)
     lemma_reset_makes_unsignaled(fence@);
 }
 
-/// Proof: signal makes fence signaled.
+///  Proof: signal makes fence signaled.
 pub proof fn lemma_signal_makes_signaled_rt(fence: &RuntimeFence, sub_id: Ghost<nat>)
     requires runtime_fence_wf(fence),
     ensures signal_fence_ghost(fence@, sub_id@).signaled,
@@ -129,7 +129,7 @@ pub proof fn lemma_signal_makes_signaled_rt(fence: &RuntimeFence, sub_id: Ghost<
     lemma_signal_makes_signaled(fence@, sub_id@);
 }
 
-/// Proof: destroy makes fence not well-formed.
+///  Proof: destroy makes fence not well-formed.
 pub proof fn lemma_destroy_not_wf(fence: &RuntimeFence)
     requires runtime_fence_wf(fence),
     ensures !fence_well_formed(destroy_fence_ghost(fence@)),
@@ -137,4 +137,4 @@ pub proof fn lemma_destroy_not_wf(fence: &RuntimeFence)
     lemma_destroy_not_well_formed(fence@);
 }
 
-} // verus!
+} //  verus!

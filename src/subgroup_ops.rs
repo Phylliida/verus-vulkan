@@ -2,9 +2,9 @@ use vstd::prelude::*;
 
 verus! {
 
-// ── Types ───────────────────────────────────────────────────────────────
+//  ── Types ───────────────────────────────────────────────────────────────
 
-/// Subgroup (warp/wavefront) feature categories.
+///  Subgroup (warp/wavefront) feature categories.
 pub enum SubgroupFeature {
     Basic,
     Vote,
@@ -16,28 +16,28 @@ pub enum SubgroupFeature {
     Quad,
 }
 
-/// Physical device subgroup properties.
+///  Physical device subgroup properties.
 pub struct SubgroupProperties {
-    /// Number of invocations in a subgroup (typically 32 or 64).
+    ///  Number of invocations in a subgroup (typically 32 or 64).
     pub subgroup_size: nat,
-    /// Set of pipeline stages where subgroup operations are supported.
+    ///  Set of pipeline stages where subgroup operations are supported.
     pub supported_stages: Set<nat>,
-    /// Set of supported subgroup features.
+    ///  Set of supported subgroup features.
     pub supported_operations: Set<SubgroupFeature>,
-    /// Whether quad operations are available in all stages.
+    ///  Whether quad operations are available in all stages.
     pub quad_in_all_stages: bool,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// Subgroup properties are well-formed.
+///  Subgroup properties are well-formed.
 pub open spec fn subgroup_properties_well_formed(props: SubgroupProperties) -> bool {
     props.subgroup_size > 0
     && is_power_of_two(props.subgroup_size)
     && props.supported_operations.contains(SubgroupFeature::Basic)
 }
 
-/// Whether a specific subgroup feature is supported.
+///  Whether a specific subgroup feature is supported.
 pub open spec fn subgroup_supports_feature(
     props: SubgroupProperties,
     feature: SubgroupFeature,
@@ -45,7 +45,7 @@ pub open spec fn subgroup_supports_feature(
     props.supported_operations.contains(feature)
 }
 
-/// Whether a subgroup feature is available at a given pipeline stage.
+///  Whether a subgroup feature is available at a given pipeline stage.
 pub open spec fn subgroup_feature_available_at_stage(
     props: SubgroupProperties,
     feature: SubgroupFeature,
@@ -55,7 +55,7 @@ pub open spec fn subgroup_feature_available_at_stage(
     && props.supported_stages.contains(stage)
 }
 
-/// Whether n is a power of two.
+///  Whether n is a power of two.
 pub open spec fn is_power_of_two(n: nat) -> bool
     decreases n,
 {
@@ -68,7 +68,7 @@ pub open spec fn is_power_of_two(n: nat) -> bool
     }
 }
 
-/// A shader's subgroup usage is valid with respect to the device properties.
+///  A shader's subgroup usage is valid with respect to the device properties.
 pub open spec fn shader_uses_subgroup_valid(
     props: SubgroupProperties,
     used_features: Set<SubgroupFeature>,
@@ -78,16 +78,16 @@ pub open spec fn shader_uses_subgroup_valid(
     && props.supported_stages.contains(stage)
 }
 
-// ── Lemmas ──────────────────────────────────────────────────────────────
+//  ── Lemmas ──────────────────────────────────────────────────────────────
 
-/// Basic subgroup feature is always supported in well-formed properties.
+///  Basic subgroup feature is always supported in well-formed properties.
 pub proof fn lemma_basic_always_supported(props: SubgroupProperties)
     requires subgroup_properties_well_formed(props),
     ensures subgroup_supports_feature(props, SubgroupFeature::Basic),
 {
 }
 
-/// A power of two is at least 1.
+///  A power of two is at least 1.
 pub proof fn lemma_power_of_two_positive(n: nat)
     requires is_power_of_two(n),
     ensures n >= 1,
@@ -98,7 +98,7 @@ pub proof fn lemma_power_of_two_positive(n: nat)
     }
 }
 
-/// Feature availability at a stage implies the feature is supported.
+///  Feature availability at a stage implies the feature is supported.
 pub proof fn lemma_available_implies_supported(
     props: SubgroupProperties,
     feature: SubgroupFeature,
@@ -109,7 +109,7 @@ pub proof fn lemma_available_implies_supported(
 {
 }
 
-/// Valid shader subgroup usage implies each used feature is supported.
+///  Valid shader subgroup usage implies each used feature is supported.
 pub proof fn lemma_valid_usage_implies_features_supported(
     props: SubgroupProperties,
     used_features: Set<SubgroupFeature>,
@@ -120,10 +120,10 @@ pub proof fn lemma_valid_usage_implies_features_supported(
 {
 }
 
-/// 1 is a power of two.
+///  1 is a power of two.
 pub proof fn lemma_one_is_power_of_two()
     ensures is_power_of_two(1nat),
 {
 }
 
-} // verus!
+} //  verus!

@@ -6,45 +6,45 @@ use crate::shader_interface::*;
 
 verus! {
 
-// ── Types ───────────────────────────────────────────────────────────────
+//  ── Types ───────────────────────────────────────────────────────────────
 
-/// Binding of a vertex buffer to a slot.
+///  Binding of a vertex buffer to a slot.
 pub struct VertexBufferBinding {
     pub buffer_id: nat,
     pub offset: nat,
     pub stride: nat,
-    /// Size of the bound buffer in bytes.
+    ///  Size of the bound buffer in bytes.
     pub buffer_size: nat,
 }
 
-/// Binding of an index buffer.
+///  Binding of an index buffer.
 pub struct IndexBufferBinding {
     pub buffer_id: nat,
     pub offset: nat,
-    /// 0 = U16, 1 = U32.
+    ///  0 = U16, 1 = U32.
     pub index_type: nat,
-    /// Size of the bound buffer in bytes.
+    ///  Size of the bound buffer in bytes.
     pub buffer_size: nat,
 }
 
-/// Extended draw-call state tracked during recording, beyond what
-/// RecordingState captures. This tracks vertex/index buffer bindings,
-/// dynamic state, and push constant ranges.
+///  Extended draw-call state tracked during recording, beyond what
+///  RecordingState captures. This tracks vertex/index buffer bindings,
+///  dynamic state, and push constant ranges.
 pub struct DrawCallState {
-    /// Bound vertex buffer bindings, indexed by binding slot.
+    ///  Bound vertex buffer bindings, indexed by binding slot.
     pub vertex_bindings: Map<nat, VertexBufferBinding>,
-    /// Bound index buffer, if any.
+    ///  Bound index buffer, if any.
     pub index_binding: Option<IndexBufferBinding>,
-    /// Set of dynamic states that have been set via vkCmdSet* commands.
+    ///  Set of dynamic states that have been set via vkCmdSet* commands.
     pub set_dynamic_states: Set<DynamicStateKind>,
-    /// Push constant byte ranges that have been written.
-    /// Tracked as a set of (offset, size) pairs.
+    ///  Push constant byte ranges that have been written.
+    ///  Tracked as a set of (offset, size) pairs.
     pub push_constant_ranges_set: Set<(nat, nat)>,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// Initial draw call state: nothing bound.
+///  Initial draw call state: nothing bound.
 pub open spec fn initial_draw_state() -> DrawCallState {
     DrawCallState {
         vertex_bindings: Map::empty(),
@@ -54,7 +54,7 @@ pub open spec fn initial_draw_state() -> DrawCallState {
     }
 }
 
-/// Bind a vertex buffer to a slot.
+///  Bind a vertex buffer to a slot.
 pub open spec fn bind_vertex_buffer(
     state: DrawCallState,
     slot: nat,
@@ -66,7 +66,7 @@ pub open spec fn bind_vertex_buffer(
     }
 }
 
-/// Bind an index buffer.
+///  Bind an index buffer.
 pub open spec fn bind_index_buffer(
     state: DrawCallState,
     binding: IndexBufferBinding,
@@ -77,7 +77,7 @@ pub open spec fn bind_index_buffer(
     }
 }
 
-/// Set a dynamic state.
+///  Set a dynamic state.
 pub open spec fn set_dynamic_state(
     state: DrawCallState,
     kind: DynamicStateKind,
@@ -88,9 +88,9 @@ pub open spec fn set_dynamic_state(
     }
 }
 
-/// Set a dynamic state, validated against the pipeline's declared dynamic states.
-/// Callers should prefer this over `set_dynamic_state` to ensure only
-/// pipeline-declared dynamic states are set.
+///  Set a dynamic state, validated against the pipeline's declared dynamic states.
+///  Callers should prefer this over `set_dynamic_state` to ensure only
+///  pipeline-declared dynamic states are set.
 pub open spec fn set_dynamic_state_validated(
     state: DrawCallState,
     kind: DynamicStateKind,
@@ -104,7 +104,7 @@ pub open spec fn set_dynamic_state_validated(
     }
 }
 
-/// Set push constants for a range.
+///  Set push constants for a range.
 pub open spec fn set_push_constants(
     state: DrawCallState,
     offset: nat,
@@ -116,7 +116,7 @@ pub open spec fn set_push_constants(
     }
 }
 
-/// All required vertex buffer binding slots are bound.
+///  All required vertex buffer binding slots are bound.
 pub open spec fn vertex_bindings_satisfied(
     state: DrawCallState,
     required_slots: Set<nat>,
@@ -125,12 +125,12 @@ pub open spec fn vertex_bindings_satisfied(
         ==> state.vertex_bindings.contains_key(slot)
 }
 
-/// An index buffer is bound (required for DrawIndexed).
+///  An index buffer is bound (required for DrawIndexed).
 pub open spec fn index_buffer_bound(state: DrawCallState) -> bool {
     state.index_binding.is_some()
 }
 
-/// All required dynamic states have been set.
+///  All required dynamic states have been set.
 pub open spec fn dynamic_states_satisfied(
     state: DrawCallState,
     required: Set<DynamicStateKind>,
@@ -138,7 +138,7 @@ pub open spec fn dynamic_states_satisfied(
     required.subset_of(state.set_dynamic_states)
 }
 
-/// A push constant range is covered by a previously set range.
+///  A push constant range is covered by a previously set range.
 pub open spec fn push_constant_range_covered(
     state: DrawCallState,
     offset: nat,
@@ -147,7 +147,7 @@ pub open spec fn push_constant_range_covered(
     state.push_constant_ranges_set.contains((offset, size))
 }
 
-/// All push constant ranges required by the pipeline are covered.
+///  All push constant ranges required by the pipeline are covered.
 pub open spec fn all_push_constants_covered(
     state: DrawCallState,
     ranges: Seq<PushConstantRange>,
@@ -156,15 +156,15 @@ pub open spec fn all_push_constants_covered(
         push_constant_range_covered(state, (#[trigger] ranges[i]).offset, ranges[i].size)
 }
 
-// ── Buffer Bounds Specs ─────────────────────────────────────────────────
+//  ── Buffer Bounds Specs ─────────────────────────────────────────────────
 
-/// Size in bytes of a single index given the index type (0=U16, 1=U32).
+///  Size in bytes of a single index given the index type (0=U16, 1=U32).
 pub open spec fn index_type_size(index_type: nat) -> nat {
     if index_type == 0 { 2 } else { 4 }
 }
 
-/// Vertex draw is within the bounds of all required vertex buffer bindings.
-/// For each required slot, (first_vertex + vertex_count) * stride + offset <= buffer_size.
+///  Vertex draw is within the bounds of all required vertex buffer bindings.
+///  For each required slot, (first_vertex + vertex_count) * stride + offset <= buffer_size.
 pub open spec fn vertex_draw_in_bounds(
     state: DrawCallState,
     required_slots: Set<nat>,
@@ -180,8 +180,8 @@ pub open spec fn vertex_draw_in_bounds(
         }
 }
 
-/// Indexed draw is within the bounds of the index buffer.
-/// offset + (first_index + index_count) * index_element_size <= buffer_size.
+///  Indexed draw is within the bounds of the index buffer.
+///  offset + (first_index + index_count) * index_element_size <= buffer_size.
 pub open spec fn indexed_draw_in_bounds(
     state: DrawCallState,
     first_index: nat,
@@ -194,10 +194,10 @@ pub open spec fn indexed_draw_in_bounds(
     }
 }
 
-// ── Full Draw Validation ────────────────────────────────────────────────
+//  ── Full Draw Validation ────────────────────────────────────────────────
 
-/// Full draw call validation: recording state + draw state + pipeline + bounds.
-/// Dynamic states are derived from the pipeline's required_dynamic_states field.
+///  Full draw call validation: recording state + draw state + pipeline + bounds.
+///  Dynamic states are derived from the pipeline's required_dynamic_states field.
 pub open spec fn full_draw_valid(
     rec_state: RecordingState,
     draw_state: DrawCallState,
@@ -215,7 +215,7 @@ pub open spec fn full_draw_valid(
     && vertex_draw_in_bounds(draw_state, required_vertex_slots, first_vertex, vertex_count)
 }
 
-/// Full draw-indexed validation: same as draw + index buffer bound + index bounds.
+///  Full draw-indexed validation: same as draw + index buffer bound + index bounds.
 pub open spec fn full_draw_indexed_valid(
     rec_state: RecordingState,
     draw_state: DrawCallState,
@@ -234,9 +234,9 @@ pub open spec fn full_draw_indexed_valid(
     && indexed_draw_in_bounds(draw_state, first_index, index_count)
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// Binding a vertex buffer satisfies that slot's requirement.
+///  Binding a vertex buffer satisfies that slot's requirement.
 pub proof fn lemma_bind_satisfies_slot(
     state: DrawCallState,
     slot: nat,
@@ -248,7 +248,7 @@ pub proof fn lemma_bind_satisfies_slot(
 {
 }
 
-/// Binding a vertex buffer preserves other slots.
+///  Binding a vertex buffer preserves other slots.
 pub proof fn lemma_bind_preserves_other_slots(
     state: DrawCallState,
     slot: nat,
@@ -266,7 +266,7 @@ pub proof fn lemma_bind_preserves_other_slots(
 {
 }
 
-/// Binding an index buffer makes it bound.
+///  Binding an index buffer makes it bound.
 pub proof fn lemma_bind_index_buffer_bound(
     state: DrawCallState,
     binding: IndexBufferBinding,
@@ -276,7 +276,7 @@ pub proof fn lemma_bind_index_buffer_bound(
 {
 }
 
-/// Setting a dynamic state satisfies that requirement.
+///  Setting a dynamic state satisfies that requirement.
 pub proof fn lemma_set_dynamic_satisfies(
     state: DrawCallState,
     kind: DynamicStateKind,
@@ -287,7 +287,7 @@ pub proof fn lemma_set_dynamic_satisfies(
 {
 }
 
-/// Setting a validated dynamic state ensures it is in the pipeline's declared states.
+///  Setting a validated dynamic state ensures it is in the pipeline's declared states.
 pub proof fn lemma_validated_dynamic_state_in_pipeline(
     state: DrawCallState,
     kind: DynamicStateKind,
@@ -300,7 +300,7 @@ pub proof fn lemma_validated_dynamic_state_in_pipeline(
 {
 }
 
-/// Setting a dynamic state preserves previously set states.
+///  Setting a dynamic state preserves previously set states.
 pub proof fn lemma_set_dynamic_preserves_others(
     state: DrawCallState,
     kind: DynamicStateKind,
@@ -313,7 +313,7 @@ pub proof fn lemma_set_dynamic_preserves_others(
 {
 }
 
-/// If all required dynamic states are in the set, satisfaction holds.
+///  If all required dynamic states are in the set, satisfaction holds.
 pub proof fn lemma_dynamic_subset_satisfied(
     state: DrawCallState,
     required: Set<DynamicStateKind>,
@@ -323,7 +323,7 @@ pub proof fn lemma_dynamic_subset_satisfied(
 {
 }
 
-/// Setting push constants covers that range.
+///  Setting push constants covers that range.
 pub proof fn lemma_push_constants_covers_set_range(
     state: DrawCallState,
     offset: nat,
@@ -338,26 +338,26 @@ pub proof fn lemma_push_constants_covers_set_range(
 {
 }
 
-/// An empty required vertex slots set is trivially satisfied.
+///  An empty required vertex slots set is trivially satisfied.
 pub proof fn lemma_empty_vertex_slots_satisfied(state: DrawCallState)
     ensures vertex_bindings_satisfied(state, Set::empty()),
 {
 }
 
-/// An empty push constant ranges sequence is trivially covered.
+///  An empty push constant ranges sequence is trivially covered.
 pub proof fn lemma_empty_push_constants_covered(state: DrawCallState)
     ensures all_push_constants_covered(state, Seq::empty()),
 {
 }
 
-/// An empty dynamic state requirement is trivially satisfied.
+///  An empty dynamic state requirement is trivially satisfied.
 pub proof fn lemma_empty_dynamic_satisfied(state: DrawCallState)
     ensures dynamic_states_satisfied(state, Set::empty()),
 {
     assert(Set::<DynamicStateKind>::empty().subset_of(state.set_dynamic_states));
 }
 
-/// A pipeline with no required dynamic states has trivially satisfied requirements.
+///  A pipeline with no required dynamic states has trivially satisfied requirements.
 pub proof fn lemma_no_required_dynamic_trivial(
     state: DrawCallState,
     pipeline: GraphicsPipelineState,
@@ -368,7 +368,7 @@ pub proof fn lemma_no_required_dynamic_trivial(
     assert(Set::<DynamicStateKind>::empty().subset_of(state.set_dynamic_states));
 }
 
-/// Setting viewport and scissor satisfies a pipeline that requires only those two.
+///  Setting viewport and scissor satisfies a pipeline that requires only those two.
 pub proof fn lemma_viewport_scissor_dynamic_sufficient(
     state: DrawCallState,
     pipeline: GraphicsPipelineState,
@@ -384,9 +384,9 @@ pub proof fn lemma_viewport_scissor_dynamic_sufficient(
 {
 }
 
-// ── Buffer Bounds Lemmas ────────────────────────────────────────────────
+//  ── Buffer Bounds Lemmas ────────────────────────────────────────────────
 
-/// With no required vertex slots, vertex bounds are trivially satisfied.
+///  With no required vertex slots, vertex bounds are trivially satisfied.
 pub proof fn lemma_zero_vertex_count_in_bounds(
     state: DrawCallState, first_vertex: nat, vertex_count: nat,
 )
@@ -394,7 +394,7 @@ pub proof fn lemma_zero_vertex_count_in_bounds(
 {
 }
 
-/// Zero index count from the start is always in bounds (no data consumed).
+///  Zero index count from the start is always in bounds (no data consumed).
 pub proof fn lemma_zero_index_count_in_bounds(
     state: DrawCallState,
 )
@@ -405,19 +405,19 @@ pub proof fn lemma_zero_index_count_in_bounds(
 {
 }
 
-/// U16 index type has size 2.
+///  U16 index type has size 2.
 pub proof fn lemma_u16_index_size()
     ensures index_type_size(0) == 2,
 {
 }
 
-/// U32 index type has size 4.
+///  U32 index type has size 4.
 pub proof fn lemma_u32_index_size()
     ensures index_type_size(1) == 4,
 {
 }
 
-/// Binding a vertex buffer with sufficient size enables bounds checking.
+///  Binding a vertex buffer with sufficient size enables bounds checking.
 pub proof fn lemma_bind_vertex_enables_bounds(
     state: DrawCallState, slot: nat, binding: VertexBufferBinding,
     first_vertex: nat, vertex_count: nat,
@@ -433,7 +433,7 @@ pub proof fn lemma_bind_vertex_enables_bounds(
 {
 }
 
-/// Empty required vertex slots make bounds trivially satisfied.
+///  Empty required vertex slots make bounds trivially satisfied.
 pub proof fn lemma_empty_slots_bounds_trivial(
     state: DrawCallState, first_vertex: nat, vertex_count: nat,
 )
@@ -441,4 +441,4 @@ pub proof fn lemma_empty_slots_bounds_trivial(
 {
 }
 
-} // verus!
+} //  verus!

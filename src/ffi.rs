@@ -60,16 +60,16 @@ use ash::vk;
 use ash::vk::Handle;
 use crate::vk_context::VulkanContext;
 
-/// Opaque Vulkan object handle (VkBuffer, VkImage, VkPipeline, etc.)
+///  Opaque Vulkan object handle (VkBuffer, VkImage, VkPipeline, etc.)
 pub type VkHandle = u64;
-/// Swapchain image index returned by vkAcquireNextImageKHR.
+///  Swapchain image index returned by vkAcquireNextImageKHR.
 pub type ImageIndex = u64;
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Ash helpers — pure Rust, outside verus!
-// ═══════════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════════
+//  Ash helpers — pure Rust, outside verus!
+//  ═══════════════════════════════════════════════════════════════════════════
 
-// ── Device helpers ──────────────────────────────────────────────────────
+//  ── Device helpers ──────────────────────────────────────────────────────
 
 fn raw_device_handle(ctx: &VulkanContext) -> u64 {
     ctx.device.handle().as_raw()
@@ -118,7 +118,7 @@ fn raw_get_device_queue(ctx: &VulkanContext, family: u32, index: u32) -> u64 {
     unsafe { ctx.device.get_device_queue(family, index) }.as_raw()
 }
 
-// ── Memory helpers ──────────────────────────────────────────────────────
+//  ── Memory helpers ──────────────────────────────────────────────────────
 
 fn raw_allocate_memory(ctx: &VulkanContext, size_bytes: u64, mem_type_idx: u32) -> u64 {
     let ai = vk::MemoryAllocateInfo::default()
@@ -178,7 +178,7 @@ fn raw_bind_image_memory(ctx: &VulkanContext, img: u64, mem: u64, offset: u64) {
     }.expect("bind_image_memory failed");
 }
 
-// ── Command buffer helpers ──────────────────────────────────────────────
+//  ── Command buffer helpers ──────────────────────────────────────────────
 
 fn raw_allocate_command_buffer(ctx: &VulkanContext, pool: u64) -> u64 {
     let ai = vk::CommandBufferAllocateInfo::default()
@@ -265,7 +265,7 @@ fn raw_cmd_pipeline_barrier(ctx: &VulkanContext, cb: u64, src: u32, dst: u32) {
 
 fn raw_cmd_pipeline_barrier_image(
     ctx: &VulkanContext, cb: u64, src: u32, dst: u32,
-    // (image_handle, old_layout, new_layout, src_access_mask, dst_access_mask)
+    //  (image_handle, old_layout, new_layout, src_access_mask, dst_access_mask)
     image_barriers: &[(u64, u32, u32, u32, u32)],
 ) {
     let barriers: Vec<vk::ImageMemoryBarrier> = image_barriers.iter().map(|&(img, old_l, new_l, src_a, dst_a)| {
@@ -426,7 +426,7 @@ fn raw_cmd_bind_index_buffer(ctx: &VulkanContext, cb: u64, buffer: u64, offset: 
     }
 }
 
-// ── Sync helpers ────────────────────────────────────────────────────────
+//  ── Sync helpers ────────────────────────────────────────────────────────
 
 fn raw_create_fence(ctx: &VulkanContext, signaled: bool) -> u64 {
     let mut flags = vk::FenceCreateFlags::empty();
@@ -473,7 +473,7 @@ fn raw_destroy_timeline_semaphore(ctx: &VulkanContext, handle: u64) {
     unsafe { ctx.device.destroy_semaphore(vk::Semaphore::from_raw(handle), None) }
 }
 
-// ── Queue helpers ───────────────────────────────────────────────────────
+//  ── Queue helpers ───────────────────────────────────────────────────────
 
 fn raw_queue_submit(
     ctx: &VulkanContext, queue: u64, cbs: &[u64],
@@ -507,7 +507,7 @@ fn raw_queue_present(ctx: &VulkanContext, queue: u64, sc: u64, idx: u32, wait_se
         .expect("queue_present failed");
 }
 
-// ── Pipeline helpers ────────────────────────────────────────────────────
+//  ── Pipeline helpers ────────────────────────────────────────────────────
 
 fn raw_create_graphics_pipeline_general(
     ctx: &VulkanContext, layout: u64, rp: u64, vert: u64, frag: u64,
@@ -633,7 +633,7 @@ fn raw_destroy_pipeline_layout(ctx: &VulkanContext, layout: u64) {
     unsafe { ctx.device.destroy_pipeline_layout(vk::PipelineLayout::from_raw(layout), None) }
 }
 
-// ── Descriptor helpers ──────────────────────────────────────────────────
+//  ── Descriptor helpers ──────────────────────────────────────────────────
 
 fn raw_create_descriptor_set_layout(ctx: &VulkanContext, binding_count: u32) -> u64 {
     let bindings: Vec<vk::DescriptorSetLayoutBinding> = (0..binding_count)
@@ -648,7 +648,7 @@ fn raw_create_descriptor_set_layout(ctx: &VulkanContext, binding_count: u32) -> 
 
 fn raw_create_descriptor_set_layout_typed(
     ctx: &VulkanContext,
-    // (binding_num, descriptor_type, count, stage_flags)
+    //  (binding_num, descriptor_type, count, stage_flags)
     bindings: &[(u32, u32, u32, u32)],
 ) -> u64 {
     let vk_bindings: Vec<vk::DescriptorSetLayoutBinding> = bindings.iter().map(|&(b, ty, cnt, stages)| {
@@ -675,7 +675,7 @@ fn raw_create_descriptor_pool(ctx: &VulkanContext, max_sets: u32) -> u64 {
 fn raw_create_descriptor_pool_typed(
     ctx: &VulkanContext,
     max_sets: u32,
-    // (descriptor_type, descriptor_count)
+    //  (descriptor_type, descriptor_count)
     pool_sizes: &[(u32, u32)],
 ) -> u64 {
     let ps: Vec<vk::DescriptorPoolSize> = pool_sizes.iter().map(|&(ty, cnt)| {
@@ -734,7 +734,7 @@ fn raw_destroy_descriptor_set_layout(ctx: &VulkanContext, handle: u64) {
     unsafe { ctx.device.destroy_descriptor_set_layout(vk::DescriptorSetLayout::from_raw(handle), None) }
 }
 
-// ── Swapchain helpers ───────────────────────────────────────────────────
+//  ── Swapchain helpers ───────────────────────────────────────────────────
 
 fn raw_create_swapchain(ctx: &VulkanContext, surface: u64, count: u32, fmt: u32, w: u32, h: u32, pm: u32, usage: u32) -> u64 {
     let ci = vk::SwapchainCreateInfoKHR::default()
@@ -769,7 +769,7 @@ fn raw_destroy_swapchain(ctx: &VulkanContext, handle: u64) {
     unsafe { ctx.swapchain_loader.destroy_swapchain(vk::SwapchainKHR::from_raw(handle), None) }
 }
 
-// ── Query Pool helpers ────────────────────────────────────────────────
+//  ── Query Pool helpers ────────────────────────────────────────────────
 
 fn raw_create_query_pool(ctx: &VulkanContext, count: u32, query_type: u32) -> u64 {
     let ci = vk::QueryPoolCreateInfo::default()
@@ -808,7 +808,7 @@ fn raw_cmd_end_query(ctx: &VulkanContext, cb: u64, pool: u64, index: u32) {
     }
 }
 
-// ── Event helpers ────────────────────────────────────────────────────
+//  ── Event helpers ────────────────────────────────────────────────────
 
 fn raw_create_event(ctx: &VulkanContext) -> u64 {
     let ci = vk::EventCreateInfo::default();
@@ -850,7 +850,7 @@ fn raw_cmd_reset_event(ctx: &VulkanContext, cb: u64, event: u64, stages: u32) {
     }
 }
 
-// ── Indirect + Dynamic Rendering helpers ────────────────────────────────
+//  ── Indirect + Dynamic Rendering helpers ────────────────────────────────
 
 fn raw_cmd_draw_indirect(ctx: &VulkanContext, cb: u64, buffer: u64, offset: u64, draw_count: u32, stride: u32) {
     unsafe {
@@ -887,7 +887,7 @@ fn raw_cmd_dispatch_indirect(ctx: &VulkanContext, cb: u64, buffer: u64, offset: 
 }
 
 fn raw_cmd_begin_rendering(ctx: &VulkanContext, cb: u64, width: u32, height: u32, layer_count: u32) {
-    // Uses VK_KHR_dynamic_rendering (core in Vulkan 1.3)
+    //  Uses VK_KHR_dynamic_rendering (core in Vulkan 1.3)
     let rendering_info = vk::RenderingInfo::default()
         .render_area(vk::Rect2D {
             offset: vk::Offset2D { x: 0, y: 0 },
@@ -910,7 +910,7 @@ fn raw_cmd_end_rendering(ctx: &VulkanContext, cb: u64) {
     }
 }
 
-// ── Viewport / Scissor / Push Constants helpers ─────────────────────────
+//  ── Viewport / Scissor / Push Constants helpers ─────────────────────────
 
 fn raw_cmd_set_viewport(ctx: &VulkanContext, cb: u64, x: f32, y: f32, w: f32, h: f32, min_d: f32, max_d: f32) {
     let viewport = vk::Viewport { x, y, width: w, height: h, min_depth: min_d, max_depth: max_d };
@@ -937,7 +937,7 @@ fn raw_cmd_push_constants(ctx: &VulkanContext, cb: u64, layout: u64, stages: u32
     }
 }
 
-// ── Dynamic state helpers ────────────────────────────────────────────────
+//  ── Dynamic state helpers ────────────────────────────────────────────────
 
 fn raw_cmd_set_line_width(ctx: &VulkanContext, cb: u64, line_width: f32) {
     unsafe { ctx.device.cmd_set_line_width(vk::CommandBuffer::from_raw(cb), line_width) }
@@ -985,7 +985,7 @@ fn raw_cmd_set_stencil_reference(ctx: &VulkanContext, cb: u64, face_mask: u32, r
     }
 }
 
-// ── Buffer operations helpers ───────────────────────────────────────────
+//  ── Buffer operations helpers ───────────────────────────────────────────
 
 fn raw_cmd_fill_buffer(ctx: &VulkanContext, cb: u64, buffer: u64, offset: u64, size: u64, data: u32) {
     unsafe {
@@ -1010,7 +1010,7 @@ fn raw_cmd_update_buffer(ctx: &VulkanContext, cb: u64, buffer: u64, offset: u64,
     }
 }
 
-// ── Image clear & resolve helpers ───────────────────────────────────────
+//  ── Image clear & resolve helpers ───────────────────────────────────────
 
 fn raw_cmd_clear_color_image(ctx: &VulkanContext, cb: u64, image: u64, layout: u32) {
     let clear = vk::ClearColorValue { float32: [0.0, 0.0, 0.0, 0.0] };
@@ -1053,8 +1053,8 @@ fn raw_cmd_clear_depth_stencil_image(ctx: &VulkanContext, cb: u64, image: u64, l
 }
 
 fn raw_cmd_clear_attachments(ctx: &VulkanContext, cb: u64) {
-    // Ghost-only: caller specifies attachments externally.
-    // Minimal stub — real usage would take attachment/rect params.
+    //  Ghost-only: caller specifies attachments externally.
+    //  Minimal stub — real usage would take attachment/rect params.
     let attachment = vk::ClearAttachment {
         aspect_mask: vk::ImageAspectFlags::COLOR,
         color_attachment: 0,
@@ -1094,7 +1094,7 @@ fn raw_cmd_resolve_image(ctx: &VulkanContext, cb: u64, src: u64, dst: u64, width
     }
 }
 
-// ── Query command helpers ───────────────────────────────────────────────
+//  ── Query command helpers ───────────────────────────────────────────────
 
 fn raw_cmd_write_timestamp(ctx: &VulkanContext, cb: u64, stage: u32, pool: u64, query: u32) {
     unsafe {
@@ -1122,7 +1122,7 @@ fn raw_cmd_copy_query_pool_results(ctx: &VulkanContext, cb: u64, pool: u64, firs
     }
 }
 
-// ── Sync helpers ────────────────────────────────────────────────────────
+//  ── Sync helpers ────────────────────────────────────────────────────────
 
 fn raw_cmd_wait_events(ctx: &VulkanContext, cb: u64, event: u64, src_stage: u32, dst_stage: u32) {
     unsafe {
@@ -1138,13 +1138,13 @@ fn raw_cmd_wait_events(ctx: &VulkanContext, cb: u64, event: u64, src_stage: u32,
     }
 }
 
-// ── Surface helpers ──────────────────────────────────────────────────
+//  ── Surface helpers ──────────────────────────────────────────────────
 
 fn raw_destroy_surface(ctx: &VulkanContext, handle: u64) {
     unsafe { ctx.surface_loader.destroy_surface(vk::SurfaceKHR::from_raw(handle), None) }
 }
 
-// ── Shader Module helpers ────────────────────────────────────────────
+//  ── Shader Module helpers ────────────────────────────────────────────
 
 fn raw_create_shader_module(ctx: &VulkanContext, code: &[u32]) -> u64 {
     let ci = vk::ShaderModuleCreateInfo::default().code(code);
@@ -1156,7 +1156,7 @@ fn raw_destroy_shader_module(ctx: &VulkanContext, handle: u64) {
     unsafe { ctx.device.destroy_shader_module(vk::ShaderModule::from_raw(handle), None) }
 }
 
-// ── Render Pass helpers ──────────────────────────────────────────────
+//  ── Render Pass helpers ──────────────────────────────────────────────
 
 fn raw_create_render_pass(ctx: &VulkanContext, format: u32, load_op: u32, store_op: u32, samples: u32) -> u64 {
     let attachment = vk::AttachmentDescription::default()
@@ -1273,7 +1273,7 @@ fn raw_destroy_render_pass(ctx: &VulkanContext, handle: u64) {
     unsafe { ctx.device.destroy_render_pass(vk::RenderPass::from_raw(handle), None) }
 }
 
-// ── Image View helpers ──────────────────────────────────────────────
+//  ── Image View helpers ──────────────────────────────────────────────
 
 fn raw_create_image_view(ctx: &VulkanContext, image: u64, format: u32, aspect: u32) -> u64 {
     let ci = vk::ImageViewCreateInfo::default()
@@ -1301,7 +1301,7 @@ fn raw_destroy_image_view(ctx: &VulkanContext, handle: u64) {
     unsafe { ctx.device.destroy_image_view(vk::ImageView::from_raw(handle), None) }
 }
 
-// ── Framebuffer helpers ──────────────────────────────────────────────
+//  ── Framebuffer helpers ──────────────────────────────────────────────
 
 fn raw_create_framebuffer(ctx: &VulkanContext, rp: u64, views: &[u64], w: u32, h: u32) -> u64 {
     let vk_views: Vec<vk::ImageView> = views.iter()
@@ -1320,7 +1320,7 @@ fn raw_destroy_framebuffer(ctx: &VulkanContext, handle: u64) {
     unsafe { ctx.device.destroy_framebuffer(vk::Framebuffer::from_raw(handle), None) }
 }
 
-// ── Command Pool helpers ─────────────────────────────────────────────
+//  ── Command Pool helpers ─────────────────────────────────────────────
 
 fn raw_create_command_pool(ctx: &VulkanContext, queue_family: u32, flags: u32) -> u64 {
     let ci = vk::CommandPoolCreateInfo::default()
@@ -1334,7 +1334,7 @@ fn raw_destroy_command_pool(ctx: &VulkanContext, handle: u64) {
     unsafe { ctx.device.destroy_command_pool(vk::CommandPool::from_raw(handle), None) }
 }
 
-// ── Swapchain Image Query helpers ────────────────────────────────────
+//  ── Swapchain Image Query helpers ────────────────────────────────────
 
 fn raw_get_swapchain_images(ctx: &VulkanContext, swapchain: u64) -> Vec<u64> {
     let images = unsafe {
@@ -1343,22 +1343,22 @@ fn raw_get_swapchain_images(ctx: &VulkanContext, swapchain: u64) -> Vec<u64> {
     images.iter().map(|img| img.as_raw()).collect()
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Verified FFI layer — inside verus!
-// ═══════════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════════
+//  Verified FFI layer — inside verus!
+//  ═══════════════════════════════════════════════════════════════════════════
 
 verus! {
 
-// Register VulkanContext (external to verus!) as a known opaque type.
+//  Register VulkanContext (external to verus!) as a known opaque type.
 #[verifier::external_type_specification]
 #[verifier::external_body]
 pub struct ExVulkanContext(VulkanContext);
 
-// ═══════════════════════════════════════════════════════════════════════
-// Device
-// ═══════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════
+//  Device
+//  ═══════════════════════════════════════════════════════════════════════
 
-/// FFI: create a logical device.
+///  FFI: create a logical device.
 #[verifier::external_body]
 pub fn vk_create_device(
     ctx: &VulkanContext,
@@ -1374,7 +1374,7 @@ pub fn vk_create_device(
     }
 }
 
-/// FFI: destroy a logical device.
+///  FFI: destroy a logical device.
 #[verifier::external_body]
 pub fn vk_destroy_device(ctx: &VulkanContext, dev: &mut RuntimeDevice)
     requires runtime_device_wf(&*old(dev)),
@@ -1383,7 +1383,7 @@ pub fn vk_destroy_device(ctx: &VulkanContext, dev: &mut RuntimeDevice)
     raw_device_wait_idle(ctx);
 }
 
-/// FFI: wait for device idle.
+///  FFI: wait for device idle.
 #[verifier::external_body]
 pub fn vk_device_wait_idle(ctx: &VulkanContext, dev: &mut RuntimeDevice)
     requires runtime_device_wf(&*old(dev)),
@@ -1392,7 +1392,7 @@ pub fn vk_device_wait_idle(ctx: &VulkanContext, dev: &mut RuntimeDevice)
     raw_device_wait_idle(ctx);
 }
 
-/// FFI: create a buffer.
+///  FFI: create a buffer.
 #[verifier::external_body]
 pub fn vk_create_buffer(
     ctx: &VulkanContext,
@@ -1407,7 +1407,7 @@ pub fn vk_create_buffer(
     raw_create_buffer(ctx, size, usage, sharing_mode)
 }
 
-/// FFI: destroy a buffer.
+///  FFI: destroy a buffer.
 #[verifier::external_body]
 pub fn vk_destroy_buffer(ctx: &VulkanContext, dev: &mut RuntimeDevice, buffer_handle: u64)
     requires runtime_device_wf(&*old(dev)), old(dev)@.live_buffers > 0,
@@ -1416,7 +1416,7 @@ pub fn vk_destroy_buffer(ctx: &VulkanContext, dev: &mut RuntimeDevice, buffer_ha
     raw_destroy_buffer(ctx, buffer_handle);
 }
 
-/// FFI: create an image.
+///  FFI: create an image.
 #[verifier::external_body]
 pub fn vk_create_image(
     ctx: &VulkanContext,
@@ -1432,7 +1432,7 @@ pub fn vk_create_image(
     RuntimeImage { handle: h, state: Ghost(img_state@) }
 }
 
-/// FFI: destroy an image.
+///  FFI: destroy an image.
 #[verifier::external_body]
 pub fn vk_destroy_image(ctx: &VulkanContext, dev: &mut RuntimeDevice, img: &mut RuntimeImage)
     requires runtime_device_wf(&*old(dev)), old(dev)@.live_images > 0, runtime_image_wf(&*old(img)),
@@ -1442,7 +1442,7 @@ pub fn vk_destroy_image(ctx: &VulkanContext, dev: &mut RuntimeDevice, img: &mut 
     img.state = Ghost(ImageState { alive: false, ..img.state@ });
 }
 
-/// FFI: get a queue from the device.
+///  FFI: get a queue from the device.
 #[verifier::external_body]
 pub fn vk_get_device_queue(
     ctx: &VulkanContext,
@@ -1459,11 +1459,11 @@ pub fn vk_get_device_queue(
     RuntimeQueue { handle: h, family_index, queue_index, queue_id: Ghost(queue_id@) }
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Memory
-// ═══════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════
+//  Memory
+//  ═══════════════════════════════════════════════════════════════════════
 
-/// FFI: allocate device memory.
+///  FFI: allocate device memory.
 #[verifier::external_body]
 pub fn vk_allocate_memory(
     ctx: &VulkanContext,
@@ -1488,7 +1488,7 @@ pub fn vk_allocate_memory(
     }
 }
 
-/// FFI: free device memory.
+///  FFI: free device memory.
 #[verifier::external_body]
 pub fn vk_free_memory(ctx: &VulkanContext, alloc: &mut RuntimeAllocation)
     requires runtime_alloc_wf(&*old(alloc)), old(alloc).mapped@ == false,
@@ -1497,7 +1497,7 @@ pub fn vk_free_memory(ctx: &VulkanContext, alloc: &mut RuntimeAllocation)
     raw_free_memory(ctx, alloc.handle);
 }
 
-/// FFI: map memory.
+///  FFI: map memory.
 #[verifier::external_body]
 pub fn vk_map_memory(ctx: &VulkanContext, alloc: &mut RuntimeAllocation, offset: u64, size_bytes: u64)
     requires runtime_alloc_wf(&*old(alloc)), old(alloc).mapped@ == false,
@@ -1506,7 +1506,7 @@ pub fn vk_map_memory(ctx: &VulkanContext, alloc: &mut RuntimeAllocation, offset:
     raw_map_memory(ctx, alloc.handle, offset, size_bytes);
 }
 
-/// FFI: unmap memory.
+///  FFI: unmap memory.
 #[verifier::external_body]
 pub fn vk_unmap_memory(ctx: &VulkanContext, alloc: &mut RuntimeAllocation)
     requires runtime_alloc_wf(&*old(alloc)), old(alloc).mapped@ == true,
@@ -1515,7 +1515,7 @@ pub fn vk_unmap_memory(ctx: &VulkanContext, alloc: &mut RuntimeAllocation)
     raw_unmap_memory(ctx, alloc.handle);
 }
 
-/// FFI: bind buffer memory.
+///  FFI: bind buffer memory.
 #[verifier::external_body]
 pub fn vk_bind_buffer_memory(ctx: &VulkanContext, alloc: &RuntimeAllocation, offset: u64, buffer_handle: u64)
     requires runtime_alloc_wf(alloc),
@@ -1523,7 +1523,7 @@ pub fn vk_bind_buffer_memory(ctx: &VulkanContext, alloc: &RuntimeAllocation, off
     raw_bind_buffer_memory(ctx, buffer_handle, alloc.handle, offset);
 }
 
-/// FFI: bind image memory.
+///  FFI: bind image memory.
 #[verifier::external_body]
 pub fn vk_bind_image_memory(ctx: &VulkanContext, alloc: &RuntimeAllocation, offset: u64, image_handle: u64)
     requires runtime_alloc_wf(alloc),
@@ -1531,11 +1531,11 @@ pub fn vk_bind_image_memory(ctx: &VulkanContext, alloc: &RuntimeAllocation, offs
     raw_bind_image_memory(ctx, image_handle, alloc.handle, offset);
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Command Buffer
-// ═══════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════
+//  Command Buffer
+//  ═══════════════════════════════════════════════════════════════════════
 
-/// FFI: allocate a command buffer.
+///  FFI: allocate a command buffer.
 #[verifier::external_body]
 pub fn vk_allocate_command_buffer(
     ctx: &VulkanContext,
@@ -1570,7 +1570,7 @@ pub fn vk_allocate_command_buffer(
     }
 }
 
-/// FFI: begin recording a command buffer.
+///  FFI: begin recording a command buffer.
 #[verifier::external_body]
 pub fn vk_begin_command_buffer(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer)
     requires !old(cb).in_render_pass@,
@@ -1587,7 +1587,7 @@ pub fn vk_begin_command_buffer(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffe
     raw_begin_command_buffer(ctx, cb.handle);
 }
 
-/// FFI: end recording a command buffer.
+///  FFI: end recording a command buffer.
 #[verifier::external_body]
 pub fn vk_end_command_buffer(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer)
     requires !old(cb).in_render_pass@,
@@ -1603,7 +1603,7 @@ pub fn vk_end_command_buffer(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer)
     raw_end_command_buffer(ctx, cb.handle);
 }
 
-/// FFI: begin a render pass with clear color.
+///  FFI: begin a render pass with clear color.
 #[verifier::external_body]
 pub fn vk_cmd_begin_render_pass(
     ctx: &VulkanContext,
@@ -1633,7 +1633,7 @@ pub fn vk_cmd_begin_render_pass(
     raw_cmd_begin_render_pass(ctx, cb.handle, render_pass_handle, framebuffer_handle, width, height, clear_r, clear_g, clear_b, clear_a);
 }
 
-/// FFI: end a render pass.
+///  FFI: end a render pass.
 #[verifier::external_body]
 pub fn vk_cmd_end_render_pass(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer)
     requires old(cb).in_render_pass@,
@@ -1650,7 +1650,7 @@ pub fn vk_cmd_end_render_pass(ctx: &VulkanContext, cb: &mut RuntimeCommandBuffer
     raw_cmd_end_render_pass(ctx, cb.handle);
 }
 
-/// FFI: draw.
+///  FFI: draw.
 #[verifier::external_body]
 pub fn vk_cmd_draw(
     ctx: &VulkanContext,
@@ -1666,7 +1666,7 @@ pub fn vk_cmd_draw(
     raw_cmd_draw(ctx, cb.handle, vertex_count, instance_count, first_vertex, first_instance);
 }
 
-/// FFI: dispatch compute.
+///  FFI: dispatch compute.
 #[verifier::external_body]
 pub fn vk_cmd_dispatch(
     ctx: &VulkanContext,
@@ -1681,7 +1681,7 @@ pub fn vk_cmd_dispatch(
     raw_cmd_dispatch(ctx, cb.handle, group_count_x, group_count_y, group_count_z);
 }
 
-/// FFI: pipeline barrier.
+///  FFI: pipeline barrier.
 #[verifier::external_body]
 pub fn vk_cmd_pipeline_barrier(
     ctx: &VulkanContext,
@@ -1703,7 +1703,7 @@ pub fn vk_cmd_pipeline_barrier(
     raw_cmd_pipeline_barrier(ctx, cb.handle, src_stage, dst_stage);
 }
 
-/// FFI: pipeline barrier with image memory barriers.
+///  FFI: pipeline barrier with image memory barriers.
 #[verifier::external_body]
 pub fn vk_cmd_pipeline_barrier_image(
     ctx: &VulkanContext,
@@ -1712,7 +1712,7 @@ pub fn vk_cmd_pipeline_barrier_image(
     _barriers: Ghost<Seq<ImageBarrierEntry>>,
     src_stage: u32,
     dst_stage: u32,
-    // (image_handle, old_layout, new_layout, src_access_mask, dst_access_mask)
+    //  (image_handle, old_layout, new_layout, src_access_mask, dst_access_mask)
     image_barriers: &[(u64, u32, u32, u32, u32)],
 )
     requires !old(cb).in_render_pass@,
@@ -1728,7 +1728,7 @@ pub fn vk_cmd_pipeline_barrier_image(
     raw_cmd_pipeline_barrier_image(ctx, cb.handle, src_stage, dst_stage, image_barriers);
 }
 
-/// FFI: bind a pipeline.
+///  FFI: bind a pipeline.
 #[verifier::external_body]
 pub fn vk_cmd_bind_pipeline(
     ctx: &VulkanContext,
@@ -1754,7 +1754,7 @@ pub fn vk_cmd_bind_pipeline(
     raw_cmd_bind_pipeline(ctx, cb.handle, bind_point, pipeline_handle);
 }
 
-/// FFI: bind descriptor sets.
+///  FFI: bind descriptor sets.
 #[verifier::external_body]
 pub fn vk_cmd_bind_descriptor_sets(
     ctx: &VulkanContext,
@@ -1781,11 +1781,11 @@ pub fn vk_cmd_bind_descriptor_sets(
     raw_cmd_bind_descriptor_sets(ctx, cb.handle, bind_point, layout_handle, first_set, set_handles);
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Sync
-// ═══════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════
+//  Sync
+//  ═══════════════════════════════════════════════════════════════════════
 
-/// FFI: create a fence.
+///  FFI: create a fence.
 #[verifier::external_body]
 pub fn vk_create_fence(ctx: &VulkanContext, id: Ghost<nat>, signaled: bool) -> (out: RuntimeFence)
     ensures out@ == create_fence_ghost(id@, signaled), runtime_fence_wf(&out),
@@ -1794,7 +1794,7 @@ pub fn vk_create_fence(ctx: &VulkanContext, id: Ghost<nat>, signaled: bool) -> (
     RuntimeFence { handle: h, state: Ghost(create_fence_ghost(id@, signaled)) }
 }
 
-/// FFI: reset fences.
+///  FFI: reset fences.
 #[verifier::external_body]
 pub fn vk_reset_fences(ctx: &VulkanContext, fence: &mut RuntimeFence)
     requires runtime_fence_wf(&*old(fence)),
@@ -1803,7 +1803,7 @@ pub fn vk_reset_fences(ctx: &VulkanContext, fence: &mut RuntimeFence)
     raw_reset_fences(ctx, fence.handle);
 }
 
-/// FFI: wait for fences.
+///  FFI: wait for fences.
 #[verifier::external_body]
 pub fn vk_wait_for_fences(ctx: &VulkanContext, fence: &mut RuntimeFence, sub_id: Ghost<nat>, timeout: u64)
     requires runtime_fence_wf(&*old(fence)),
@@ -1812,7 +1812,7 @@ pub fn vk_wait_for_fences(ctx: &VulkanContext, fence: &mut RuntimeFence, sub_id:
     raw_wait_for_fences(ctx, fence.handle, timeout);
 }
 
-/// FFI: create a binary semaphore.
+///  FFI: create a binary semaphore.
 #[verifier::external_body]
 pub fn vk_create_semaphore(ctx: &VulkanContext, id: Ghost<nat>) -> (out: RuntimeSemaphore)
     ensures out@ == create_semaphore_ghost(id@), runtime_semaphore_wf(&out),
@@ -1821,7 +1821,7 @@ pub fn vk_create_semaphore(ctx: &VulkanContext, id: Ghost<nat>) -> (out: Runtime
     RuntimeSemaphore { handle: h, state: Ghost(create_semaphore_ghost(id@)) }
 }
 
-/// FFI: create a timeline semaphore.
+///  FFI: create a timeline semaphore.
 #[verifier::external_body]
 pub fn vk_create_timeline_semaphore(
     ctx: &VulkanContext,
@@ -1834,7 +1834,7 @@ pub fn vk_create_timeline_semaphore(
     RuntimeTimelineSemaphore { handle: h, state: Ghost(initial_timeline(id@, initial_value as nat)) }
 }
 
-/// FFI: signal a timeline semaphore from the host.
+///  FFI: signal a timeline semaphore from the host.
 #[verifier::external_body]
 pub fn vk_signal_semaphore(ctx: &VulkanContext, sem: &mut RuntimeTimelineSemaphore, value: u64)
     requires runtime_timeline_wf(&*old(sem)), signal_value_valid(old(sem)@, value as nat),
@@ -1843,8 +1843,8 @@ pub fn vk_signal_semaphore(ctx: &VulkanContext, sem: &mut RuntimeTimelineSemapho
     raw_signal_semaphore(ctx, sem.handle, value);
 }
 
-/// FFI: destroy a binary semaphore.
-/// Caller must prove device is idle (no pending submission uses this semaphore).
+///  FFI: destroy a binary semaphore.
+///  Caller must prove device is idle (no pending submission uses this semaphore).
 #[verifier::external_body]
 pub fn vk_destroy_semaphore(
     ctx: &VulkanContext,
@@ -1853,7 +1853,7 @@ pub fn vk_destroy_semaphore(
 )
     requires
         runtime_semaphore_wf(&*old(sem)),
-        // Device must be idle — no pending work references this semaphore
+        //  Device must be idle — no pending work references this semaphore
         forall|i: int| 0 <= i < dev@.pending_submissions.len()
             ==> (#[trigger] dev@.pending_submissions[i]).completed,
     ensures sem@ == destroy_semaphore_ghost(old(sem)@), !sem@.alive,
@@ -1862,8 +1862,8 @@ pub fn vk_destroy_semaphore(
     sem.state = Ghost(destroy_semaphore_ghost(sem.state@));
 }
 
-/// FFI: destroy a timeline semaphore.
-/// Caller must prove device is idle (no pending signals/waits on this semaphore).
+///  FFI: destroy a timeline semaphore.
+///  Caller must prove device is idle (no pending signals/waits on this semaphore).
 #[verifier::external_body]
 pub fn vk_destroy_timeline_semaphore(
     ctx: &VulkanContext,
@@ -1872,7 +1872,7 @@ pub fn vk_destroy_timeline_semaphore(
 )
     requires
         runtime_timeline_wf(&*old(sem)),
-        // Device must be idle — no pending work references this semaphore
+        //  Device must be idle — no pending work references this semaphore
         forall|i: int| 0 <= i < dev@.pending_submissions.len()
             ==> (#[trigger] dev@.pending_submissions[i]).completed,
     ensures sem@ == destroy_timeline_ghost(old(sem)@), !sem@.alive, sem@.id == old(sem)@.id,
@@ -1881,11 +1881,11 @@ pub fn vk_destroy_timeline_semaphore(
     sem.state = Ghost(destroy_timeline_ghost(sem.state@));
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Queue
-// ═══════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════
+//  Queue
+//  ═══════════════════════════════════════════════════════════════════════
 
-/// FFI: submit command buffers to a queue.
+///  FFI: submit command buffers to a queue.
 #[verifier::external_body]
 pub fn vk_queue_submit(
     ctx: &VulkanContext,
@@ -1903,14 +1903,14 @@ pub fn vk_queue_submit(
     raw_queue_submit(ctx, queue.handle, cb_handles, wait_sem_handles, wait_stages, signal_sem_handles, fence_handle);
 }
 
-/// FFI: wait for a queue to be idle.
+///  FFI: wait for a queue to be idle.
 #[verifier::external_body]
 pub fn vk_queue_wait_idle(ctx: &VulkanContext, queue: &RuntimeQueue)
 {
     raw_queue_wait_idle(ctx, queue.handle);
 }
 
-/// FFI: present to a queue.
+///  FFI: present to a queue.
 #[verifier::external_body]
 pub fn vk_queue_present(
     ctx: &VulkanContext,
@@ -1925,11 +1925,11 @@ pub fn vk_queue_present(
     raw_queue_present(ctx, queue.handle, sc.handle, idx as u32, wait_sem_handles);
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Pipeline
-// ═══════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════
+//  Pipeline
+//  ═══════════════════════════════════════════════════════════════════════
 
-/// FFI: create a graphics pipeline with parameterized cull/depth settings.
+///  FFI: create a graphics pipeline with parameterized cull/depth settings.
 #[verifier::external_body]
 pub fn vk_create_graphics_pipeline(
     ctx: &VulkanContext,
@@ -1951,7 +1951,7 @@ pub fn vk_create_graphics_pipeline(
     RuntimeGraphicsPipeline { handle: h, state: Ghost(gps@) }
 }
 
-/// FFI: create a compute pipeline.
+///  FFI: create a compute pipeline.
 #[verifier::external_body]
 pub fn vk_create_compute_pipeline(
     ctx: &VulkanContext,
@@ -1966,7 +1966,7 @@ pub fn vk_create_compute_pipeline(
     RuntimeComputePipeline { handle: h, state: Ghost(cps@) }
 }
 
-/// FFI: destroy a pipeline (graphics or compute).
+///  FFI: destroy a pipeline (graphics or compute).
 #[verifier::external_body]
 pub fn vk_destroy_pipeline(ctx: &VulkanContext, pipe: &mut RuntimeGraphicsPipeline)
     requires runtime_gfx_pipeline_wf(&*old(pipe)),
@@ -1975,14 +1975,14 @@ pub fn vk_destroy_pipeline(ctx: &VulkanContext, pipe: &mut RuntimeGraphicsPipeli
     raw_destroy_pipeline(ctx, pipe.handle);
 }
 
-/// FFI: create a pipeline layout.
+///  FFI: create a pipeline layout.
 #[verifier::external_body]
 pub fn vk_create_pipeline_layout(ctx: &VulkanContext, set_layout_handles: &[u64]) -> (handle: u64)
 {
     raw_create_pipeline_layout(ctx, set_layout_handles)
 }
 
-/// FFI: create a pipeline layout with push constant range.
+///  FFI: create a pipeline layout with push constant range.
 #[verifier::external_body]
 pub fn vk_create_pipeline_layout_push(
     ctx: &VulkanContext,
@@ -1995,18 +1995,18 @@ pub fn vk_create_pipeline_layout_push(
     raw_create_pipeline_layout_push(ctx, set_layout_handles, push_stages, push_offset, push_size)
 }
 
-/// FFI: destroy a pipeline layout.
+///  FFI: destroy a pipeline layout.
 #[verifier::external_body]
 pub fn vk_destroy_pipeline_layout(ctx: &VulkanContext, handle: u64)
 {
     raw_destroy_pipeline_layout(ctx, handle);
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Descriptor
-// ═══════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════
+//  Descriptor
+//  ═══════════════════════════════════════════════════════════════════════
 
-/// FFI: create a descriptor set layout.
+///  FFI: create a descriptor set layout.
 #[verifier::external_body]
 pub fn vk_create_descriptor_set_layout(
     ctx: &VulkanContext,
@@ -2020,12 +2020,12 @@ pub fn vk_create_descriptor_set_layout(
     RuntimeDescriptorSetLayout { handle: h, state: Ghost(layout_state@) }
 }
 
-/// FFI: create a descriptor set layout with explicit binding types.
+///  FFI: create a descriptor set layout with explicit binding types.
 #[verifier::external_body]
 pub fn vk_create_descriptor_set_layout_typed(
     ctx: &VulkanContext,
     layout_state: Ghost<DescriptorSetLayoutState>,
-    // (binding_num, descriptor_type, count, stage_flags)
+    //  (binding_num, descriptor_type, count, stage_flags)
     bindings: &[(u32, u32, u32, u32)],
 ) -> (out: RuntimeDescriptorSetLayout)
     requires layout_state@.alive, layout_well_formed(layout_state@),
@@ -2035,7 +2035,7 @@ pub fn vk_create_descriptor_set_layout_typed(
     RuntimeDescriptorSetLayout { handle: h, state: Ghost(layout_state@) }
 }
 
-/// FFI: create a descriptor pool.
+///  FFI: create a descriptor pool.
 #[verifier::external_body]
 pub fn vk_create_descriptor_pool(
     ctx: &VulkanContext,
@@ -2057,13 +2057,13 @@ pub fn vk_create_descriptor_pool(
     }
 }
 
-/// FFI: create a descriptor pool with explicit pool size types.
+///  FFI: create a descriptor pool with explicit pool size types.
 #[verifier::external_body]
 pub fn vk_create_descriptor_pool_typed(
     ctx: &VulkanContext,
     id: Ghost<nat>,
     max_sets: u64,
-    // (descriptor_type, descriptor_count)
+    //  (descriptor_type, descriptor_count)
     pool_sizes: &[(u32, u32)],
 ) -> (out: RuntimeDescriptorPool)
     requires max_sets > 0,
@@ -2081,7 +2081,7 @@ pub fn vk_create_descriptor_pool_typed(
     }
 }
 
-/// FFI: allocate descriptor sets.
+///  FFI: allocate descriptor sets.
 #[verifier::external_body]
 pub fn vk_allocate_descriptor_sets(
     ctx: &VulkanContext,
@@ -2104,7 +2104,7 @@ pub fn vk_allocate_descriptor_sets(
     }
 }
 
-/// FFI: update descriptor sets.
+///  FFI: update descriptor sets.
 #[verifier::external_body]
 pub fn vk_update_descriptor_sets(
     ctx: &VulkanContext,
@@ -2122,7 +2122,7 @@ pub fn vk_update_descriptor_sets(
     raw_update_descriptor_sets(ctx, ds.handle, binding_index, descriptor_type, buffer_handle, offset, range);
 }
 
-/// FFI: update descriptor sets with an image binding.
+///  FFI: update descriptor sets with an image binding.
 #[verifier::external_body]
 pub fn vk_update_descriptor_sets_image(
     ctx: &VulkanContext,
@@ -2139,7 +2139,7 @@ pub fn vk_update_descriptor_sets_image(
     raw_update_descriptor_sets_image(ctx, ds.handle, binding_index, descriptor_type, image_view_handle, image_layout);
 }
 
-/// FFI: destroy a descriptor pool.
+///  FFI: destroy a descriptor pool.
 #[verifier::external_body]
 pub fn vk_destroy_descriptor_pool(ctx: &VulkanContext, pool: &mut RuntimeDescriptorPool)
     requires runtime_pool_wf(&*old(pool)),
@@ -2148,8 +2148,8 @@ pub fn vk_destroy_descriptor_pool(ctx: &VulkanContext, pool: &mut RuntimeDescrip
     raw_destroy_descriptor_pool(ctx, pool.handle);
 }
 
-/// FFI: destroy a descriptor set layout.
-/// Caller must prove device is idle (no pending submission references this layout).
+///  FFI: destroy a descriptor set layout.
+///  Caller must prove device is idle (no pending submission references this layout).
 #[verifier::external_body]
 pub fn vk_destroy_descriptor_set_layout(
     ctx: &VulkanContext,
@@ -2158,7 +2158,7 @@ pub fn vk_destroy_descriptor_set_layout(
 )
     requires
         runtime_dsl_wf(&*old(dsl)),
-        // Device must be idle — no pending submission references descriptor sets using this layout
+        //  Device must be idle — no pending submission references descriptor sets using this layout
         forall|i: int| 0 <= i < dev@.pending_submissions.len()
             ==> (#[trigger] dev@.pending_submissions[i]).completed,
     ensures
@@ -2170,11 +2170,11 @@ pub fn vk_destroy_descriptor_set_layout(
     dsl.state = Ghost(destroy_descriptor_set_layout_ghost(dsl.state@));
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Swapchain
-// ═══════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════
+//  Swapchain
+//  ═══════════════════════════════════════════════════════════════════════
 
-/// FFI: create a swapchain.
+///  FFI: create a swapchain.
 #[verifier::external_body]
 pub fn vk_create_swapchain(
     ctx: &VulkanContext,
@@ -2225,13 +2225,13 @@ pub fn vk_create_swapchain(
     }
 }
 
-/// FFI: acquire next swapchain image. Returns the image index chosen by the driver.
-/// Ghost state is updated via `acquire_image`: the image at `idx` transitions to
-/// Acquired and its logical image id is rotated to `next_image_id`.
+///  FFI: acquire next swapchain image. Returns the image index chosen by the driver.
+///  Ghost state is updated via `acquire_image`: the image at `idx` transitions to
+///  Acquired and its logical image id is rotated to `next_image_id`.
 ///
-/// The ensures `sc@ == acquire_image(old(sc)@, idx).unwrap()` gives callers the
-/// full `acquire_image` spec relationship, which implies `runtime_swapchain_wf`,
-/// image-id rotation, monotonicity preservation, and all field preservation.
+///  The ensures `sc@ == acquire_image(old(sc)@, idx).unwrap()` gives callers the
+///  full `acquire_image` spec relationship, which implies `runtime_swapchain_wf`,
+///  image-id rotation, monotonicity preservation, and all field preservation.
 #[verifier::external_body]
 pub fn vk_acquire_next_image(
     ctx: &VulkanContext,
@@ -2250,7 +2250,7 @@ pub fn vk_acquire_next_image(
     actual as u64
 }
 
-/// FFI: queue present (KHR extension).
+///  FFI: queue present (KHR extension).
 #[verifier::external_body]
 pub fn vk_queue_present_khr(
     ctx: &VulkanContext,
@@ -2265,8 +2265,8 @@ pub fn vk_queue_present_khr(
     raw_queue_present(ctx, queue.handle, sc.handle, idx as u32, wait_sem_handles);
 }
 
-/// FFI: destroy a swapchain.
-/// Caller must prove device is idle (no pending work uses swapchain images).
+///  FFI: destroy a swapchain.
+///  Caller must prove device is idle (no pending work uses swapchain images).
 #[verifier::external_body]
 pub fn vk_destroy_swapchain(
     ctx: &VulkanContext,
@@ -2276,12 +2276,12 @@ pub fn vk_destroy_swapchain(
 )
     requires
         runtime_swapchain_wf(&*old(sc)),
-        // All images must be available (none in-flight)
+        //  All images must be available (none in-flight)
         all_available(old(sc)@),
-        // Device must be idle
+        //  Device must be idle
         forall|i: int| 0 <= i < dev@.pending_submissions.len()
             ==> (#[trigger] dev@.pending_submissions[i]).completed,
-        // Event loop must have exited — prevents destroy-during-event-loop bug
+        //  Event loop must have exited — prevents destroy-during-event-loop bug
         cleanup_permit_valid(permit@),
     ensures
         sc@ == destroy_swapchain_ghost(old(sc)@),
@@ -2291,11 +2291,11 @@ pub fn vk_destroy_swapchain(
     sc.state = Ghost(destroy_swapchain_ghost(sc.state@));
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Query Pool
-// ═══════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════
+//  Query Pool
+//  ═══════════════════════════════════════════════════════════════════════
 
-/// FFI: create a query pool.
+///  FFI: create a query pool.
 #[verifier::external_body]
 pub fn vk_create_query_pool(
     ctx: &VulkanContext,
@@ -2315,7 +2315,7 @@ pub fn vk_create_query_pool(
     }
 }
 
-/// FFI: destroy a query pool.
+///  FFI: destroy a query pool.
 #[verifier::external_body]
 pub fn vk_destroy_query_pool(ctx: &VulkanContext, pool: &mut RuntimeQueryPool)
     requires runtime_query_pool_wf(&*old(pool)),
@@ -2325,7 +2325,7 @@ pub fn vk_destroy_query_pool(ctx: &VulkanContext, pool: &mut RuntimeQueryPool)
     pool.state = Ghost(destroy_query_pool(pool.state@));
 }
 
-/// FFI: reset queries in a command buffer.
+///  FFI: reset queries in a command buffer.
 #[verifier::external_body]
 pub fn vk_cmd_reset_query_pool(
     ctx: &VulkanContext,
@@ -2345,7 +2345,7 @@ pub fn vk_cmd_reset_query_pool(
     pool.state = Ghost(reset_queries(pool.state@, first as nat, count as nat));
 }
 
-/// FFI: begin a query.
+///  FFI: begin a query.
 #[verifier::external_body]
 pub fn vk_cmd_begin_query(
     ctx: &VulkanContext,
@@ -2362,7 +2362,7 @@ pub fn vk_cmd_begin_query(
     pool.state = Ghost(begin_query(pool.state@, index as nat));
 }
 
-/// FFI: end a query.
+///  FFI: end a query.
 #[verifier::external_body]
 pub fn vk_cmd_end_query(
     ctx: &VulkanContext,
@@ -2379,11 +2379,11 @@ pub fn vk_cmd_end_query(
     pool.state = Ghost(end_query(pool.state@, index as nat));
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Event
-// ═══════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════
+//  Event
+//  ═══════════════════════════════════════════════════════════════════════
 
-/// FFI: create an event.
+///  FFI: create an event.
 #[verifier::external_body]
 pub fn vk_create_event(
     ctx: &VulkanContext,
@@ -2400,7 +2400,7 @@ pub fn vk_create_event(
     }
 }
 
-/// FFI: destroy an event.
+///  FFI: destroy an event.
 #[verifier::external_body]
 pub fn vk_destroy_event(ctx: &VulkanContext, event: &mut RuntimeEvent)
     requires runtime_event_wf(&*old(event)),
@@ -2410,7 +2410,7 @@ pub fn vk_destroy_event(ctx: &VulkanContext, event: &mut RuntimeEvent)
     event.state = Ghost(destroy_event(event.state@));
 }
 
-/// FFI: set an event from the host.
+///  FFI: set an event from the host.
 #[verifier::external_body]
 pub fn vk_set_event(ctx: &VulkanContext, event: &mut RuntimeEvent, stages: Ghost<Set<nat>>)
     requires runtime_event_wf(&*old(event)),
@@ -2420,7 +2420,7 @@ pub fn vk_set_event(ctx: &VulkanContext, event: &mut RuntimeEvent, stages: Ghost
     event.state = Ghost(set_event(event.state@, stages@));
 }
 
-/// FFI: reset an event from the host.
+///  FFI: reset an event from the host.
 #[verifier::external_body]
 pub fn vk_reset_event(ctx: &VulkanContext, event: &mut RuntimeEvent)
     requires runtime_event_wf(&*old(event)),
@@ -2430,7 +2430,7 @@ pub fn vk_reset_event(ctx: &VulkanContext, event: &mut RuntimeEvent)
     event.state = Ghost(reset_event(event.state@));
 }
 
-/// FFI: set an event from a command buffer.
+///  FFI: set an event from a command buffer.
 #[verifier::external_body]
 pub fn vk_cmd_set_event(
     ctx: &VulkanContext,
@@ -2446,7 +2446,7 @@ pub fn vk_cmd_set_event(
     event.state = Ghost(set_event(event.state@, stages@));
 }
 
-/// FFI: reset an event from a command buffer.
+///  FFI: reset an event from a command buffer.
 #[verifier::external_body]
 pub fn vk_cmd_reset_event(
     ctx: &VulkanContext,
@@ -2461,11 +2461,11 @@ pub fn vk_cmd_reset_event(
     event.state = Ghost(reset_event(event.state@));
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Acceleration Structure (KHR extension)
-// ═══════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════
+//  Acceleration Structure (KHR extension)
+//  ═══════════════════════════════════════════════════════════════════════
 
-/// FFI: create an acceleration structure.
+///  FFI: create an acceleration structure.
 #[verifier::external_body]
 pub fn vk_create_acceleration_structure(
     ctx: &VulkanContext,
@@ -2475,12 +2475,12 @@ pub fn vk_create_acceleration_structure(
     ensures out@ == as_state@, runtime_as_wf(&out),
 {
     RuntimeAccelerationStructure {
-        handle: 0, // Real handle would come from ash extension loader
+        handle: 0, //  Real handle would come from ash extension loader
         state: as_state,
     }
 }
 
-/// FFI: destroy an acceleration structure.
+///  FFI: destroy an acceleration structure.
 #[verifier::external_body]
 pub fn vk_destroy_acceleration_structure(
     ctx: &VulkanContext,
@@ -2492,7 +2492,7 @@ pub fn vk_destroy_acceleration_structure(
     as_obj.state = Ghost(destroy_as_ghost(as_obj.state@));
 }
 
-/// FFI: build an acceleration structure.
+///  FFI: build an acceleration structure.
 #[verifier::external_body]
 pub fn vk_cmd_build_acceleration_structure(
     ctx: &VulkanContext,
@@ -2511,7 +2511,7 @@ pub fn vk_cmd_build_acceleration_structure(
     as_obj.state = Ghost(build_as_ghost(as_obj.state@, mode@));
 }
 
-/// FFI: compact an acceleration structure.
+///  FFI: compact an acceleration structure.
 #[verifier::external_body]
 pub fn vk_cmd_compact_acceleration_structure(
     ctx: &VulkanContext,
@@ -2526,11 +2526,11 @@ pub fn vk_cmd_compact_acceleration_structure(
     as_obj.state = Ghost(compact_as_ghost(as_obj.state@));
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Ray Tracing Pipeline (KHR extension)
-// ═══════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════
+//  Ray Tracing Pipeline (KHR extension)
+//  ═══════════════════════════════════════════════════════════════════════
 
-/// FFI: create a ray tracing pipeline.
+///  FFI: create a ray tracing pipeline.
 #[verifier::external_body]
 pub fn vk_create_ray_tracing_pipeline(
     ctx: &VulkanContext,
@@ -2540,12 +2540,12 @@ pub fn vk_create_ray_tracing_pipeline(
     ensures out@ == rt_state@, runtime_rt_pipeline_wf(&out),
 {
     RuntimeRayTracingPipeline {
-        handle: 0, // Real handle would come from ash extension loader
+        handle: 0, //  Real handle would come from ash extension loader
         state: rt_state,
     }
 }
 
-/// FFI: destroy a ray tracing pipeline.
+///  FFI: destroy a ray tracing pipeline.
 #[verifier::external_body]
 pub fn vk_destroy_ray_tracing_pipeline(
     ctx: &VulkanContext,
@@ -2554,16 +2554,16 @@ pub fn vk_destroy_ray_tracing_pipeline(
     requires runtime_rt_pipeline_wf(&*old(pipe)),
     ensures pipe@ == destroy_rt_pipeline_ghost(old(pipe)@), !pipe@.alive,
 {
-    // Reuses raw_destroy_pipeline since VkPipeline is the same handle type
+    //  Reuses raw_destroy_pipeline since VkPipeline is the same handle type
     raw_destroy_pipeline(ctx, pipe.handle);
     pipe.state = Ghost(destroy_rt_pipeline_ghost(pipe.state@));
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Indirect + Dynamic Rendering
-// ═══════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════
+//  Indirect + Dynamic Rendering
+//  ═══════════════════════════════════════════════════════════════════════
 
-/// FFI: indirect draw.
+///  FFI: indirect draw.
 #[verifier::external_body]
 pub fn vk_cmd_draw_indirect(
     ctx: &VulkanContext,
@@ -2579,7 +2579,7 @@ pub fn vk_cmd_draw_indirect(
     raw_cmd_draw_indirect(ctx, cb.handle, buffer_handle, offset, draw_count, stride);
 }
 
-/// FFI: indirect indexed draw.
+///  FFI: indirect indexed draw.
 #[verifier::external_body]
 pub fn vk_cmd_draw_indexed_indirect(
     ctx: &VulkanContext,
@@ -2595,7 +2595,7 @@ pub fn vk_cmd_draw_indexed_indirect(
     raw_cmd_draw_indexed_indirect(ctx, cb.handle, buffer_handle, offset, draw_count, stride);
 }
 
-/// FFI: indirect dispatch.
+///  FFI: indirect dispatch.
 #[verifier::external_body]
 pub fn vk_cmd_dispatch_indirect(
     ctx: &VulkanContext,
@@ -2609,7 +2609,7 @@ pub fn vk_cmd_dispatch_indirect(
     raw_cmd_dispatch_indirect(ctx, cb.handle, buffer_handle, offset);
 }
 
-/// FFI: begin dynamic rendering (VK_KHR_dynamic_rendering / Vulkan 1.3).
+///  FFI: begin dynamic rendering (VK_KHR_dynamic_rendering / Vulkan 1.3).
 #[verifier::external_body]
 pub fn vk_cmd_begin_rendering(
     ctx: &VulkanContext,
@@ -2631,7 +2631,7 @@ pub fn vk_cmd_begin_rendering(
     raw_cmd_begin_rendering(ctx, cb.handle, width, height, layer_count);
 }
 
-/// FFI: end dynamic rendering.
+///  FFI: end dynamic rendering.
 #[verifier::external_body]
 pub fn vk_cmd_end_rendering(
     ctx: &VulkanContext,
@@ -2650,10 +2650,10 @@ pub fn vk_cmd_end_rendering(
     raw_cmd_end_rendering(ctx, cb.handle);
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Minimal FFI bridges — u64 handles only, no ghost state
-// Called by the verified exec layer in command_buffer.rs
-// ═══════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════
+//  Minimal FFI bridges — u64 handles only, no ghost state
+//  Called by the verified exec layer in command_buffer.rs
+//  ═══════════════════════════════════════════════════════════════════════
 
 #[verifier::external_body]
 pub fn ffi_cmd_draw(ctx: &VulkanContext, cb_handle: u64, vc: u32, ic: u32, fv: u32, fi: u32) {
@@ -2790,7 +2790,7 @@ pub fn ffi_cmd_push_constants(ctx: &VulkanContext, cb_handle: u64, layout: u64, 
     raw_cmd_push_constants(ctx, cb_handle, layout, stages, offset, data);
 }
 
-// ── Query Pool command bridges ───────────────────────────────────────
+//  ── Query Pool command bridges ───────────────────────────────────────
 
 #[verifier::external_body]
 pub fn ffi_cmd_reset_query_pool(ctx: &VulkanContext, cb_handle: u64, pool_handle: u64, first: u32, count: u32) {
@@ -2807,7 +2807,7 @@ pub fn ffi_cmd_end_query(ctx: &VulkanContext, cb_handle: u64, pool_handle: u64, 
     raw_cmd_end_query(ctx, cb_handle, pool_handle, index);
 }
 
-// ── Event command bridges ────────────────────────────────────────────
+//  ── Event command bridges ────────────────────────────────────────────
 
 #[verifier::external_body]
 pub fn ffi_cmd_set_event(ctx: &VulkanContext, cb_handle: u64, event_handle: u64, stages_mask: u32) {
@@ -2819,20 +2819,20 @@ pub fn ffi_cmd_reset_event(ctx: &VulkanContext, cb_handle: u64, event_handle: u6
     raw_cmd_reset_event(ctx, cb_handle, event_handle, stages_mask);
 }
 
-// ── Acceleration Structure command bridges ───────────────────────────
+//  ── Acceleration Structure command bridges ───────────────────────────
 
 #[verifier::external_body]
 pub fn ffi_cmd_build_acceleration_structure(ctx: &VulkanContext, cb_handle: u64) {
-    // No raw_* exists — VulkanContext lacks khr::acceleration_structure::Device.
-    // Ghost-only stub for CB invariant enforcement.
+    //  No raw_* exists — VulkanContext lacks khr::acceleration_structure::Device.
+    //  Ghost-only stub for CB invariant enforcement.
 }
 
 #[verifier::external_body]
 pub fn ffi_cmd_compact_acceleration_structure(ctx: &VulkanContext, cb_handle: u64) {
-    // No raw_* exists — ghost-only stub.
+    //  No raw_* exists — ghost-only stub.
 }
 
-// ── Dynamic state command bridges ───────────────────────────────────
+//  ── Dynamic state command bridges ───────────────────────────────────
 
 #[verifier::external_body]
 pub fn ffi_cmd_set_line_width(ctx: &VulkanContext, cb_handle: u64, line_width: f32) {
@@ -2869,7 +2869,7 @@ pub fn ffi_cmd_set_stencil_reference(ctx: &VulkanContext, cb_handle: u64, face_m
     raw_cmd_set_stencil_reference(ctx, cb_handle, face_mask, reference);
 }
 
-// ── Buffer operation command bridges ────────────────────────────────
+//  ── Buffer operation command bridges ────────────────────────────────
 
 #[verifier::external_body]
 pub fn ffi_cmd_fill_buffer(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64, size: u64, data: u32) {
@@ -2881,7 +2881,7 @@ pub fn ffi_cmd_update_buffer(ctx: &VulkanContext, cb_handle: u64, buffer: u64, o
     raw_cmd_update_buffer(ctx, cb_handle, buffer, offset, data);
 }
 
-// ── Image clear & resolve command bridges ───────────────────────────
+//  ── Image clear & resolve command bridges ───────────────────────────
 
 #[verifier::external_body]
 pub fn ffi_cmd_clear_color_image(ctx: &VulkanContext, cb_handle: u64, image: u64, layout: u32) {
@@ -2903,7 +2903,7 @@ pub fn ffi_cmd_resolve_image(ctx: &VulkanContext, cb_handle: u64, src: u64, dst:
     raw_cmd_resolve_image(ctx, cb_handle, src, dst, width, height);
 }
 
-// ── Query command bridges ───────────────────────────────────────────
+//  ── Query command bridges ───────────────────────────────────────────
 
 #[verifier::external_body]
 pub fn ffi_cmd_write_timestamp(ctx: &VulkanContext, cb_handle: u64, stage: u32, pool_handle: u64, query: u32) {
@@ -2915,173 +2915,173 @@ pub fn ffi_cmd_copy_query_pool_results(ctx: &VulkanContext, cb_handle: u64, pool
     raw_cmd_copy_query_pool_results(ctx, cb_handle, pool_handle, first, count, dst, offset, stride, flags);
 }
 
-// ── Sync command bridges ────────────────────────────────────────────
+//  ── Sync command bridges ────────────────────────────────────────────
 
 #[verifier::external_body]
 pub fn ffi_cmd_wait_events(ctx: &VulkanContext, cb_handle: u64, event_handle: u64, src_stage: u32, dst_stage: u32) {
     raw_cmd_wait_events(ctx, cb_handle, event_handle, src_stage, dst_stage);
 }
 
-// ── Indirect count command bridges (ghost stubs — needs VK 1.2) ─────
+//  ── Indirect count command bridges (ghost stubs — needs VK 1.2) ─────
 
 #[verifier::external_body]
 pub fn ffi_cmd_draw_indirect_count(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64, count_buffer: u64, count_offset: u64, max_draw_count: u32, stride: u32) {
-    // Ghost stub — VulkanContext lacks khr::draw_indirect_count::Device.
-    // The verified wrapper enforces all preconditions at the spec level.
+    //  Ghost stub — VulkanContext lacks khr::draw_indirect_count::Device.
+    //  The verified wrapper enforces all preconditions at the spec level.
 }
 
 #[verifier::external_body]
 pub fn ffi_cmd_draw_indexed_indirect_count(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64, count_buffer: u64, count_offset: u64, max_draw_count: u32, stride: u32) {
-    // Ghost stub.
+    //  Ghost stub.
 }
 
-// ── Ray tracing command bridges (ghost stubs) ───────────────────────
+//  ── Ray tracing command bridges (ghost stubs) ───────────────────────
 
 #[verifier::external_body]
 pub fn ffi_cmd_trace_rays(ctx: &VulkanContext, cb_handle: u64) {
-    // Ghost stub — VulkanContext lacks khr::ray_tracing_pipeline::Device.
+    //  Ghost stub — VulkanContext lacks khr::ray_tracing_pipeline::Device.
 }
 
 #[verifier::external_body]
 pub fn ffi_cmd_trace_rays_indirect(ctx: &VulkanContext, cb_handle: u64, buffer: u64) {
-    // Ghost stub.
+    //  Ghost stub.
 }
 
-// ── Debug utils command bridges (ghost stubs) ───────────────────────
+//  ── Debug utils command bridges (ghost stubs) ───────────────────────
 
 #[verifier::external_body]
 pub fn ffi_cmd_begin_debug_utils_label(ctx: &VulkanContext, cb_handle: u64) {
-    // Ghost stub — needs ext::debug_utils::Instance.
+    //  Ghost stub — needs ext::debug_utils::Instance.
 }
 
 #[verifier::external_body]
 pub fn ffi_cmd_end_debug_utils_label(ctx: &VulkanContext, cb_handle: u64) {
-    // Ghost stub.
+    //  Ghost stub.
 }
 
 #[verifier::external_body]
 pub fn ffi_cmd_insert_debug_utils_label(ctx: &VulkanContext, cb_handle: u64) {
-    // Ghost stub.
+    //  Ghost stub.
 }
 
-// ── Extension command bridges (ghost stubs) ─────────────────────────
+//  ── Extension command bridges (ghost stubs) ─────────────────────────
 
 #[verifier::external_body]
 pub fn ffi_cmd_dispatch_base(ctx: &VulkanContext, cb_handle: u64, bx: u32, by: u32, bz: u32, gx: u32, gy: u32, gz: u32) {
-    // Ghost stub — Vulkan 1.1.
+    //  Ghost stub — Vulkan 1.1.
 }
 
 #[verifier::external_body]
 pub fn ffi_cmd_draw_mesh_tasks(ctx: &VulkanContext, cb_handle: u64, gx: u32, gy: u32, gz: u32) {
-    // Ghost stub — VK_EXT_mesh_shader.
+    //  Ghost stub — VK_EXT_mesh_shader.
 }
 
 #[verifier::external_body]
 pub fn ffi_cmd_draw_mesh_tasks_indirect(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64, draw_count: u32, stride: u32) {
-    // Ghost stub.
+    //  Ghost stub.
 }
 
 #[verifier::external_body]
 pub fn ffi_cmd_draw_mesh_tasks_indirect_count(ctx: &VulkanContext, cb_handle: u64, buffer: u64, offset: u64, count_buffer: u64, count_offset: u64, max_draw_count: u32, stride: u32) {
-    // Ghost stub.
+    //  Ghost stub.
 }
 
 #[verifier::external_body]
 pub fn ffi_cmd_begin_transform_feedback(ctx: &VulkanContext, cb_handle: u64) {
-    // Ghost stub — VK_EXT_transform_feedback.
+    //  Ghost stub — VK_EXT_transform_feedback.
 }
 
 #[verifier::external_body]
 pub fn ffi_cmd_end_transform_feedback(ctx: &VulkanContext, cb_handle: u64) {
-    // Ghost stub.
+    //  Ghost stub.
 }
 
 #[verifier::external_body]
 pub fn ffi_cmd_pipeline_barrier2(ctx: &VulkanContext, cb_handle: u64) {
-    // Ghost stub — Vulkan 1.3 vkCmdPipelineBarrier2.
+    //  Ghost stub — Vulkan 1.3 vkCmdPipelineBarrier2.
 }
 
-// ── Extended dynamic state command bridges (ghost stubs — VK 1.3) ───
+//  ── Extended dynamic state command bridges (ghost stubs — VK 1.3) ───
 
 #[verifier::external_body]
 pub fn ffi_cmd_set_cull_mode(ctx: &VulkanContext, cb_handle: u64, cull_mode: u32) {
-    // Ghost stub — vkCmdSetCullMode (Vulkan 1.3).
+    //  Ghost stub — vkCmdSetCullMode (Vulkan 1.3).
 }
 
 #[verifier::external_body]
 pub fn ffi_cmd_set_front_face(ctx: &VulkanContext, cb_handle: u64, front_face: u32) {
-    // Ghost stub — vkCmdSetFrontFace (Vulkan 1.3).
+    //  Ghost stub — vkCmdSetFrontFace (Vulkan 1.3).
 }
 
 #[verifier::external_body]
 pub fn ffi_cmd_set_primitive_topology(ctx: &VulkanContext, cb_handle: u64, topology: u32) {
-    // Ghost stub — vkCmdSetPrimitiveTopology (Vulkan 1.3).
+    //  Ghost stub — vkCmdSetPrimitiveTopology (Vulkan 1.3).
 }
 
 #[verifier::external_body]
 pub fn ffi_cmd_set_depth_test_enable(ctx: &VulkanContext, cb_handle: u64, enable: u32) {
-    // Ghost stub — vkCmdSetDepthTestEnable (Vulkan 1.3).
+    //  Ghost stub — vkCmdSetDepthTestEnable (Vulkan 1.3).
 }
 
 #[verifier::external_body]
 pub fn ffi_cmd_set_depth_write_enable(ctx: &VulkanContext, cb_handle: u64, enable: u32) {
-    // Ghost stub — vkCmdSetDepthWriteEnable (Vulkan 1.3).
+    //  Ghost stub — vkCmdSetDepthWriteEnable (Vulkan 1.3).
 }
 
 #[verifier::external_body]
 pub fn ffi_cmd_set_depth_compare_op(ctx: &VulkanContext, cb_handle: u64, compare_op: u32) {
-    // Ghost stub — vkCmdSetDepthCompareOp (Vulkan 1.3).
+    //  Ghost stub — vkCmdSetDepthCompareOp (Vulkan 1.3).
 }
 
 #[verifier::external_body]
 pub fn ffi_cmd_set_depth_bounds_test_enable(ctx: &VulkanContext, cb_handle: u64, enable: u32) {
-    // Ghost stub — vkCmdSetDepthBoundsTestEnable (Vulkan 1.3).
+    //  Ghost stub — vkCmdSetDepthBoundsTestEnable (Vulkan 1.3).
 }
 
 #[verifier::external_body]
 pub fn ffi_cmd_set_stencil_test_enable(ctx: &VulkanContext, cb_handle: u64, enable: u32) {
-    // Ghost stub — vkCmdSetStencilTestEnable (Vulkan 1.3).
+    //  Ghost stub — vkCmdSetStencilTestEnable (Vulkan 1.3).
 }
 
 #[verifier::external_body]
 pub fn ffi_cmd_set_stencil_op(ctx: &VulkanContext, cb_handle: u64, face_mask: u32, fail_op: u32, pass_op: u32, depth_fail_op: u32, compare_op: u32) {
-    // Ghost stub — vkCmdSetStencilOp (Vulkan 1.3).
+    //  Ghost stub — vkCmdSetStencilOp (Vulkan 1.3).
 }
 
 #[verifier::external_body]
 pub fn ffi_cmd_set_rasterizer_discard_enable(ctx: &VulkanContext, cb_handle: u64, enable: u32) {
-    // Ghost stub — vkCmdSetRasterizerDiscardEnable (Vulkan 1.3).
+    //  Ghost stub — vkCmdSetRasterizerDiscardEnable (Vulkan 1.3).
 }
 
-// ── Push descriptor command bridges (ghost stubs) ───────────────────
+//  ── Push descriptor command bridges (ghost stubs) ───────────────────
 
 #[verifier::external_body]
 pub fn ffi_cmd_push_descriptor_set(ctx: &VulkanContext, cb_handle: u64, bind_point: u32, layout: u64, set_index: u32) {
-    // Ghost stub — vkCmdPushDescriptorSetKHR.
+    //  Ghost stub — vkCmdPushDescriptorSetKHR.
 }
 
-// ── Fragment shading rate command bridges (ghost stubs) ─────────────
+//  ── Fragment shading rate command bridges (ghost stubs) ─────────────
 
 #[verifier::external_body]
 pub fn ffi_cmd_set_fragment_shading_rate(ctx: &VulkanContext, cb_handle: u64, width: u32, height: u32, combiner0: u32, combiner1: u32) {
-    // Ghost stub — vkCmdSetFragmentShadingRateKHR.
+    //  Ghost stub — vkCmdSetFragmentShadingRateKHR.
 }
 
-// ── Shader object command bridges (ghost stubs) ─────────────────────
+//  ── Shader object command bridges (ghost stubs) ─────────────────────
 
 #[verifier::external_body]
 pub fn ffi_cmd_bind_shaders(ctx: &VulkanContext, cb_handle: u64, stage_count: u32) {
-    // Ghost stub — vkCmdBindShadersEXT.
+    //  Ghost stub — vkCmdBindShadersEXT.
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Round 4 — Triangle-ready FFI (hardened)
-// ═══════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════
+//  Round 4 — Triangle-ready FFI (hardened)
+//  ═══════════════════════════════════════════════════════════════════════
 
-// ── Surface FFI ─────────────────────────────────────────────────────
+//  ── Surface FFI ─────────────────────────────────────────────────────
 
-/// Wrap a caller-provided surface handle with ghost state.
-/// Surface creation is platform-specific (winit/ash-window provides the raw handle).
+///  Wrap a caller-provided surface handle with ghost state.
+///  Surface creation is platform-specific (winit/ash-window provides the raw handle).
 #[verifier::external_body]
 pub fn vk_create_surface(
     ctx: &VulkanContext,
@@ -3098,25 +3098,25 @@ pub fn vk_create_surface(
     }
 }
 
-/// Destroy a surface.
-/// Caller must prove no live swapchain references this surface.
+///  Destroy a surface.
+///  Caller must prove no live swapchain references this surface.
 #[verifier::external_body]
 pub fn vk_destroy_surface(
     ctx: &VulkanContext,
     surface: &mut RuntimeSurface,
     dev: &RuntimeDevice,
-    // Ghost: caller attests no live swapchain is bound to this surface
+    //  Ghost: caller attests no live swapchain is bound to this surface
     no_live_swapchains: Ghost<bool>,
     permit: Ghost<WindowCleanupPermit>,
 )
     requires
         runtime_surface_wf(&*old(surface)),
-        // Device must be idle — no pending work referencing the surface
+        //  Device must be idle — no pending work referencing the surface
         forall|i: int| 0 <= i < dev@.pending_submissions.len()
             ==> (#[trigger] dev@.pending_submissions[i]).completed,
-        // Caller attests no swapchain is alive on this surface
+        //  Caller attests no swapchain is alive on this surface
         no_live_swapchains@,
-        // Event loop must have exited — prevents destroy-during-event-loop bug
+        //  Event loop must have exited — prevents destroy-during-event-loop bug
         cleanup_permit_valid(permit@),
     ensures
         surface@ == destroy_surface_ghost(old(surface)@),
@@ -3126,9 +3126,9 @@ pub fn vk_destroy_surface(
     surface.state = Ghost(destroy_surface_ghost(surface.state@));
 }
 
-// ── Shader Module FFI ────────────────────────────────────────────────
+//  ── Shader Module FFI ────────────────────────────────────────────────
 
-/// Create a shader module from SPIR-V code.
+///  Create a shader module from SPIR-V code.
 #[verifier::external_body]
 pub fn vk_create_shader_module(
     ctx: &VulkanContext,
@@ -3144,8 +3144,8 @@ pub fn vk_create_shader_module(
     RuntimeShaderModule { handle: h, state: Ghost(state@) }
 }
 
-/// Destroy a shader module.
-/// Safe to destroy after pipeline creation — Vulkan copies the module at pipeline creation time.
+///  Destroy a shader module.
+///  Safe to destroy after pipeline creation — Vulkan copies the module at pipeline creation time.
 #[verifier::external_body]
 pub fn vk_destroy_shader_module(
     ctx: &VulkanContext,
@@ -3160,9 +3160,9 @@ pub fn vk_destroy_shader_module(
     sm.state = Ghost(destroy_shader_module_ghost(sm.state@));
 }
 
-// ── Render Pass FFI ──────────────────────────────────────────────────
+//  ── Render Pass FFI ──────────────────────────────────────────────────
 
-/// Create a render pass (single attachment, single subpass — covers triangle case).
+///  Create a render pass (single attachment, single subpass — covers triangle case).
 #[verifier::external_body]
 pub fn vk_create_render_pass(
     ctx: &VulkanContext,
@@ -3179,7 +3179,7 @@ pub fn vk_create_render_pass(
     RuntimeRenderPass { handle: h, state: Ghost(rps@) }
 }
 
-/// Create a render pass with color + depth attachments.
+///  Create a render pass with color + depth attachments.
 #[verifier::external_body]
 pub fn vk_create_render_pass_depth(
     ctx: &VulkanContext,
@@ -3197,7 +3197,7 @@ pub fn vk_create_render_pass_depth(
     RuntimeRenderPass { handle: h, state: Ghost(rps@) }
 }
 
-/// Begin a render pass with color + depth clear values.
+///  Begin a render pass with color + depth clear values.
 #[verifier::external_body]
 pub fn vk_cmd_begin_render_pass_depth(
     ctx: &VulkanContext,
@@ -3225,22 +3225,22 @@ pub fn vk_cmd_begin_render_pass_depth(
     raw_cmd_begin_render_pass_depth(ctx, cb.handle, render_pass_handle, framebuffer_handle, width, height, clear_r, clear_g, clear_b, clear_a, clear_depth, clear_stencil);
 }
 
-/// Destroy a render pass.
-/// Caller must prove device is idle and no live framebuffers reference this render pass.
+///  Destroy a render pass.
+///  Caller must prove device is idle and no live framebuffers reference this render pass.
 #[verifier::external_body]
 pub fn vk_destroy_render_pass(
     ctx: &VulkanContext,
     rp: &mut RuntimeRenderPass,
     dev: &RuntimeDevice,
-    // Ghost: caller attests no live framebuffer references this render pass
+    //  Ghost: caller attests no live framebuffer references this render pass
     no_live_framebuffers: Ghost<bool>,
 )
     requires
         runtime_render_pass_wf(&*old(rp)),
-        // Device must be idle
+        //  Device must be idle
         forall|i: int| 0 <= i < dev@.pending_submissions.len()
             ==> (#[trigger] dev@.pending_submissions[i]).completed,
-        // Caller attests no framebuffer references this render pass
+        //  Caller attests no framebuffer references this render pass
         no_live_framebuffers@,
     ensures
         rp@ == destroy_render_pass_ghost(old(rp)@),
@@ -3250,9 +3250,9 @@ pub fn vk_destroy_render_pass(
     rp.state = Ghost(destroy_render_pass_ghost(rp.state@));
 }
 
-// ── Image View FFI ───────────────────────────────────────────────────
+//  ── Image View FFI ───────────────────────────────────────────────────
 
-/// Create an image view (2D, 1 mip, 1 layer).
+///  Create an image view (2D, 1 mip, 1 layer).
 #[verifier::external_body]
 pub fn vk_create_image_view(
     ctx: &VulkanContext,
@@ -3268,22 +3268,22 @@ pub fn vk_create_image_view(
     RuntimeImageView { handle: h, state: Ghost(state@) }
 }
 
-/// Destroy an image view.
-/// Caller must prove device is idle and no live framebuffer references this view.
+///  Destroy an image view.
+///  Caller must prove device is idle and no live framebuffer references this view.
 #[verifier::external_body]
 pub fn vk_destroy_image_view(
     ctx: &VulkanContext,
     view: &mut RuntimeImageView,
     dev: &RuntimeDevice,
-    // Ghost: caller attests no live framebuffer references this view
+    //  Ghost: caller attests no live framebuffer references this view
     no_live_framebuffers: Ghost<bool>,
 )
     requires
         runtime_image_view_wf(&*old(view)),
-        // Device must be idle
+        //  Device must be idle
         forall|i: int| 0 <= i < dev@.pending_submissions.len()
             ==> (#[trigger] dev@.pending_submissions[i]).completed,
-        // Caller attests no framebuffer references this view
+        //  Caller attests no framebuffer references this view
         no_live_framebuffers@,
     ensures
         view@ == destroy_image_view_ghost(old(view)@),
@@ -3293,10 +3293,10 @@ pub fn vk_destroy_image_view(
     view.state = Ghost(destroy_image_view_ghost(view.state@));
 }
 
-// ── Framebuffer FFI ──────────────────────────────────────────────────
+//  ── Framebuffer FFI ──────────────────────────────────────────────────
 
-/// Create a framebuffer.
-/// Caller must prove the render pass is alive and the ghost state matches it.
+///  Create a framebuffer.
+///  Caller must prove the render pass is alive and the ghost state matches it.
 #[verifier::external_body]
 pub fn vk_create_framebuffer(
     ctx: &VulkanContext,
@@ -3308,11 +3308,11 @@ pub fn vk_create_framebuffer(
 ) -> (out: RuntimeFramebuffer)
     requires
         state@.alive,
-        // Render pass must be alive
+        //  Render pass must be alive
         runtime_render_pass_wf(rp),
-        // Ghost state must reference this render pass
+        //  Ghost state must reference this render pass
         state@.render_pass_id == rp@.id,
-        // Attachment count must match render pass
+        //  Attachment count must match render pass
         framebuffer_attachment_count_matches(state@, rp@),
     ensures out@ == state@, runtime_framebuffer_wf(&out),
 {
@@ -3320,8 +3320,8 @@ pub fn vk_create_framebuffer(
     RuntimeFramebuffer { handle, state: Ghost(state@) }
 }
 
-/// Destroy a framebuffer.
-/// Caller must prove device is idle.
+///  Destroy a framebuffer.
+///  Caller must prove device is idle.
 #[verifier::external_body]
 pub fn vk_destroy_framebuffer(
     ctx: &VulkanContext,
@@ -3330,7 +3330,7 @@ pub fn vk_destroy_framebuffer(
 )
     requires
         runtime_framebuffer_wf(&*old(fb)),
-        // Device must be idle — framebuffer may be referenced by pending command buffers
+        //  Device must be idle — framebuffer may be referenced by pending command buffers
         forall|i: int| 0 <= i < dev@.pending_submissions.len()
             ==> (#[trigger] dev@.pending_submissions[i]).completed,
     ensures
@@ -3341,9 +3341,9 @@ pub fn vk_destroy_framebuffer(
     fb.state = Ghost(destroy_framebuffer_ghost(fb.state@));
 }
 
-// ── Command Pool FFI ─────────────────────────────────────────────────
+//  ── Command Pool FFI ─────────────────────────────────────────────────
 
-/// Create a command pool.
+///  Create a command pool.
 #[verifier::external_body]
 pub fn vk_create_command_pool(
     ctx: &VulkanContext,
@@ -3369,8 +3369,8 @@ pub fn vk_create_command_pool(
     }
 }
 
-/// Destroy a command pool.
-/// Caller must prove pool is empty and device is idle.
+///  Destroy a command pool.
+///  Caller must prove pool is empty and device is idle.
 #[verifier::external_body]
 pub fn vk_destroy_command_pool(
     ctx: &VulkanContext,
@@ -3380,7 +3380,7 @@ pub fn vk_destroy_command_pool(
     requires
         runtime_command_pool_wf(&*old(pool)),
         pool_empty(old(pool)@),
-        // Device must be idle — command buffers from this pool may be in-flight
+        //  Device must be idle — command buffers from this pool may be in-flight
         forall|i: int| 0 <= i < dev@.pending_submissions.len()
             ==> (#[trigger] dev@.pending_submissions[i]).completed,
     ensures
@@ -3391,9 +3391,9 @@ pub fn vk_destroy_command_pool(
     pool.state = Ghost(destroy_command_pool_ghost(pool.state@));
 }
 
-// ── Swapchain Image Query FFI ────────────────────────────────────────
+//  ── Swapchain Image Query FFI ────────────────────────────────────────
 
-/// Get swapchain image handles.
+///  Get swapchain image handles.
 #[verifier::external_body]
 pub fn vk_get_swapchain_images(
     ctx: &VulkanContext,
@@ -3406,20 +3406,20 @@ pub fn vk_get_swapchain_images(
     handles
 }
 
-// ── Graphics Pipeline FFI (hardened) ─────────────────────────────────
+//  ── Graphics Pipeline FFI (hardened) ─────────────────────────────────
 
-/// Create a graphics pipeline with full precondition checking.
+///  Create a graphics pipeline with full precondition checking.
 ///
-/// Caller must prove:
-/// - Render pass alive + pipeline compatible with its subpass
-/// - Pipeline layout alive
-/// - Both shader modules alive + correct stages
-/// - Full shader-pipeline interface compatibility (vertex inputs, descriptor
-///   bindings, push constants, fragment output count)
+///  Caller must prove:
+///  - Render pass alive + pipeline compatible with its subpass
+///  - Pipeline layout alive
+///  - Both shader modules alive + correct stages
+///  - Full shader-pipeline interface compatibility (vertex inputs, descriptor
+///    bindings, push constants, fragment output count)
 ///
-/// Ghost params `vertex_attributes` and `resolved_set_layouts` carry the
-/// resolved data that the spec needs but isn't stored in the pipeline state
-/// (GraphicsPipelineState only has layout IDs, not full layouts).
+///  Ghost params `vertex_attributes` and `resolved_set_layouts` carry the
+///  resolved data that the spec needs but isn't stored in the pipeline state
+///  (GraphicsPipelineState only has layout IDs, not full layouts).
 #[verifier::external_body]
 pub fn vk_create_graphics_pipeline_checked(
     ctx: &VulkanContext,
@@ -3428,31 +3428,31 @@ pub fn vk_create_graphics_pipeline_checked(
     rp: &RuntimeRenderPass,
     vert: &RuntimeShaderModule,
     frag: &RuntimeShaderModule,
-    // Ghost: the vertex attributes the pipeline's vertex input state provides
+    //  Ghost: the vertex attributes the pipeline's vertex input state provides
     vertex_attributes: Ghost<Seq<ShaderInputAttribute>>,
-    // Ghost: resolved descriptor set layouts (full objects, not just IDs)
+    //  Ghost: resolved descriptor set layouts (full objects, not just IDs)
     resolved_set_layouts: Ghost<Seq<DescriptorSetLayoutState>>,
 ) -> (out: RuntimeGraphicsPipeline)
     requires
         gps@.alive,
-        // Render pass must be alive
+        //  Render pass must be alive
         runtime_render_pass_wf(rp),
-        // Pipeline must be compatible with the render pass subpass
+        //  Pipeline must be compatible with the render pass subpass
         graphics_pipeline_compatible_with_subpass(gps@, rp@, gps@.subpass_index),
-        // Pipeline layout must be alive
+        //  Pipeline layout must be alive
         runtime_pipeline_layout_wf(layout),
-        // Shader modules must be alive
+        //  Shader modules must be alive
         runtime_shader_module_wf(vert),
         runtime_shader_module_wf(frag),
-        // Shader stages must be correct
+        //  Shader stages must be correct
         shader_module_is_vertex(vert@),
         shader_module_is_fragment(frag@),
-        // Resolved layouts must correspond to the pipeline layout's set_layout IDs
+        //  Resolved layouts must correspond to the pipeline layout's set_layout IDs
         resolved_set_layouts@.len() == layout@.set_layouts.len(),
         forall|i: int| 0 <= i < resolved_set_layouts@.len() ==>
             (#[trigger] resolved_set_layouts@[i]).id == layout@.set_layouts[i]
             && resolved_set_layouts@[i].alive,
-        // Full shader-pipeline interface compatibility
+        //  Full shader-pipeline interface compatibility
         shader_pipeline_compatible(
             vert@.interface,
             frag@.interface,
@@ -3469,15 +3469,15 @@ pub fn vk_create_graphics_pipeline_checked(
     RuntimeGraphicsPipeline { handle: h, state: Ghost(gps@) }
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Window Cleanup Permit
-// ═══════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════
+//  Window Cleanup Permit
+//  ═══════════════════════════════════════════════════════════════════════
 
-/// Create a `WindowCleanupPermit` attesting that the event loop has exited.
+///  Create a `WindowCleanupPermit` attesting that the event loop has exited.
 ///
-/// Call this **after** `event_loop.run_app()` returns.  The returned ghost
-/// token is required by `vk_destroy_swapchain` and `vk_destroy_surface`,
-/// preventing accidental destruction inside an event handler.
+///  Call this **after** `event_loop.run_app()` returns.  The returned ghost
+///  token is required by `vk_destroy_swapchain` and `vk_destroy_surface`,
+///  preventing accidental destruction inside an event handler.
 #[verifier::external_body]
 pub fn create_window_cleanup_permit() -> (out: Ghost<WindowCleanupPermit>)
     ensures cleanup_permit_valid(out@),
@@ -3485,13 +3485,13 @@ pub fn create_window_cleanup_permit() -> (out: Ghost<WindowCleanupPermit>)
     Ghost(WindowCleanupPermit { event_loop_exited: true })
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Mapped Buffer
-// ═══════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════
+//  Mapped Buffer
+//  ═══════════════════════════════════════════════════════════════════════
 
-/// Create a host-visible, persistently-mapped GPU buffer.
-/// Performs: create_buffer + allocate_memory + bind + map in one call.
-/// Starts as GpuPending so first-frame reclaim pattern works with signaled fence.
+///  Create a host-visible, persistently-mapped GPU buffer.
+///  Performs: create_buffer + allocate_memory + bind + map in one call.
+///  Starts as GpuPending so first-frame reclaim pattern works with signaled fence.
 #[verifier::external_body]
 pub fn vk_create_mapped_buffer(
     ctx: &VulkanContext,
@@ -3529,7 +3529,7 @@ pub fn vk_create_mapped_buffer(
     }
 }
 
-/// Destroy a mapped buffer. Requires HostOwned (GPU must be done).
+///  Destroy a mapped buffer. Requires HostOwned (GPU must be done).
 #[verifier::external_body]
 pub fn vk_destroy_mapped_buffer(ctx: &VulkanContext, buf: RuntimeMappedBuffer)
     requires buf@.ownership == BufferOwnership::HostOwned,
@@ -3539,4 +3539,4 @@ pub fn vk_destroy_mapped_buffer(ctx: &VulkanContext, buf: RuntimeMappedBuffer)
     raw_free_memory(ctx, buf.mem_handle);
 }
 
-} // verus!
+} //  verus!

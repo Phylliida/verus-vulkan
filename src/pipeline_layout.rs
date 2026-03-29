@@ -4,26 +4,26 @@ use crate::shader_interface::*;
 
 verus! {
 
-// ── Types ───────────────────────────────────────────────────────────────
+//  ── Types ───────────────────────────────────────────────────────────────
 
-/// Ghost state for a Vulkan pipeline layout (VkPipelineLayout).
+///  Ghost state for a Vulkan pipeline layout (VkPipelineLayout).
 ///
-/// A pipeline layout defines the interface between shader stages and
-/// shader resources. It specifies which descriptor set layouts and
-/// push constant ranges the pipeline uses.
+///  A pipeline layout defines the interface between shader stages and
+///  shader resources. It specifies which descriptor set layouts and
+///  push constant ranges the pipeline uses.
 pub struct PipelineLayoutState {
     pub id: nat,
-    /// Descriptor set layouts, indexed by set number.
+    ///  Descriptor set layouts, indexed by set number.
     pub set_layouts: Seq<nat>,
-    /// Push constant ranges declared by this layout.
+    ///  Push constant ranges declared by this layout.
     pub push_constant_ranges: Seq<PushConstantRange>,
     pub alive: bool,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// Two pipeline layouts are compatible for a given set index:
-/// all set layouts at indices <= set_index match.
+///  Two pipeline layouts are compatible for a given set index:
+///  all set layouts at indices <= set_index match.
 pub open spec fn layouts_compatible_at_set(
     layout_a: PipelineLayoutState,
     layout_b: PipelineLayoutState,
@@ -35,8 +35,8 @@ pub open spec fn layouts_compatible_at_set(
         (#[trigger] layout_a.set_layouts[i]) == layout_b.set_layouts[i])
 }
 
-/// Two pipeline layouts are fully compatible: same set layouts and
-/// same push constant ranges.
+///  Two pipeline layouts are fully compatible: same set layouts and
+///  same push constant ranges.
 pub open spec fn layouts_fully_compatible(
     layout_a: PipelineLayoutState,
     layout_b: PipelineLayoutState,
@@ -45,7 +45,7 @@ pub open spec fn layouts_fully_compatible(
     && layout_a.push_constant_ranges =~= layout_b.push_constant_ranges
 }
 
-/// Push constant ranges don't overlap in a layout.
+///  Push constant ranges don't overlap in a layout.
 pub open spec fn push_constant_ranges_non_overlapping(
     ranges: Seq<PushConstantRange>,
 ) -> bool {
@@ -57,7 +57,7 @@ pub open spec fn push_constant_ranges_non_overlapping(
         )
 }
 
-/// Two push constant ranges overlap.
+///  Two push constant ranges overlap.
 pub open spec fn push_constant_ranges_overlap(
     a: PushConstantRange,
     b: PushConstantRange,
@@ -66,7 +66,7 @@ pub open spec fn push_constant_ranges_overlap(
     && b.offset < a.offset + a.size
 }
 
-/// A pipeline layout is well-formed.
+///  A pipeline layout is well-formed.
 pub open spec fn pipeline_layout_well_formed(
     layout: PipelineLayoutState,
 ) -> bool {
@@ -74,7 +74,7 @@ pub open spec fn pipeline_layout_well_formed(
     && push_constant_ranges_non_overlapping(layout.push_constant_ranges)
 }
 
-/// A descriptor set is compatible with a pipeline layout at a given set index.
+///  A descriptor set is compatible with a pipeline layout at a given set index.
 pub open spec fn descriptor_set_compatible_with_layout(
     set: DescriptorSetState,
     layout: PipelineLayoutState,
@@ -84,7 +84,7 @@ pub open spec fn descriptor_set_compatible_with_layout(
     && set.layout_id == layout.set_layouts[set_index as int]
 }
 
-/// Total push constant size across all ranges.
+///  Total push constant size across all ranges.
 pub open spec fn total_push_constant_size(
     ranges: Seq<PushConstantRange>,
 ) -> nat
@@ -98,9 +98,9 @@ pub open spec fn total_push_constant_size(
     }
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// Full layout compatibility implies compatibility at every set index.
+///  Full layout compatibility implies compatibility at every set index.
 pub proof fn lemma_full_compat_implies_set_compat(
     layout_a: PipelineLayoutState,
     layout_b: PipelineLayoutState,
@@ -114,7 +114,7 @@ pub proof fn lemma_full_compat_implies_set_compat(
 {
 }
 
-/// Layout compatibility is reflexive.
+///  Layout compatibility is reflexive.
 pub proof fn lemma_layout_compat_reflexive(
     layout: PipelineLayoutState,
 )
@@ -122,7 +122,7 @@ pub proof fn lemma_layout_compat_reflexive(
 {
 }
 
-/// Layout compatibility is symmetric.
+///  Layout compatibility is symmetric.
 pub proof fn lemma_layout_compat_symmetric(
     layout_a: PipelineLayoutState,
     layout_b: PipelineLayoutState,
@@ -132,14 +132,14 @@ pub proof fn lemma_layout_compat_symmetric(
 {
 }
 
-/// A layout with no push constant ranges has non-overlapping ranges trivially.
+///  A layout with no push constant ranges has non-overlapping ranges trivially.
 pub proof fn lemma_empty_push_constants_non_overlapping()
     ensures push_constant_ranges_non_overlapping(Seq::empty()),
 {
 }
 
-/// A layout with no set layouts is compatible with any other
-/// at no set indices (vacuously).
+///  A layout with no set layouts is compatible with any other
+///  at no set indices (vacuously).
 pub proof fn lemma_empty_set_layouts_compat(
     layout_a: PipelineLayoutState,
     layout_b: PipelineLayoutState,
@@ -150,14 +150,14 @@ pub proof fn lemma_empty_set_layouts_compat(
 {
 }
 
-/// Empty push constant ranges have zero total size.
+///  Empty push constant ranges have zero total size.
 pub proof fn lemma_empty_push_constants_zero_size()
     ensures total_push_constant_size(Seq::empty()) == 0,
 {
 }
 
-/// A descriptor set compatible with layout_a is also compatible with
-/// layout_b if the layouts are compatible at that set index.
+///  A descriptor set compatible with layout_a is also compatible with
+///  layout_b if the layouts are compatible at that set index.
 pub proof fn lemma_set_compat_transfers(
     set: DescriptorSetState,
     layout_a: PipelineLayoutState,
@@ -172,4 +172,4 @@ pub proof fn lemma_set_compat_transfers(
 {
 }
 
-} // verus!
+} //  verus!

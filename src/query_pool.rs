@@ -2,34 +2,34 @@ use vstd::prelude::*;
 
 verus! {
 
-// ── Types ───────────────────────────────────────────────────────────────
+//  ── Types ───────────────────────────────────────────────────────────────
 
-/// State of a single query within a query pool.
+///  State of a single query within a query pool.
 pub enum QuerySlotState {
-    /// Query has been reset, ready to begin.
+    ///  Query has been reset, ready to begin.
     Reset,
-    /// Query is actively recording (between begin and end).
+    ///  Query is actively recording (between begin and end).
     Active,
-    /// Query has completed, results are available.
+    ///  Query has completed, results are available.
     Available,
-    /// Query is in an undefined state (never reset, or pool just created).
+    ///  Query is in an undefined state (never reset, or pool just created).
     Uninitialized,
 }
 
-/// Ghost state for a Vulkan query pool (VkQueryPool).
+///  Ghost state for a Vulkan query pool (VkQueryPool).
 pub struct QueryPoolState {
     pub id: nat,
-    /// Number of query slots in the pool.
+    ///  Number of query slots in the pool.
     pub query_count: nat,
-    /// State of each query slot.
+    ///  State of each query slot.
     pub slot_states: Map<nat, QuerySlotState>,
-    /// Whether the pool is alive.
+    ///  Whether the pool is alive.
     pub alive: bool,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// Create a fresh query pool with all slots uninitialized.
+///  Create a fresh query pool with all slots uninitialized.
 pub open spec fn create_query_pool(id: nat, count: nat) -> QueryPoolState {
     QueryPoolState {
         id,
@@ -42,7 +42,7 @@ pub open spec fn create_query_pool(id: nat, count: nat) -> QueryPoolState {
     }
 }
 
-/// Reset a range of queries.
+///  Reset a range of queries.
 pub open spec fn reset_queries(
     pool: QueryPoolState,
     first: nat,
@@ -65,7 +65,7 @@ pub open spec fn reset_queries(
     }
 }
 
-/// Begin a query (start recording).
+///  Begin a query (start recording).
 pub open spec fn begin_query(
     pool: QueryPoolState,
     index: nat,
@@ -78,7 +78,7 @@ pub open spec fn begin_query(
     }
 }
 
-/// End a query (stop recording, results become available).
+///  End a query (stop recording, results become available).
 pub open spec fn end_query(
     pool: QueryPoolState,
     index: nat,
@@ -91,35 +91,35 @@ pub open spec fn end_query(
     }
 }
 
-/// A query slot is in the Reset state (ready to begin).
+///  A query slot is in the Reset state (ready to begin).
 pub open spec fn query_is_reset(pool: QueryPoolState, index: nat) -> bool {
     pool.slot_states.contains_key(index)
     && pool.slot_states[index] == QuerySlotState::Reset
 }
 
-/// A query slot is Active (between begin and end).
+///  A query slot is Active (between begin and end).
 pub open spec fn query_is_active(pool: QueryPoolState, index: nat) -> bool {
     pool.slot_states.contains_key(index)
     && pool.slot_states[index] == QuerySlotState::Active
 }
 
-/// A query slot has available results.
+///  A query slot has available results.
 pub open spec fn query_is_available(pool: QueryPoolState, index: nat) -> bool {
     pool.slot_states.contains_key(index)
     && pool.slot_states[index] == QuerySlotState::Available
 }
 
-/// Begin query is valid: slot must be Reset.
+///  Begin query is valid: slot must be Reset.
 pub open spec fn begin_query_valid(pool: QueryPoolState, index: nat) -> bool {
     pool.alive && index < pool.query_count && query_is_reset(pool, index)
 }
 
-/// End query is valid: slot must be Active.
+///  End query is valid: slot must be Active.
 pub open spec fn end_query_valid(pool: QueryPoolState, index: nat) -> bool {
     pool.alive && index < pool.query_count && query_is_active(pool, index)
 }
 
-/// Get results is valid: all slots in range must be Available.
+///  Get results is valid: all slots in range must be Available.
 pub open spec fn get_results_valid(
     pool: QueryPoolState,
     first: nat,
@@ -131,9 +131,9 @@ pub open spec fn get_results_valid(
         ==> query_is_available(pool, i))
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// After reset, a query slot is in the Reset state.
+///  After reset, a query slot is in the Reset state.
 pub proof fn lemma_reset_makes_reset(
     pool: QueryPoolState,
     first: nat,
@@ -152,7 +152,7 @@ pub proof fn lemma_reset_makes_reset(
     assert(result.slot_states[index] == QuerySlotState::Reset);
 }
 
-/// The full lifecycle Reset → begin → end produces Available.
+///  The full lifecycle Reset → begin → end produces Available.
 pub proof fn lemma_full_lifecycle_available(
     pool: QueryPoolState,
     first: nat,
@@ -172,7 +172,7 @@ pub proof fn lemma_full_lifecycle_available(
 {
 }
 
-/// Reset does not affect queries outside the range.
+///  Reset does not affect queries outside the range.
 pub proof fn lemma_reset_preserves_outside(
     pool: QueryPoolState,
     first: nat,
@@ -189,7 +189,7 @@ pub proof fn lemma_reset_preserves_outside(
 {
 }
 
-/// Begin query changes only the targeted slot.
+///  Begin query changes only the targeted slot.
 pub proof fn lemma_begin_preserves_others(
     pool: QueryPoolState,
     index: nat,
@@ -204,7 +204,7 @@ pub proof fn lemma_begin_preserves_others(
 {
 }
 
-/// A fresh pool has all slots uninitialized.
+///  A fresh pool has all slots uninitialized.
 pub proof fn lemma_fresh_pool_uninitialized(id: nat, count: nat, index: nat)
     requires index < count,
     ensures
@@ -213,7 +213,7 @@ pub proof fn lemma_fresh_pool_uninitialized(id: nat, count: nat, index: nat)
 {
 }
 
-/// Get results on a single available slot is valid.
+///  Get results on a single available slot is valid.
 pub proof fn lemma_single_available_results_valid(
     pool: QueryPoolState,
     index: nat,
@@ -227,7 +227,7 @@ pub proof fn lemma_single_available_results_valid(
 {
 }
 
-/// After begin_query, the slot is Active.
+///  After begin_query, the slot is Active.
 pub proof fn lemma_begin_makes_active(pool: QueryPoolState, index: nat)
     requires
         pool.slot_states.contains_key(index),
@@ -236,7 +236,7 @@ pub proof fn lemma_begin_makes_active(pool: QueryPoolState, index: nat)
 {
 }
 
-/// After end_query, the slot is Available.
+///  After end_query, the slot is Available.
 pub proof fn lemma_end_makes_available(pool: QueryPoolState, index: nat)
     requires
         pool.slot_states.contains_key(index),
@@ -245,7 +245,7 @@ pub proof fn lemma_end_makes_available(pool: QueryPoolState, index: nat)
 {
 }
 
-/// End query changes only the targeted slot.
+///  End query changes only the targeted slot.
 pub proof fn lemma_end_preserves_others(
     pool: QueryPoolState, index: nat, other: nat,
 )
@@ -257,12 +257,12 @@ pub proof fn lemma_end_preserves_others(
 {
 }
 
-/// Write timestamp is valid: slot must be Reset.
+///  Write timestamp is valid: slot must be Reset.
 pub open spec fn write_timestamp_valid(pool: QueryPoolState, index: nat) -> bool {
     pool.alive && index < pool.query_count && query_is_reset(pool, index)
 }
 
-/// Ghost update: write a timestamp (transitions Reset → Available).
+///  Ghost update: write a timestamp (transitions Reset → Available).
 pub open spec fn write_timestamp(
     pool: QueryPoolState,
     index: nat,
@@ -275,7 +275,7 @@ pub open spec fn write_timestamp(
     }
 }
 
-/// After write_timestamp, the slot is Available.
+///  After write_timestamp, the slot is Available.
 pub proof fn lemma_write_timestamp_makes_available(pool: QueryPoolState, index: nat)
     requires
         pool.slot_states.contains_key(index),
@@ -284,7 +284,7 @@ pub proof fn lemma_write_timestamp_makes_available(pool: QueryPoolState, index: 
 {
 }
 
-/// Destroy a query pool.
+///  Destroy a query pool.
 pub open spec fn destroy_query_pool(pool: QueryPoolState) -> QueryPoolState {
     QueryPoolState {
         alive: false,
@@ -292,22 +292,22 @@ pub open spec fn destroy_query_pool(pool: QueryPoolState) -> QueryPoolState {
     }
 }
 
-/// A fresh pool is alive.
+///  A fresh pool is alive.
 pub proof fn lemma_fresh_pool_alive(id: nat, count: nat)
     ensures create_query_pool(id, count).alive,
 {
 }
 
-/// Destroying a pool makes it not alive.
+///  Destroying a pool makes it not alive.
 pub proof fn lemma_destroy_not_alive(pool: QueryPoolState)
     ensures !destroy_query_pool(pool).alive,
 {
 }
 
-/// Destroying a pool preserves its id.
+///  Destroying a pool preserves its id.
 pub proof fn lemma_destroy_preserves_id(pool: QueryPoolState)
     ensures destroy_query_pool(pool).id == pool.id,
 {
 }
 
-} // verus!
+} //  verus!

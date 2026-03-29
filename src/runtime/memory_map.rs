@@ -5,9 +5,9 @@ use crate::runtime::device::*;
 
 verus! {
 
-/// Runtime wrapper for memory map tracking state.
+///  Runtime wrapper for memory map tracking state.
 pub struct RuntimeMemoryMap {
-    /// Ghost model of the memory map state.
+    ///  Ghost model of the memory map state.
     pub state: Ghost<MemoryMapState>,
 }
 
@@ -16,7 +16,7 @@ impl View for RuntimeMemoryMap {
     open spec fn view(&self) -> MemoryMapState { self.state@ }
 }
 
-/// Exec: create a memory map tracker from ghost state.
+///  Exec: create a memory map tracker from ghost state.
 pub fn create_memory_map_exec(
     mm_state: Ghost<MemoryMapState>,
 ) -> (out: RuntimeMemoryMap)
@@ -25,7 +25,7 @@ pub fn create_memory_map_exec(
     RuntimeMemoryMap { state: mm_state }
 }
 
-/// Exec: map memory for host access.
+///  Exec: map memory for host access.
 pub fn map_exec(
     mm: &mut RuntimeMemoryMap,
     offset: Ghost<nat>,
@@ -39,7 +39,7 @@ pub fn map_exec(
     mm.state = Ghost(map_memory(mm.state@, offset@, size@));
 }
 
-/// Exec: unmap memory.
+///  Exec: unmap memory.
 pub fn unmap_exec(mm: &mut RuntimeMemoryMap)
     requires old(mm)@.mapped,
     ensures
@@ -49,8 +49,8 @@ pub fn unmap_exec(mm: &mut RuntimeMemoryMap)
     mm.state = Ghost(unmap_memory(mm.state@));
 }
 
-/// Exec: host write to mapped memory.
-/// Caller must prove the GPU has no pending references to this resource.
+///  Exec: host write to mapped memory.
+///  Caller must prove the GPU has no pending references to this resource.
 pub fn host_write_exec(
     mm: &mut RuntimeMemoryMap,
     dev: &RuntimeDevice,
@@ -65,7 +65,7 @@ pub fn host_write_exec(
     mm.state = Ghost(host_write(mm.state@));
 }
 
-/// Exec: flush mapped memory range.
+///  Exec: flush mapped memory range.
 pub fn flush_exec(mm: &mut RuntimeMemoryMap)
     requires old(mm)@.mapped,
     ensures
@@ -75,7 +75,7 @@ pub fn flush_exec(mm: &mut RuntimeMemoryMap)
     mm.state = Ghost(flush_memory(mm.state@));
 }
 
-/// Exec: invalidate mapped memory range.
+///  Exec: invalidate mapped memory range.
 pub fn invalidate_exec(mm: &mut RuntimeMemoryMap)
     requires old(mm)@.mapped,
     ensures
@@ -85,4 +85,4 @@ pub fn invalidate_exec(mm: &mut RuntimeMemoryMap)
     mm.state = Ghost(invalidate_memory(mm.state@));
 }
 
-} // verus!
+} //  verus!

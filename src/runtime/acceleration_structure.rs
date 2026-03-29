@@ -6,11 +6,11 @@ use super::device::RuntimeDevice;
 
 verus! {
 
-/// Runtime wrapper for a VkAccelerationStructureKHR.
+///  Runtime wrapper for a VkAccelerationStructureKHR.
 pub struct RuntimeAccelerationStructure {
-    /// Opaque handle (maps to VkAccelerationStructureKHR).
+    ///  Opaque handle (maps to VkAccelerationStructureKHR).
     pub handle: u64,
-    /// Ghost model of the acceleration structure state.
+    ///  Ghost model of the acceleration structure state.
     pub state: Ghost<AccelerationStructureState>,
 }
 
@@ -19,12 +19,12 @@ impl View for RuntimeAccelerationStructure {
     open spec fn view(&self) -> AccelerationStructureState { self.state@ }
 }
 
-/// Well-formedness of the runtime acceleration structure.
+///  Well-formedness of the runtime acceleration structure.
 pub open spec fn runtime_as_wf(as_obj: &RuntimeAccelerationStructure) -> bool {
     as_well_formed(as_obj@)
 }
 
-/// Exec: create an acceleration structure from ghost state.
+///  Exec: create an acceleration structure from ghost state.
 pub fn create_as_exec(
     as_state: Ghost<AccelerationStructureState>,
 ) -> (out: RuntimeAccelerationStructure)
@@ -39,7 +39,7 @@ pub fn create_as_exec(
     }
 }
 
-/// Exec: destroy an acceleration structure.
+///  Exec: destroy an acceleration structure.
 pub fn destroy_as_exec(
     as_obj: &mut RuntimeAccelerationStructure,
     dev: &RuntimeDevice,
@@ -58,7 +58,7 @@ pub fn destroy_as_exec(
     as_obj.state = Ghost(destroy_as_ghost(as_obj.state@));
 }
 
-/// Exec: build an acceleration structure.
+///  Exec: build an acceleration structure.
 pub fn build_as_exec(
     as_obj: &mut RuntimeAccelerationStructure,
     mode: Ghost<ASBuildMode>,
@@ -80,7 +80,7 @@ pub fn build_as_exec(
     as_obj.state = Ghost(build_as_ghost(as_obj.state@, mode@));
 }
 
-/// Exec: compact an acceleration structure.
+///  Exec: compact an acceleration structure.
 pub fn compact_as_exec(
     as_obj: &mut RuntimeAccelerationStructure,
 )
@@ -100,30 +100,30 @@ pub fn compact_as_exec(
     as_obj.state = Ghost(compact_as_ghost(as_obj.state@));
 }
 
-// ── Specs & Proofs ──────────────────────────────────────────────────
+//  ── Specs & Proofs ──────────────────────────────────────────────────
 
-/// AS is alive.
+///  AS is alive.
 pub open spec fn as_alive(as_obj: &RuntimeAccelerationStructure) -> bool {
     as_obj@.alive
 }
 
-/// AS has been built.
+///  AS has been built.
 pub open spec fn as_built(as_obj: &RuntimeAccelerationStructure) -> bool {
     as_obj@.built
 }
 
-/// Proof: destroying preserves id.
+///  Proof: destroying preserves id.
 pub proof fn lemma_destroy_as_preserves_id(as_obj: &RuntimeAccelerationStructure)
     requires runtime_as_wf(as_obj),
     ensures destroy_as_ghost(as_obj@).id == as_obj@.id,
 {
 }
 
-/// Proof: building preserves id.
+///  Proof: building preserves id.
 pub proof fn lemma_build_as_preserves_id(as_obj: &RuntimeAccelerationStructure, mode: ASBuildMode)
     requires runtime_as_wf(as_obj),
     ensures build_as_ghost(as_obj@, mode).id == as_obj@.id,
 {
 }
 
-} // verus!
+} //  verus!

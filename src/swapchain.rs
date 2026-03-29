@@ -2,8 +2,8 @@ use vstd::prelude::*;
 
 verus! {
 
-/// Swapchain image metadata extracted at creation time.
-/// Used to construct `ImageState` templates without repeating format/size/usage.
+///  Swapchain image metadata extracted at creation time.
+///  Used to construct `ImageState` templates without repeating format/size/usage.
 pub struct SwapchainImageInfo {
     pub format: nat,
     pub width: nat,
@@ -11,45 +11,45 @@ pub struct SwapchainImageInfo {
     pub usage: Set<nat>,
 }
 
-/// Lifecycle state of a single swapchain image.
+///  Lifecycle state of a single swapchain image.
 pub enum SwapchainImageState {
-    /// Available for acquisition via vkAcquireNextImageKHR.
+    ///  Available for acquisition via vkAcquireNextImageKHR.
     Available,
-    /// Acquired by the application; being rendered to.
+    ///  Acquired by the application; being rendered to.
     Acquired,
-    /// Submitted for presentation via vkQueuePresentKHR.
+    ///  Submitted for presentation via vkQueuePresentKHR.
     PresentPending,
 }
 
-/// A swapchain with N images, each in some lifecycle state.
+///  A swapchain with N images, each in some lifecycle state.
 pub struct SwapchainState {
-    /// Unique identifier for this swapchain (used for thread-safe sync token lookup).
+    ///  Unique identifier for this swapchain (used for thread-safe sync token lookup).
     pub id: nat,
     pub image_states: Seq<SwapchainImageState>,
-    /// Whether this swapchain has been retired (replaced by a new swapchain).
-    /// Acquiring from a retired swapchain is UB.
+    ///  Whether this swapchain has been retired (replaced by a new swapchain).
+    ///  Acquiring from a retired swapchain is UB.
     pub retired: bool,
-    /// Whether this swapchain has not been destroyed.
+    ///  Whether this swapchain has not been destroyed.
     pub alive: bool,
-    /// Logical image identity per swapchain index. On acquire, the id at the
-    /// acquired index is rotated to a fresh value so that descriptors bound to
-    /// the old id become stale (their `descriptor_binding_resource_alive` check
-    /// against the caller's `images` map will fail).
+    ///  Logical image identity per swapchain index. On acquire, the id at the
+    ///  acquired index is rotated to a fresh value so that descriptors bound to
+    ///  the old id become stale (their `descriptor_binding_resource_alive` check
+    ///  against the caller's `images` map will fail).
     pub current_image_ids: Seq<nat>,
-    /// Monotonic counter for generating unique image ids.
+    ///  Monotonic counter for generating unique image ids.
     pub next_image_id: nat,
-    /// Image metadata for constructing ImageState templates.
+    ///  Image metadata for constructing ImageState templates.
     pub image_info: SwapchainImageInfo,
 }
 
-/// Count how many images are currently acquired (not available, not presenting).
+///  Count how many images are currently acquired (not available, not presenting).
 pub open spec fn count_acquired(swapchain: SwapchainState) -> nat
     decreases swapchain.image_states.len(),
 {
     count_acquired_helper(swapchain.image_states, 0)
 }
 
-/// Helper: count acquired images starting from index `start`.
+///  Helper: count acquired images starting from index `start`.
 pub open spec fn count_acquired_helper(states: Seq<SwapchainImageState>, start: nat) -> nat
     decreases states.len() - start,
 {
@@ -64,12 +64,12 @@ pub open spec fn count_acquired_helper(states: Seq<SwapchainImageState>, start: 
     }
 }
 
-/// Count images currently submitted for presentation.
+///  Count images currently submitted for presentation.
 pub open spec fn count_present_pending(swapchain: SwapchainState) -> nat {
     count_present_pending_helper(swapchain.image_states, 0)
 }
 
-/// Helper: count present-pending images starting from index `start`.
+///  Helper: count present-pending images starting from index `start`.
 pub open spec fn count_present_pending_helper(states: Seq<SwapchainImageState>, start: nat) -> nat
     decreases states.len() - start,
 {
@@ -84,14 +84,14 @@ pub open spec fn count_present_pending_helper(states: Seq<SwapchainImageState>, 
     }
 }
 
-/// Total in-flight images = acquired + present-pending.
+///  Total in-flight images = acquired + present-pending.
 pub open spec fn count_in_flight(swapchain: SwapchainState) -> nat {
     count_acquired(swapchain) + count_present_pending(swapchain)
 }
 
-/// Acquire image at index `idx`. Fails if swapchain is retired or destroyed.
-/// On success, the image at `idx` transitions to Acquired and its logical
-/// image id is rotated to `next_image_id` (invalidating stale descriptors).
+///  Acquire image at index `idx`. Fails if swapchain is retired or destroyed.
+///  On success, the image at `idx` transitions to Acquired and its logical
+///  image id is rotated to `next_image_id` (invalidating stale descriptors).
 pub open spec fn acquire_image(swapchain: SwapchainState, idx: nat) -> Option<SwapchainState>
     recommends idx < swapchain.image_states.len(),
 {
@@ -112,7 +112,7 @@ pub open spec fn acquire_image(swapchain: SwapchainState, idx: nat) -> Option<Sw
     }
 }
 
-/// Present image at index `idx`.
+///  Present image at index `idx`.
 pub open spec fn present_image(swapchain: SwapchainState, idx: nat) -> Option<SwapchainState>
     recommends idx < swapchain.image_states.len(),
 {
@@ -129,7 +129,7 @@ pub open spec fn present_image(swapchain: SwapchainState, idx: nat) -> Option<Sw
     }
 }
 
-/// Image becomes available again after presentation completes.
+///  Image becomes available again after presentation completes.
 pub open spec fn present_complete(swapchain: SwapchainState, idx: nat) -> Option<SwapchainState>
     recommends idx < swapchain.image_states.len(),
 {
@@ -146,25 +146,25 @@ pub open spec fn present_complete(swapchain: SwapchainState, idx: nat) -> Option
     }
 }
 
-/// Retire a swapchain (marks it as replaced by a new swapchain).
+///  Retire a swapchain (marks it as replaced by a new swapchain).
 pub open spec fn retire_swapchain(swapchain: SwapchainState) -> SwapchainState {
     SwapchainState { retired: true, ..swapchain }
 }
 
-/// Ghost update: destroy the swapchain.
+///  Ghost update: destroy the swapchain.
 pub open spec fn destroy_swapchain_ghost(swapchain: SwapchainState) -> SwapchainState
     recommends swapchain.alive,
 {
     SwapchainState { alive: false, ..swapchain }
 }
 
-/// A swapchain where all images are Available.
+///  A swapchain where all images are Available.
 pub open spec fn all_available(swapchain: SwapchainState) -> bool {
     forall|i: int| 0 <= i < swapchain.image_states.len() ==>
         swapchain.image_states[i] == SwapchainImageState::Available
 }
 
-/// If all images are available, in-flight count is zero.
+///  If all images are available, in-flight count is zero.
 pub proof fn lemma_all_available_zero_in_flight(swapchain: SwapchainState)
     requires all_available(swapchain),
     ensures count_in_flight(swapchain) == 0,
@@ -194,7 +194,7 @@ proof fn lemma_all_available_zero_present(states: Seq<SwapchainImageState>, star
     }
 }
 
-/// Acquiring an available image from a live, non-retired swapchain succeeds.
+///  Acquiring an available image from a live, non-retired swapchain succeeds.
 pub proof fn lemma_acquire_available_succeeds(swapchain: SwapchainState, idx: nat)
     requires
         swapchain.alive,
@@ -205,7 +205,7 @@ pub proof fn lemma_acquire_available_succeeds(swapchain: SwapchainState, idx: na
 {
 }
 
-/// Acquiring a non-available image fails.
+///  Acquiring a non-available image fails.
 pub proof fn lemma_acquire_non_available_fails(swapchain: SwapchainState, idx: nat)
     requires
         idx < swapchain.image_states.len(),
@@ -214,7 +214,7 @@ pub proof fn lemma_acquire_non_available_fails(swapchain: SwapchainState, idx: n
 {
 }
 
-/// Presenting a non-acquired image fails.
+///  Presenting a non-acquired image fails.
 pub proof fn lemma_present_non_acquired_fails(swapchain: SwapchainState, idx: nat)
     requires
         idx < swapchain.image_states.len(),
@@ -223,7 +223,7 @@ pub proof fn lemma_present_non_acquired_fails(swapchain: SwapchainState, idx: na
 {
 }
 
-/// Present complete on non-pending image fails.
+///  Present complete on non-pending image fails.
 pub proof fn lemma_complete_non_pending_fails(swapchain: SwapchainState, idx: nat)
     requires
         idx < swapchain.image_states.len(),
@@ -232,7 +232,7 @@ pub proof fn lemma_complete_non_pending_fails(swapchain: SwapchainState, idx: na
 {
 }
 
-/// Acquiring preserves the number of images.
+///  Acquiring preserves the number of images.
 pub proof fn lemma_acquire_preserves_image_count(swapchain: SwapchainState, idx: nat)
     requires
         swapchain.alive,
@@ -244,7 +244,7 @@ pub proof fn lemma_acquire_preserves_image_count(swapchain: SwapchainState, idx:
 {
 }
 
-/// Presenting preserves the number of images.
+///  Presenting preserves the number of images.
 pub proof fn lemma_present_preserves_image_count(swapchain: SwapchainState, idx: nat)
     requires
         idx < swapchain.image_states.len(),
@@ -254,7 +254,7 @@ pub proof fn lemma_present_preserves_image_count(swapchain: SwapchainState, idx:
 {
 }
 
-/// Full cycle: acquire → present → complete returns to Available.
+///  Full cycle: acquire → present → complete returns to Available.
 pub proof fn lemma_full_cycle_returns_available(swapchain: SwapchainState, idx: nat)
     requires
         swapchain.alive,
@@ -270,7 +270,7 @@ pub proof fn lemma_full_cycle_returns_available(swapchain: SwapchainState, idx: 
 {
 }
 
-/// Operations on index `idx` don't affect other images.
+///  Operations on index `idx` don't affect other images.
 pub proof fn lemma_acquire_preserves_other(
     swapchain: SwapchainState, idx: nat, other: nat,
 )
@@ -287,21 +287,21 @@ pub proof fn lemma_acquire_preserves_other(
 {
 }
 
-/// A retired swapchain always returns None from acquire_image.
+///  A retired swapchain always returns None from acquire_image.
 pub proof fn lemma_retired_cannot_acquire(swapchain: SwapchainState, idx: nat)
     requires swapchain.retired,
     ensures acquire_image(swapchain, idx).is_none(),
 {
 }
 
-/// A destroyed swapchain always returns None from acquire_image.
+///  A destroyed swapchain always returns None from acquire_image.
 pub proof fn lemma_destroyed_cannot_acquire(swapchain: SwapchainState, idx: nat)
     requires !swapchain.alive,
     ensures acquire_image(swapchain, idx).is_none(),
 {
 }
 
-/// Destroying preserves ID and image states.
+///  Destroying preserves ID and image states.
 pub proof fn lemma_destroy_preserves_identity(swapchain: SwapchainState)
     ensures
         destroy_swapchain_ghost(swapchain).id == swapchain.id,
@@ -310,8 +310,8 @@ pub proof fn lemma_destroy_preserves_identity(swapchain: SwapchainState)
 {
 }
 
-/// Retiring a swapchain preserves its image states (in-flight images
-/// can still be presented/completed).
+///  Retiring a swapchain preserves its image states (in-flight images
+///  can still be presented/completed).
 pub proof fn lemma_retire_preserves_images(swapchain: SwapchainState)
     ensures
         retire_swapchain(swapchain).image_states == swapchain.image_states,
@@ -319,9 +319,9 @@ pub proof fn lemma_retire_preserves_images(swapchain: SwapchainState)
 {
 }
 
-// ── Image-id rotation lemmas ─────────────────────────────────────────
+//  ── Image-id rotation lemmas ─────────────────────────────────────────
 
-/// After acquire at `idx`, the image id at `idx` equals the old `next_image_id`.
+///  After acquire at `idx`, the image id at `idx` equals the old `next_image_id`.
 pub proof fn lemma_acquire_rotates_image_id(swapchain: SwapchainState, idx: nat)
     requires
         swapchain.alive,
@@ -335,7 +335,7 @@ pub proof fn lemma_acquire_rotates_image_id(swapchain: SwapchainState, idx: nat)
 {
 }
 
-/// Acquire at `idx` preserves image ids at other indices.
+///  Acquire at `idx` preserves image ids at other indices.
 pub proof fn lemma_acquire_preserves_other_ids(
     swapchain: SwapchainState, idx: nat, j: nat,
 )
@@ -353,8 +353,8 @@ pub proof fn lemma_acquire_preserves_other_ids(
 {
 }
 
-/// The new image id differs from all current image ids (by monotonicity).
-/// Requires that all current ids are less than `next_image_id`.
+///  The new image id differs from all current image ids (by monotonicity).
+///  Requires that all current ids are less than `next_image_id`.
 pub proof fn lemma_acquire_new_id_unique(
     swapchain: SwapchainState, idx: nat,
 )
@@ -376,14 +376,14 @@ pub proof fn lemma_acquire_new_id_unique(
     assert forall|j: int| 0 <= j < new_sc.current_image_ids.len()
     implies new_sc.current_image_ids[j] < new_sc.next_image_id by {
         if j == idx as int {
-            // new id = old next_image_id < old next_image_id + 1 = new next_image_id
+            //  new id = old next_image_id < old next_image_id + 1 = new next_image_id
         } else {
-            // preserved id < old next_image_id < new next_image_id
+            //  preserved id < old next_image_id < new next_image_id
         }
     }
 }
 
-/// Acquire preserves the length of current_image_ids.
+///  Acquire preserves the length of current_image_ids.
 pub proof fn lemma_acquire_preserves_image_ids_len(swapchain: SwapchainState, idx: nat)
     requires
         swapchain.alive,
@@ -397,4 +397,4 @@ pub proof fn lemma_acquire_preserves_image_ids_len(swapchain: SwapchainState, id
 {
 }
 
-} // verus!
+} //  verus!

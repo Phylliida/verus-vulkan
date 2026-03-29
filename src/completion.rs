@@ -10,9 +10,9 @@ use crate::device::*;
 
 verus! {
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// Recursively transition each command buffer in `cbs` from Pending to Executable.
+///  Recursively transition each command buffer in `cbs` from Pending to Executable.
 pub open spec fn transition_cbs_to_executable(
     cbs: Seq<nat>,
     cb_states: Map<nat, CommandBufferState>,
@@ -30,7 +30,7 @@ pub open spec fn transition_cbs_to_executable(
     }
 }
 
-/// Recursively signal each semaphore in `sems`, depositing the given resource states.
+///  Recursively signal each semaphore in `sems`, depositing the given resource states.
 pub open spec fn signal_semaphores_ghost(
     sems: Seq<nat>,
     sem_states: Map<nat, SemaphoreState>,
@@ -52,7 +52,7 @@ pub open spec fn signal_semaphores_ghost(
     }
 }
 
-/// Complete a submission: transition CBs to Executable, signal semaphores, signal fence.
+///  Complete a submission: transition CBs to Executable, signal semaphores, signal fence.
 pub open spec fn complete_submission_ghost(
     record: SubmissionRecord,
     cb_states: Map<nat, CommandBufferState>,
@@ -74,7 +74,7 @@ pub open spec fn complete_submission_ghost(
     (new_cbs, new_sems, new_fences)
 }
 
-/// Mark a specific submission as completed in the device's pending submissions.
+///  Mark a specific submission as completed in the device's pending submissions.
 pub open spec fn mark_submission_completed(
     dev: DeviceState,
     sub_id: nat,
@@ -92,8 +92,8 @@ pub open spec fn mark_submission_completed(
     }
 }
 
-/// Host-side fence wait: mark all submissions with this fence as completed,
-/// remove completed, and reset the fence.
+///  Host-side fence wait: mark all submissions with this fence as completed,
+///  remove completed, and reset the fence.
 pub open spec fn fence_wait_ghost(
     dev: DeviceState,
     fence_id: nat,
@@ -111,7 +111,7 @@ pub open spec fn fence_wait_ghost(
     (new_dev, new_fences)
 }
 
-/// True iff a resource can be safely destroyed: no pending submissions reference it.
+///  True iff a resource can be safely destroyed: no pending submissions reference it.
 pub open spec fn safe_to_destroy_resource(
     dev: DeviceState,
     resource: ResourceId,
@@ -119,9 +119,9 @@ pub open spec fn safe_to_destroy_resource(
     no_pending_references(dev.pending_submissions, resource)
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// After completion, all command buffers in the record are Executable.
+///  After completion, all command buffers in the record are Executable.
 pub proof fn lemma_complete_restores_executable(
     record: SubmissionRecord,
     cb_states: Map<nat, CommandBufferState>,
@@ -139,7 +139,7 @@ pub proof fn lemma_complete_restores_executable(
     decreases record.command_buffers.len(),
 {
     let cbs = record.command_buffers;
-    // Mirror the structure of lemma_transition_sets_pending
+    //  Mirror the structure of lemma_transition_sets_pending
     if cbs.len() > 0 {
         let prefix = cbs.subrange(0, cbs.len() - 1);
 
@@ -149,7 +149,7 @@ pub proof fn lemma_complete_restores_executable(
         }
 
         if i == cbs.len() - 1 {
-            // Last element, inserted directly
+            //  Last element, inserted directly
         } else {
             assert(cbs[i] == prefix[i]);
             let prefix_record = SubmissionRecord { command_buffers: prefix, ..record };
@@ -158,7 +158,7 @@ pub proof fn lemma_complete_restores_executable(
     }
 }
 
-/// After completion, if a fence was specified, it becomes signaled.
+///  After completion, if a fence was specified, it becomes signaled.
 pub proof fn lemma_complete_signals_fence(
     record: SubmissionRecord,
     cb_states: Map<nat, CommandBufferState>,
@@ -178,7 +178,7 @@ pub proof fn lemma_complete_signals_fence(
 {
 }
 
-/// After completion, all signal semaphores become signaled.
+///  After completion, all signal semaphores become signaled.
 pub proof fn lemma_complete_signals_semaphores(
     record: SubmissionRecord,
     sem_states: Map<nat, SemaphoreState>,
@@ -207,9 +207,9 @@ pub proof fn lemma_complete_signals_semaphores(
         }
 
         if i == sems.len() - 1 {
-            // Last element — signaled by this step
+            //  Last element — signaled by this step
             let prefix_result = signal_semaphores_ghost(prefix, sem_states, resource_states);
-            // Need prefix_result.contains_key(sems.last())
+            //  Need prefix_result.contains_key(sems.last())
             if seq_contains_nat(prefix, sems.last()) {
                 lemma_signal_contains_key(prefix, sem_states, resource_states, sems.last());
             } else {
@@ -221,15 +221,15 @@ pub proof fn lemma_complete_signals_semaphores(
             lemma_complete_signals_semaphores(prefix_record, sem_states, resource_states, i);
 
             if sems.last() == sems[i] {
-                // Overwritten — still signaled
+                //  Overwritten — still signaled
             } else {
-                // Different key, preserved
+                //  Different key, preserved
             }
         }
     }
 }
 
-/// Helper: after signal_semaphores_ghost, any key in the seq is in the result.
+///  Helper: after signal_semaphores_ghost, any key in the seq is in the result.
 proof fn lemma_signal_contains_key(
     sems: Seq<nat>,
     sem_states: Map<nat, SemaphoreState>,
@@ -265,7 +265,7 @@ proof fn lemma_signal_contains_key(
     }
 }
 
-/// signal_semaphores_ghost preserves entries not in the sequence.
+///  signal_semaphores_ghost preserves entries not in the sequence.
 proof fn lemma_signal_preserves_others(
     sems: Seq<nat>,
     sem_states: Map<nat, SemaphoreState>,
@@ -286,8 +286,8 @@ proof fn lemma_signal_preserves_others(
     }
 }
 
-/// After a fence wait, if all submissions referencing the resource had this fence_id,
-/// the resource is safe to destroy.
+///  After a fence wait, if all submissions referencing the resource had this fence_id,
+///  the resource is safe to destroy.
 pub proof fn lemma_fence_wait_enables_destroy(
     dev: DeviceState,
     fence_id: nat,
@@ -296,7 +296,7 @@ pub proof fn lemma_fence_wait_enables_destroy(
 )
     requires
         fence_states.contains_key(fence_id),
-        // Every submission referencing this resource has this fence_id
+        //  Every submission referencing this resource has this fence_id
         forall|i: int| 0 <= i < dev.pending_submissions.len()
             && dev.pending_submissions[i].referenced_resources.contains(resource)
             ==> dev.pending_submissions[i].fence_id == Some(fence_id),
@@ -305,13 +305,13 @@ pub proof fn lemma_fence_wait_enables_destroy(
         safe_to_destroy_resource(new_dev, resource)
     }),
 {
-    // Delegate to the existing lemma in lifetime.rs
+    //  Delegate to the existing lemma in lifetime.rs
     lemma_wait_clears_fence_submissions(dev.pending_submissions, fence_id, resource);
 }
 
-// ── Descriptor In-Flight Hazard Prevention ──────────────────────────────
+//  ── Descriptor In-Flight Hazard Prevention ──────────────────────────────
 
-/// A descriptor set is not referenced by any pending submission.
+///  A descriptor set is not referenced by any pending submission.
 pub open spec fn descriptor_not_in_flight(
     dev: DeviceState,
     set_id: nat,
@@ -319,8 +319,8 @@ pub open spec fn descriptor_not_in_flight(
     no_pending_references(dev.pending_submissions, ResourceId::DescriptorSet { id: set_id })
 }
 
-/// After a fence wait, if all submissions referencing a descriptor set had
-/// this fence_id, the descriptor set is no longer in flight.
+///  After a fence wait, if all submissions referencing a descriptor set had
+///  this fence_id, the descriptor set is no longer in flight.
 pub proof fn lemma_fence_wait_clears_descriptor(
     dev: DeviceState,
     fence_id: nat,
@@ -338,16 +338,16 @@ pub proof fn lemma_fence_wait_clears_descriptor(
         descriptor_not_in_flight(new_dev, set_id)
     }),
 {
-    // Delegates to the existing general lemma
+    //  Delegates to the existing general lemma
     lemma_wait_clears_fence_submissions(
         dev.pending_submissions, fence_id,
         ResourceId::DescriptorSet { id: set_id },
     );
 }
 
-// ── Fence Wait Clears Fence Submissions ─────────────────────────────────
+//  ── Fence Wait Clears Fence Submissions ─────────────────────────────────
 
-/// After a fence wait, no remaining pending submission has fence_id == Some(fence_id).
+///  After a fence wait, no remaining pending submission has fence_id == Some(fence_id).
 pub proof fn lemma_fence_wait_clears_fence_submissions(
     dev: DeviceState,
     fence_id: nat,
@@ -365,33 +365,33 @@ pub proof fn lemma_fence_wait_clears_fence_submissions(
     lemma_remove_completed_no_fence(dev.pending_submissions, fence_id);
 }
 
-// ── Cross-Queue Synchronization ──────────────────────────────────────────
+//  ── Cross-Queue Synchronization ──────────────────────────────────────────
 //
-// Vulkan requires explicit semaphore synchronization between queues.
-// Submissions on different queues have no implicit ordering — only
-// binary/timeline semaphore signal→wait pairs establish cross-queue
-// execution dependencies.
+//  Vulkan requires explicit semaphore synchronization between queues.
+//  Submissions on different queues have no implicit ordering — only
+//  binary/timeline semaphore signal→wait pairs establish cross-queue
+//  execution dependencies.
 
-/// A cross-queue dependency established by a semaphore signal→wait pair.
+///  A cross-queue dependency established by a semaphore signal→wait pair.
 pub struct CrossQueueDependency {
-    /// Queue that signals the semaphore.
+    ///  Queue that signals the semaphore.
     pub signal_queue: nat,
-    /// Submission id on signal_queue that signals.
+    ///  Submission id on signal_queue that signals.
     pub signal_sub_id: nat,
-    /// Queue that waits on the semaphore.
+    ///  Queue that waits on the semaphore.
     pub wait_queue: nat,
-    /// Submission id on wait_queue that waits.
+    ///  Submission id on wait_queue that waits.
     pub wait_sub_id: nat,
-    /// The semaphore establishing the dependency.
+    ///  The semaphore establishing the dependency.
     pub semaphore_id: nat,
 }
 
-/// A cross-queue dependency is well-formed: signal and wait must be on different queues.
+///  A cross-queue dependency is well-formed: signal and wait must be on different queues.
 pub open spec fn cross_queue_dep_well_formed(dep: CrossQueueDependency) -> bool {
     dep.signal_queue != dep.wait_queue
 }
 
-/// There exists a direct semaphore dependency from (queue_a, sub_a) to (queue_b, sub_b).
+///  There exists a direct semaphore dependency from (queue_a, sub_a) to (queue_b, sub_b).
 pub open spec fn cross_queue_ordered(
     deps: Seq<CrossQueueDependency>,
     sub_a: nat,
@@ -406,8 +406,8 @@ pub open spec fn cross_queue_ordered(
         && deps[i].wait_sub_id == sub_b
 }
 
-/// A cross-queue dependency is safe: if the signal submission has completed,
-/// the wait submission's resource accesses are safe.
+///  A cross-queue dependency is safe: if the signal submission has completed,
+///  the wait submission's resource accesses are safe.
 pub open spec fn cross_queue_resources_safe(
     dep: CrossQueueDependency,
     signal_record: SubmissionRecord,
@@ -420,9 +420,9 @@ pub open spec fn cross_queue_resources_safe(
     && signal_record.completed
 }
 
-// ── Cross-Queue Proofs ──────────────────────────────────────────────────
+//  ── Cross-Queue Proofs ──────────────────────────────────────────────────
 
-/// A completed signal establishes resource safety for the waiter.
+///  A completed signal establishes resource safety for the waiter.
 pub proof fn lemma_semaphore_establishes_order(
     dep: CrossQueueDependency,
     signal_record: SubmissionRecord,
@@ -440,15 +440,15 @@ pub proof fn lemma_semaphore_establishes_order(
 {
 }
 
-/// Cross-queue ordering is irreflexive: a queue cannot depend on itself
-/// through a well-formed cross-queue dependency.
+///  Cross-queue ordering is irreflexive: a queue cannot depend on itself
+///  through a well-formed cross-queue dependency.
 pub proof fn lemma_cross_queue_irreflexive(dep: CrossQueueDependency)
     requires cross_queue_dep_well_formed(dep),
     ensures dep.signal_queue != dep.wait_queue,
 {
 }
 
-/// Adding a new dependency preserves existing cross-queue orderings.
+///  Adding a new dependency preserves existing cross-queue orderings.
 pub proof fn lemma_add_dep_preserves_ordering(
     deps: Seq<CrossQueueDependency>,
     new_dep: CrossQueueDependency,
@@ -471,4 +471,4 @@ pub proof fn lemma_add_dep_preserves_ordering(
     assert(extended[i] == deps[i]);
 }
 
-} // verus!
+} //  verus!

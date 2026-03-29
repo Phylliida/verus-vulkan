@@ -6,11 +6,11 @@ use super::device::RuntimeDevice;
 
 verus! {
 
-/// Runtime wrapper for a ray tracing pipeline (VkPipeline).
+///  Runtime wrapper for a ray tracing pipeline (VkPipeline).
 pub struct RuntimeRayTracingPipeline {
-    /// Opaque handle (maps to VkPipeline).
+    ///  Opaque handle (maps to VkPipeline).
     pub handle: u64,
-    /// Ghost model of the ray tracing pipeline state.
+    ///  Ghost model of the ray tracing pipeline state.
     pub state: Ghost<RayTracingPipelineState>,
 }
 
@@ -19,12 +19,12 @@ impl View for RuntimeRayTracingPipeline {
     open spec fn view(&self) -> RayTracingPipelineState { self.state@ }
 }
 
-/// Well-formedness of the runtime ray tracing pipeline.
+///  Well-formedness of the runtime ray tracing pipeline.
 pub open spec fn runtime_rt_pipeline_wf(pipe: &RuntimeRayTracingPipeline) -> bool {
     rt_pipeline_well_formed(pipe@)
 }
 
-/// Exec: create a ray tracing pipeline from ghost state.
+///  Exec: create a ray tracing pipeline from ghost state.
 pub fn create_rt_pipeline_exec(
     rt_state: Ghost<RayTracingPipelineState>,
 ) -> (out: RuntimeRayTracingPipeline)
@@ -39,7 +39,7 @@ pub fn create_rt_pipeline_exec(
     }
 }
 
-/// Exec: destroy a ray tracing pipeline.
+///  Exec: destroy a ray tracing pipeline.
 pub fn destroy_rt_pipeline_exec(
     pipe: &mut RuntimeRayTracingPipeline,
     dev: &RuntimeDevice,
@@ -58,14 +58,14 @@ pub fn destroy_rt_pipeline_exec(
     pipe.state = Ghost(destroy_rt_pipeline_ghost(pipe.state@));
 }
 
-// ── Specs & Proofs ──────────────────────────────────────────────────
+//  ── Specs & Proofs ──────────────────────────────────────────────────
 
-/// Pipeline is alive.
+///  Pipeline is alive.
 pub open spec fn rt_pipeline_alive(pipe: &RuntimeRayTracingPipeline) -> bool {
     pipe@.alive
 }
 
-/// Proof: creating a pipeline produces an alive pipeline.
+///  Proof: creating a pipeline produces an alive pipeline.
 pub proof fn lemma_create_rt_pipeline_alive(rt_state: Ghost<RayTracingPipelineState>)
     requires rt_pipeline_well_formed(rt_state@),
     ensures rt_pipeline_alive(&RuntimeRayTracingPipeline {
@@ -75,11 +75,11 @@ pub proof fn lemma_create_rt_pipeline_alive(rt_state: Ghost<RayTracingPipelineSt
 {
 }
 
-/// Proof: destroying a pipeline preserves its id.
+///  Proof: destroying a pipeline preserves its id.
 pub proof fn lemma_destroy_rt_pipeline_preserves_id_rt(pipe: &RuntimeRayTracingPipeline)
     requires runtime_rt_pipeline_wf(pipe),
     ensures destroy_rt_pipeline_ghost(pipe@).id == pipe@.id,
 {
 }
 
-} // verus!
+} //  verus!

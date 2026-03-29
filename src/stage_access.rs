@@ -5,17 +5,17 @@ use crate::sync::*;
 
 verus! {
 
-// Stage and access constants are now defined in flags.rs (single source of truth).
-// They are imported via `use crate::flags::*` above.
+//  Stage and access constants are now defined in flags.rs (single source of truth).
+//  They are imported via `use crate::flags::*` above.
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// Whether a (stage, access) pair is valid per the Vulkan spec.
-/// Each access flag is only meaningful in specific pipeline stages.
+///  Whether a (stage, access) pair is valid per the Vulkan spec.
+///  Each access flag is only meaningful in specific pipeline stages.
 pub open spec fn valid_stage_access(stage: nat, access: nat) -> bool {
-    // MEMORY_READ and MEMORY_WRITE are valid in all stages
+    //  MEMORY_READ and MEMORY_WRITE are valid in all stages
     access == ACCESS_MEMORY_READ() || access == ACCESS_MEMORY_WRITE()
-    // TOP/BOTTOM of pipe: no specific accesses (only memory)
+    //  TOP/BOTTOM of pipe: no specific accesses (only memory)
     || (stage == STAGE_DRAW_INDIRECT() && access == ACCESS_INDIRECT_COMMAND_READ())
     || (stage == STAGE_VERTEX_INPUT() && (
         access == ACCESS_INDEX_READ() || access == ACCESS_VERTEX_ATTRIBUTE_READ()))
@@ -38,28 +38,28 @@ pub open spec fn valid_stage_access(stage: nat, access: nat) -> bool {
         access == ACCESS_HOST_READ() || access == ACCESS_HOST_WRITE()))
 }
 
-/// All (stage, access) pairs in a barrier entry are valid.
+///  All (stage, access) pairs in a barrier entry are valid.
 pub open spec fn barrier_stage_access_valid(entry: BarrierEntry) -> bool {
-    // Every src access must be valid with some src stage
+    //  Every src access must be valid with some src stage
     (forall|a: nat| entry.src_accesses.accesses.contains(a) ==>
         exists|s: nat| #[trigger] entry.src_stages.stages.contains(s) && valid_stage_access(s, a))
-    // Every dst access must be valid with some dst stage
+    //  Every dst access must be valid with some dst stage
     && (forall|a: nat| entry.dst_accesses.accesses.contains(a) ==>
         exists|s: nat| #[trigger] entry.dst_stages.stages.contains(s) && valid_stage_access(s, a))
 }
 
-/// All barriers in a log have valid stage/access combinations.
+///  All barriers in a log have valid stage/access combinations.
 pub open spec fn all_barriers_valid(log: Seq<BarrierEntry>) -> bool {
     forall|i: int| 0 <= i < log.len() ==> barrier_stage_access_valid(#[trigger] log[i])
 }
 
-/// A barrier with empty accesses is trivially valid.
+///  A barrier with empty accesses is trivially valid.
 pub open spec fn barrier_has_empty_accesses(entry: BarrierEntry) -> bool {
     entry.src_accesses.accesses == Set::<nat>::empty()
     && entry.dst_accesses.accesses == Set::<nat>::empty()
 }
 
-/// Execution-only barrier: stages but no accesses (pure execution dependency).
+///  Execution-only barrier: stages but no accesses (pure execution dependency).
 pub open spec fn execution_only_barrier(
     resource: ResourceId,
     src_stages: PipelineStageFlags,
@@ -74,9 +74,9 @@ pub open spec fn execution_only_barrier(
     }
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// An execution-only barrier is always valid (no accesses to check).
+///  An execution-only barrier is always valid (no accesses to check).
 pub proof fn lemma_execution_only_barrier_valid(
     resource: ResourceId,
     src_stages: PipelineStageFlags,
@@ -90,7 +90,7 @@ pub proof fn lemma_execution_only_barrier_valid(
     assert(entry.dst_accesses.accesses == Set::<nat>::empty());
 }
 
-/// Memory read/write accesses are valid with any stage.
+///  Memory read/write accesses are valid with any stage.
 pub proof fn lemma_memory_access_any_stage(stage: nat, is_write: bool)
     ensures
         valid_stage_access(stage, ACCESS_MEMORY_READ()),
@@ -98,20 +98,20 @@ pub proof fn lemma_memory_access_any_stage(stage: nat, is_write: bool)
 {
 }
 
-/// A barrier with empty accesses is valid.
+///  A barrier with empty accesses is valid.
 pub proof fn lemma_empty_accesses_valid(entry: BarrierEntry)
     requires barrier_has_empty_accesses(entry),
     ensures barrier_stage_access_valid(entry),
 {
 }
 
-/// An empty barrier log is valid.
+///  An empty barrier log is valid.
 pub proof fn lemma_empty_log_valid()
     ensures all_barriers_valid(Seq::<BarrierEntry>::empty()),
 {
 }
 
-/// Appending a valid barrier to a valid log preserves validity.
+///  Appending a valid barrier to a valid log preserves validity.
 pub proof fn lemma_append_valid_barrier(
     log: Seq<BarrierEntry>,
     entry: BarrierEntry,
@@ -132,7 +132,7 @@ pub proof fn lemma_append_valid_barrier(
     }
 }
 
-/// A transfer barrier with transfer read/write is valid.
+///  A transfer barrier with transfer read/write is valid.
 pub proof fn lemma_transfer_barrier_valid(resource: ResourceId)
     ensures barrier_stage_access_valid(BarrierEntry {
         resource,
@@ -149,7 +149,7 @@ pub proof fn lemma_transfer_barrier_valid(resource: ResourceId)
         dst_stages: PipelineStageFlags { stages: Set::empty().insert(STAGE_TRANSFER()) },
         dst_accesses: AccessFlags { accesses: Set::empty().insert(ACCESS_TRANSFER_READ()) },
     };
-    // Help Z3 with the existential: for each access, show the stage that makes it valid
+    //  Help Z3 with the existential: for each access, show the stage that makes it valid
     assert forall|a: nat| entry.src_accesses.accesses.contains(a)
     implies exists|s: nat| #[trigger] entry.src_stages.stages.contains(s) && valid_stage_access(s, a) by {
         assert(entry.src_stages.stages.contains(STAGE_TRANSFER()));
@@ -162,7 +162,7 @@ pub proof fn lemma_transfer_barrier_valid(resource: ResourceId)
     }
 }
 
-/// A color attachment write → shader read barrier is valid.
+///  A color attachment write → shader read barrier is valid.
 pub proof fn lemma_color_to_shader_read_valid(resource: ResourceId)
     ensures barrier_stage_access_valid(BarrierEntry {
         resource,
@@ -183,19 +183,19 @@ pub proof fn lemma_color_to_shader_read_valid(resource: ResourceId)
     assert(entry.dst_stages.stages.contains(STAGE_FRAGMENT_SHADER()));
 }
 
-/// Shader write access at vertex shader stage is valid.
+///  Shader write access at vertex shader stage is valid.
 pub proof fn lemma_vertex_shader_write_valid()
     ensures valid_stage_access(STAGE_VERTEX_SHADER(), ACCESS_SHADER_WRITE()),
 {
 }
 
-/// Shader write access at compute shader stage is valid.
+///  Shader write access at compute shader stage is valid.
 pub proof fn lemma_compute_shader_write_valid()
     ensures valid_stage_access(STAGE_COMPUTE_SHADER(), ACCESS_SHADER_WRITE()),
 {
 }
 
-/// Depth/stencil attachment access at early fragment tests is valid.
+///  Depth/stencil attachment access at early fragment tests is valid.
 pub proof fn lemma_early_depth_access_valid()
     ensures
         valid_stage_access(STAGE_EARLY_FRAGMENT_TESTS(), ACCESS_DEPTH_STENCIL_ATTACHMENT_READ()),
@@ -203,7 +203,7 @@ pub proof fn lemma_early_depth_access_valid()
 {
 }
 
-/// Color attachment access at color output stage is valid.
+///  Color attachment access at color output stage is valid.
 pub proof fn lemma_color_output_access_valid()
     ensures
         valid_stage_access(STAGE_COLOR_ATTACHMENT_OUTPUT(), ACCESS_COLOR_ATTACHMENT_READ()),
@@ -211,7 +211,7 @@ pub proof fn lemma_color_output_access_valid()
 {
 }
 
-/// Host access at host stage is valid.
+///  Host access at host stage is valid.
 pub proof fn lemma_host_access_valid()
     ensures
         valid_stage_access(STAGE_HOST(), ACCESS_HOST_READ()),
@@ -219,7 +219,7 @@ pub proof fn lemma_host_access_valid()
 {
 }
 
-/// A sub-log (prefix) of a valid log is valid.
+///  A sub-log (prefix) of a valid log is valid.
 pub proof fn lemma_prefix_valid(log: Seq<BarrierEntry>, n: nat)
     requires
         all_barriers_valid(log),
@@ -234,7 +234,7 @@ pub proof fn lemma_prefix_valid(log: Seq<BarrierEntry>, n: nat)
     }
 }
 
-/// Concatenating two valid barrier logs produces a valid log.
+///  Concatenating two valid barrier logs produces a valid log.
 pub proof fn lemma_concat_valid_logs(
     log1: Seq<BarrierEntry>,
     log2: Seq<BarrierEntry>,
@@ -256,18 +256,18 @@ pub proof fn lemma_concat_valid_logs(
     }
 }
 
-// ── Queue Capability Validation ─────────────────────────────────────────
+//  ── Queue Capability Validation ─────────────────────────────────────────
 
-/// Capabilities of a queue family.
+///  Capabilities of a queue family.
 pub struct QueueCapabilities {
     pub graphics: bool,
     pub compute: bool,
     pub transfer: bool,
 }
 
-/// Whether a pipeline stage is supported by a queue with the given capabilities.
-/// TOP_OF_PIPE, BOTTOM_OF_PIPE, TRANSFER, and HOST are always supported.
-/// Graphics stages require graphics capability; compute requires compute capability.
+///  Whether a pipeline stage is supported by a queue with the given capabilities.
+///  TOP_OF_PIPE, BOTTOM_OF_PIPE, TRANSFER, and HOST are always supported.
+///  Graphics stages require graphics capability; compute requires compute capability.
 pub open spec fn stage_supported_by_queue(stage: nat, caps: QueueCapabilities) -> bool {
     stage == STAGE_TOP_OF_PIPE() || stage == STAGE_BOTTOM_OF_PIPE()
     || stage == STAGE_TRANSFER() || stage == STAGE_HOST()
@@ -280,13 +280,13 @@ pub open spec fn stage_supported_by_queue(stage: nat, caps: QueueCapabilities) -
     || (caps.compute && stage == STAGE_COMPUTE_SHADER())
 }
 
-/// All stages in a barrier entry are supported by the queue.
+///  All stages in a barrier entry are supported by the queue.
 pub open spec fn barrier_stages_supported(entry: BarrierEntry, caps: QueueCapabilities) -> bool {
     (forall|s: nat| entry.src_stages.stages.contains(s) ==> stage_supported_by_queue(s, caps))
     && (forall|s: nat| entry.dst_stages.stages.contains(s) ==> stage_supported_by_queue(s, caps))
 }
 
-/// A transfer-only queue supports only TOP_OF_PIPE, BOTTOM_OF_PIPE, TRANSFER, and HOST.
+///  A transfer-only queue supports only TOP_OF_PIPE, BOTTOM_OF_PIPE, TRANSFER, and HOST.
 pub proof fn lemma_transfer_queue_stages(stage: nat)
     requires
         stage_supported_by_queue(stage, QueueCapabilities { graphics: false, compute: false, transfer: true }),
@@ -296,7 +296,7 @@ pub proof fn lemma_transfer_queue_stages(stage: nat)
 {
 }
 
-/// A graphics+compute+transfer queue supports all defined stages.
+///  A graphics+compute+transfer queue supports all defined stages.
 pub proof fn lemma_graphics_queue_all_stages(stage: nat)
     requires
         stage == STAGE_TOP_OF_PIPE() || stage == STAGE_BOTTOM_OF_PIPE()
@@ -311,13 +311,13 @@ pub proof fn lemma_graphics_queue_all_stages(stage: nat)
 {
 }
 
-/// Indirect command read at draw indirect stage is valid.
+///  Indirect command read at draw indirect stage is valid.
 pub proof fn lemma_indirect_command_read_valid()
     ensures valid_stage_access(STAGE_DRAW_INDIRECT(), ACCESS_INDIRECT_COMMAND_READ()),
 {
 }
 
-/// Index and vertex attribute reads at vertex input stage are valid.
+///  Index and vertex attribute reads at vertex input stage are valid.
 pub proof fn lemma_vertex_input_reads_valid()
     ensures
         valid_stage_access(STAGE_VERTEX_INPUT(), ACCESS_INDEX_READ()),
@@ -325,4 +325,4 @@ pub proof fn lemma_vertex_input_reads_valid()
 {
 }
 
-} // verus!
+} //  verus!

@@ -5,29 +5,29 @@ use crate::lifetime::*;
 
 verus! {
 
-/// Ghost state for a Vulkan semaphore.
+///  Ghost state for a Vulkan semaphore.
 ///
-/// Semaphores provide GPU-GPU synchronization between queue submissions.
-/// When signaled, they carry ghost resource states that are transferred
-/// to the waiting submission (cross-submission state transfer).
+///  Semaphores provide GPU-GPU synchronization between queue submissions.
+///  When signaled, they carry ghost resource states that are transferred
+///  to the waiting submission (cross-submission state transfer).
 pub struct SemaphoreState {
-    /// Unique semaphore identifier.
+    ///  Unique semaphore identifier.
     pub id: nat,
-    /// Whether the semaphore is currently signaled.
+    ///  Whether the semaphore is currently signaled.
     pub signaled: bool,
-    /// Ghost resource states deposited by the signaling submission.
-    /// Consumed (cleared) when a wait operation occurs.
+    ///  Ghost resource states deposited by the signaling submission.
+    ///  Consumed (cleared) when a wait operation occurs.
     pub resource_states: Map<ResourceId, SyncState>,
-    /// Whether the semaphore has not been destroyed.
+    ///  Whether the semaphore has not been destroyed.
     pub alive: bool,
 }
 
-/// A semaphore is well-formed if it is alive.
+///  A semaphore is well-formed if it is alive.
 pub open spec fn semaphore_well_formed(sem: SemaphoreState) -> bool {
     sem.alive
 }
 
-/// Create a fresh unsignaled semaphore with no resource states.
+///  Create a fresh unsignaled semaphore with no resource states.
 pub open spec fn create_semaphore_ghost(id: nat) -> SemaphoreState {
     SemaphoreState {
         id,
@@ -37,7 +37,7 @@ pub open spec fn create_semaphore_ghost(id: nat) -> SemaphoreState {
     }
 }
 
-/// Ghost update: signal the semaphore and deposit resource states.
+///  Ghost update: signal the semaphore and deposit resource states.
 pub open spec fn signal_semaphore_ghost(
     sem: SemaphoreState,
     states: Map<ResourceId, SyncState>,
@@ -49,7 +49,7 @@ pub open spec fn signal_semaphore_ghost(
     }
 }
 
-/// Ghost update: wait on the semaphore, consuming its signal and clearing states.
+///  Ghost update: wait on the semaphore, consuming its signal and clearing states.
 pub open spec fn wait_semaphore_ghost(sem: SemaphoreState) -> SemaphoreState {
     SemaphoreState {
         signaled: false,
@@ -58,7 +58,7 @@ pub open spec fn wait_semaphore_ghost(sem: SemaphoreState) -> SemaphoreState {
     }
 }
 
-/// Ghost update: destroy the semaphore.
+///  Ghost update: destroy the semaphore.
 pub open spec fn destroy_semaphore_ghost(sem: SemaphoreState) -> SemaphoreState
     recommends sem.alive,
 {
@@ -68,7 +68,7 @@ pub open spec fn destroy_semaphore_ghost(sem: SemaphoreState) -> SemaphoreState
     }
 }
 
-/// No pending (uncompleted) submission signals this semaphore.
+///  No pending (uncompleted) submission signals this semaphore.
 pub open spec fn semaphore_not_pending(
     sem_id: nat,
     pending_submissions: Seq<SubmissionRecord>,
@@ -79,15 +79,15 @@ pub open spec fn semaphore_not_pending(
                 ==> pending_submissions[i].signal_semaphores[j] != sem_id
 }
 
-// ── Lemmas ──────────────────────────────────────────────────────────────
+//  ── Lemmas ──────────────────────────────────────────────────────────────
 
-/// A freshly created semaphore is not signaled.
+///  A freshly created semaphore is not signaled.
 pub proof fn lemma_create_semaphore_unsignaled(id: nat)
     ensures !create_semaphore_ghost(id).signaled,
 {
 }
 
-/// After signaling, the semaphore is signaled.
+///  After signaling, the semaphore is signaled.
 pub proof fn lemma_signal_makes_signaled(
     sem: SemaphoreState,
     states: Map<ResourceId, SyncState>,
@@ -96,13 +96,13 @@ pub proof fn lemma_signal_makes_signaled(
 {
 }
 
-/// After waiting, the semaphore is not signaled.
+///  After waiting, the semaphore is not signaled.
 pub proof fn lemma_wait_consumes_signal(sem: SemaphoreState)
     ensures !wait_semaphore_ghost(sem).signaled,
 {
 }
 
-/// A signaled semaphore holds the deposited resource states.
+///  A signaled semaphore holds the deposited resource states.
 pub proof fn lemma_signal_carries_states(
     sem: SemaphoreState,
     states: Map<ResourceId, SyncState>,
@@ -111,13 +111,13 @@ pub proof fn lemma_signal_carries_states(
 {
 }
 
-/// A freshly created semaphore is well-formed.
+///  A freshly created semaphore is well-formed.
 pub proof fn lemma_create_semaphore_well_formed(id: nat)
     ensures semaphore_well_formed(create_semaphore_ghost(id)),
 {
 }
 
-/// Signal → wait roundtrip returns to unsignaled with empty states.
+///  Signal → wait roundtrip returns to unsignaled with empty states.
 pub proof fn lemma_signal_wait_roundtrip(
     sem: SemaphoreState, states: Map<ResourceId, SyncState>,
 )
@@ -129,7 +129,7 @@ pub proof fn lemma_signal_wait_roundtrip(
 {
 }
 
-/// Signaling preserves alive status.
+///  Signaling preserves alive status.
 pub proof fn lemma_signal_preserves_alive(
     sem: SemaphoreState, states: Map<ResourceId, SyncState>,
 )
@@ -138,11 +138,11 @@ pub proof fn lemma_signal_preserves_alive(
 {
 }
 
-/// Waiting preserves alive status.
+///  Waiting preserves alive status.
 pub proof fn lemma_wait_preserves_alive(sem: SemaphoreState)
     requires sem.alive,
     ensures wait_semaphore_ghost(sem).alive,
 {
 }
 
-} // verus!
+} //  verus!

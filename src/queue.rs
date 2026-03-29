@@ -9,44 +9,44 @@ use crate::sync_token::*;
 
 verus! {
 
-/// Ghost state for a Vulkan queue.
+///  Ghost state for a Vulkan queue.
 pub struct QueueState {
-    /// Unique queue identifier.
+    ///  Unique queue identifier.
     pub queue_id: nat,
-    /// Monotonically increasing submission sequence number.
+    ///  Monotonically increasing submission sequence number.
     pub next_sequence: nat,
 }
 
-/// Describes a single vkQueueSubmit call.
+///  Describes a single vkQueueSubmit call.
 pub struct SubmitInfo {
-    /// Semaphore ids to wait on before execution begins.
+    ///  Semaphore ids to wait on before execution begins.
     pub wait_semaphores: Seq<nat>,
-    /// Command buffer ids to execute, in order.
+    ///  Command buffer ids to execute, in order.
     pub command_buffers: Seq<nat>,
-    /// Semaphore ids to signal when execution completes.
+    ///  Semaphore ids to signal when execution completes.
     pub signal_semaphores: Seq<nat>,
-    /// Optional fence to signal on completion.
+    ///  Optional fence to signal on completion.
     pub fence_id: Option<nat>,
-    /// Ghost set of all resources referenced by the command buffers.
+    ///  Ghost set of all resources referenced by the command buffers.
     pub referenced_resources: Set<ResourceId>,
-    /// Per-wait-semaphore pipeline stage mask (bitmask).
-    /// Each element is the dst_stage_mask for the corresponding wait semaphore.
+    ///  Per-wait-semaphore pipeline stage mask (bitmask).
+    ///  Each element is the dst_stage_mask for the corresponding wait semaphore.
     pub wait_dst_stage_masks: Seq<nat>,
 }
 
-/// A queue is well-formed (placeholder for future constraints).
+///  A queue is well-formed (placeholder for future constraints).
 pub open spec fn queue_well_formed(q: QueueState) -> bool {
     true
 }
 
-/// A submit info is well-formed if it has at least one command buffer
-/// and the stage mask count matches the wait semaphore count.
+///  A submit info is well-formed if it has at least one command buffer
+///  and the stage mask count matches the wait semaphore count.
 pub open spec fn submit_info_well_formed(info: SubmitInfo) -> bool {
     info.command_buffers.len() > 0
     && info.wait_dst_stage_masks.len() == info.wait_semaphores.len()
 }
 
-/// All command buffers referenced by the submission are in the map and Executable.
+///  All command buffers referenced by the submission are in the map and Executable.
 pub open spec fn all_command_buffers_executable(
     info: SubmitInfo,
     cb_states: Map<nat, CommandBufferState>,
@@ -57,7 +57,7 @@ pub open spec fn all_command_buffers_executable(
             && cb_states[info.command_buffers[i]] == CommandBufferState::Executable
 }
 
-/// All wait semaphores are in the map and currently signaled.
+///  All wait semaphores are in the map and currently signaled.
 pub open spec fn all_wait_semaphores_signaled(
     info: SubmitInfo,
     sem_states: Map<nat, SemaphoreState>,
@@ -68,7 +68,7 @@ pub open spec fn all_wait_semaphores_signaled(
             && sem_states[info.wait_semaphores[i]].signaled
 }
 
-/// If a fence is specified, it must be alive and unsignaled.
+///  If a fence is specified, it must be alive and unsignaled.
 pub open spec fn fence_available_for_submit(
     info: SubmitInfo,
     fence_states: Map<nat, FenceState>,
@@ -83,16 +83,16 @@ pub open spec fn fence_available_for_submit(
     }
 }
 
-/// All wait semaphore stage masks are non-zero (Vulkan requires non-zero dst_stage_mask).
+///  All wait semaphore stage masks are non-zero (Vulkan requires non-zero dst_stage_mask).
 pub open spec fn wait_stage_masks_valid(info: SubmitInfo) -> bool {
     forall|i: int| #![trigger info.wait_dst_stage_masks[i]]
         0 <= i < info.wait_dst_stage_masks.len() ==>
         info.wait_dst_stage_masks[i] > 0
 }
 
-/// All resources referenced by the submission's command buffers are still
-/// usable (Bound or Idle). Prevents use-after-destroy: destroying a resource
-/// between recording and submitting would leave it in Destroyed state.
+///  All resources referenced by the submission's command buffers are still
+///  usable (Bound or Idle). Prevents use-after-destroy: destroying a resource
+///  between recording and submitting would leave it in Destroyed state.
 pub open spec fn all_referenced_resources_usable(
     info: SubmitInfo,
     lifecycle_states: Map<ResourceId, ResourceLifecycleState>,
@@ -102,12 +102,12 @@ pub open spec fn all_referenced_resources_usable(
         && can_use(lifecycle_states[r])
 }
 
-/// A submission is valid if all preconditions are met, including
-/// thread safety: the submitting thread must hold exclusive access
-/// to the queue, and all submitted CBs must not be held by others.
+///  A submission is valid if all preconditions are met, including
+///  thread safety: the submitting thread must hold exclusive access
+///  to the queue, and all submitted CBs must not be held by others.
 ///
-/// Per Vulkan spec: "queue is an externally synchronized parameter"
-/// for vkQueueSubmit.
+///  Per Vulkan spec: "queue is an externally synchronized parameter"
+///  for vkQueueSubmit.
 pub open spec fn submission_valid(
     info: SubmitInfo,
     cb_states: Map<nat, CommandBufferState>,
@@ -123,23 +123,23 @@ pub open spec fn submission_valid(
     && all_wait_semaphores_signaled(info, sem_states)
     && fence_available_for_submit(info, fence_states)
     && wait_stage_masks_valid(info)
-    // All referenced resources must still be alive (not destroyed)
+    //  All referenced resources must still be alive (not destroyed)
     && all_referenced_resources_usable(info, lifecycle_states)
-    // Thread safety: exclusive queue access
+    //  Thread safety: exclusive queue access
     && holds_exclusive(reg, SyncObjectId::Queue(queue_id), thread)
-    // Thread safety: fence access (if specified)
+    //  Thread safety: fence access (if specified)
     && (info.fence_id.is_none()
         || holds_exclusive(reg, SyncObjectId::Handle(info.fence_id.unwrap()), thread))
-    // Thread safety: no other thread exclusively holds submitted CBs
+    //  Thread safety: no other thread exclusively holds submitted CBs
     && (forall|i: int| #![trigger info.command_buffers[i]]
         0 <= i < info.command_buffers.len() ==>
         not_held_by_other(reg, SyncObjectId::Handle(info.command_buffers[i]), thread))
 }
 
-/// Ghost submit: advance the queue sequence and produce a submission record.
-/// Returns (updated queue, new submission record).
+///  Ghost submit: advance the queue sequence and produce a submission record.
+///  Returns (updated queue, new submission record).
 ///
-/// Requires exclusive queue access.
+///  Requires exclusive queue access.
 pub open spec fn submit_ghost(
     queue: QueueState,
     info: SubmitInfo,
@@ -166,9 +166,9 @@ pub open spec fn submit_ghost(
     }
 }
 
-// ── Lemmas ──────────────────────────────────────────────────────────────
+//  ── Lemmas ──────────────────────────────────────────────────────────────
 
-/// Submitting increments the queue's next_sequence by 1.
+///  Submitting increments the queue's next_sequence by 1.
 pub proof fn lemma_submit_increments_sequence(
     queue: QueueState,
     info: SubmitInfo,
@@ -183,8 +183,8 @@ pub proof fn lemma_submit_increments_sequence(
 {
 }
 
-/// The submission record returned by submit_ghost is not completed
-/// and carries the correct fence_id and referenced resources.
+///  The submission record returned by submit_ghost is not completed
+///  and carries the correct fence_id and referenced resources.
 pub proof fn lemma_submit_creates_pending_record(
     queue: QueueState,
     info: SubmitInfo,
@@ -203,7 +203,7 @@ pub proof fn lemma_submit_creates_pending_record(
 {
 }
 
-/// A valid submission implies all command buffers are Executable.
+///  A valid submission implies all command buffers are Executable.
 pub proof fn lemma_valid_submission_has_executable_buffers(
     info: SubmitInfo,
     cb_states: Map<nat, CommandBufferState>,
@@ -219,7 +219,7 @@ pub proof fn lemma_valid_submission_has_executable_buffers(
 {
 }
 
-/// The submission record's fence_id matches the input fence_id.
+///  The submission record's fence_id matches the input fence_id.
 pub proof fn lemma_submit_record_matches_fence(
     queue: QueueState,
     info: SubmitInfo,
@@ -235,7 +235,7 @@ pub proof fn lemma_submit_record_matches_fence(
 {
 }
 
-/// Without exclusive queue access, submit_ghost returns None.
+///  Without exclusive queue access, submit_ghost returns None.
 pub proof fn lemma_no_queue_access_no_submit(
     queue: QueueState,
     info: SubmitInfo,
@@ -247,7 +247,7 @@ pub proof fn lemma_no_queue_access_no_submit(
 {
 }
 
-/// A valid submission guarantees the submitter holds the queue.
+///  A valid submission guarantees the submitter holds the queue.
 pub proof fn lemma_valid_submission_holds_queue(
     info: SubmitInfo,
     cb_states: Map<nat, CommandBufferState>,
@@ -263,7 +263,7 @@ pub proof fn lemma_valid_submission_holds_queue(
 {
 }
 
-/// Empty wait semaphores ⇒ empty masks ⇒ trivially valid.
+///  Empty wait semaphores ⇒ empty masks ⇒ trivially valid.
 pub proof fn lemma_empty_waits_masks_trivial(info: SubmitInfo)
     requires
         info.wait_semaphores.len() == 0,
@@ -272,7 +272,7 @@ pub proof fn lemma_empty_waits_masks_trivial(info: SubmitInfo)
 {
 }
 
-/// A valid submission has valid stage masks.
+///  A valid submission has valid stage masks.
 pub proof fn lemma_valid_submission_has_stage_masks(
     info: SubmitInfo,
     cb_states: Map<nat, CommandBufferState>,
@@ -288,7 +288,7 @@ pub proof fn lemma_valid_submission_has_stage_masks(
 {
 }
 
-/// A single semaphore with a non-zero mask satisfies validity.
+///  A single semaphore with a non-zero mask satisfies validity.
 pub proof fn lemma_single_wait_stage_mask(info: SubmitInfo)
     requires
         info.wait_dst_stage_masks.len() == 1,
@@ -297,7 +297,7 @@ pub proof fn lemma_single_wait_stage_mask(info: SubmitInfo)
 {
 }
 
-/// A valid submission guarantees all referenced resources are usable.
+///  A valid submission guarantees all referenced resources are usable.
 pub proof fn lemma_valid_submission_resources_alive(
     info: SubmitInfo,
     cb_states: Map<nat, CommandBufferState>,
@@ -313,4 +313,4 @@ pub proof fn lemma_valid_submission_resources_alive(
 {
 }
 
-} // verus!
+} //  verus!

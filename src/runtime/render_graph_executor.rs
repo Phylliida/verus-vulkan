@@ -15,17 +15,17 @@ use crate::sync_token::*;
 use crate::vk_context::VulkanContext;
 use crate::runtime::command_buffer::*;
 
-// ─── Types ─────────────────────────────────────────────────────
+//  ─── Types ─────────────────────────────────────────────────────
 
-/// Result of executing a compiled graph.
+///  Result of executing a compiled graph.
 pub struct GraphExecutionResult {
     pub final_ctx: Ghost<RecordingContext>,
     pub steps_completed: Ghost<nat>,
 }
 
-// ─── Spec functions ────────────────────────────────────────────
+//  ─── Spec functions ────────────────────────────────────────────
 
-/// Well-formedness for graph execution: CB is recording, wf, and step is valid.
+///  Well-formedness for graph execution: CB is recording, wf, and step is valid.
 pub open spec fn graph_execution_wf(
     cb: &RuntimeCommandBuffer,
     step: nat,
@@ -36,22 +36,22 @@ pub open spec fn graph_execution_wf(
     && step <= cg.barrier_plans.len()
 }
 
-/// All steps have been completed.
+///  All steps have been completed.
 pub open spec fn all_steps_completed(total: nat, n: nat) -> bool {
     n == total
 }
 
-/// Number of pre-barriers in a graph step.
+///  Number of pre-barriers in a graph step.
 pub open spec fn graph_step_barrier_count(cg: CompiledGraph, step: nat) -> nat
     recommends step < cg.barrier_plans.len(),
 {
     cg.barrier_plans[step as int].pre_barriers.len()
 }
 
-// ─── Exec functions ────────────────────────────────────────────
+//  ─── Exec functions ────────────────────────────────────────────
 
-/// Execute a single graph step: record all pre-barriers for this step.
-/// Inner loop over the ghost barrier plan, matching record_barrier_plan's recursive structure.
+///  Execute a single graph step: record all pre-barriers for this step.
+///  Inner loop over the ghost barrier plan, matching record_barrier_plan's recursive structure.
 pub fn execute_graph_step_exec(
     vk: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -90,7 +90,7 @@ pub fn execute_graph_step_exec(
 {
     let ghost plan = cg@.barrier_plans[step@ as int];
     let ghost mut cur_ctx = ctx@;
-    // Track remaining barriers — matches record_barrier_plan's recursive peeling
+    //  Track remaining barriers — matches record_barrier_plan's recursive peeling
     let ghost mut remaining = plan.pre_barriers;
 
     let mut i: usize = 0;
@@ -116,7 +116,7 @@ pub fn execute_graph_step_exec(
                 (#[trigger] barrier_stages@[j]).0 == stages_to_vk_bitmask(entry.src_stages)
                 && barrier_stages@[j].1 == stages_to_vk_bitmask(entry.dst_stages)
             }),
-            // Key: applying remaining barriers to cur_ctx gives the same as applying all to ctx
+            //  Key: applying remaining barriers to cur_ctx gives the same as applying all to ctx
             record_barrier_plan(cur_ctx, PassBarrierPlan {
                 pass_index: plan.pass_index,
                 pre_barriers: remaining,
@@ -128,14 +128,14 @@ pub fn execute_graph_step_exec(
         let ghost entry = barrier_action_to_entry(ba);
 
         let stages = &barrier_stages[i];
-        // The invariant ensures stages match the ghost barrier entry
+        //  The invariant ensures stages match the ghost barrier entry
         assert(plan.pre_barriers[i as int] == ba);
         cmd_pipeline_barrier_exec(vk, cb, thread, stages.0, stages.1, Ghost(entry));
 
         proof {
-            // record_barrier_plan peels remaining[0] and recurses on remaining[1..]:
-            //   rbp(cur_ctx, {pre: remaining}) = rbp(rps(cur_ctx, entry), {pre: remaining[1..]})
-            // So the invariant is preserved with cur_ctx' = rps(cur_ctx, entry), remaining' = remaining[1..]
+            //  record_barrier_plan peels remaining[0] and recurses on remaining[1..]:
+            //    rbp(cur_ctx, {pre: remaining}) = rbp(rps(cur_ctx, entry), {pre: remaining[1..]})
+            //  So the invariant is preserved with cur_ctx' = rps(cur_ctx, entry), remaining' = remaining[1..]
             let new_remaining = remaining.subrange(1, remaining.len() as int);
             cur_ctx = record_pipeline_barrier_single(cur_ctx, entry);
             remaining = new_remaining;
@@ -146,14 +146,14 @@ pub fn execute_graph_step_exec(
     }
 
     proof {
-        // remaining is empty, so rbp(cur_ctx, {pre: empty}) == cur_ctx == rbp(ctx, plan)
+        //  remaining is empty, so rbp(cur_ctx, {pre: empty}) == cur_ctx == rbp(ctx, plan)
         assert(remaining.len() == 0);
     }
 
     Ghost(cur_ctx)
 }
 
-/// Execute all steps of a compiled graph.
+///  Execute all steps of a compiled graph.
 pub fn execute_compiled_graph_exec(
     vk: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -241,7 +241,7 @@ pub fn execute_compiled_graph_exec(
     }
 }
 
-/// Ghost packaging: summarize the execution.
+///  Ghost packaging: summarize the execution.
 pub fn graph_execution_summary_exec(
     result: &GraphExecutionResult,
     cg: Ghost<CompiledGraph>,
@@ -255,9 +255,9 @@ pub fn graph_execution_summary_exec(
     Ghost(all_steps_completed(cg@.barrier_plans.len(), result.steps_completed@))
 }
 
-// ─── Proof functions ───────────────────────────────────────────
+//  ─── Proof functions ───────────────────────────────────────────
 
-/// Each step preserves recording wf.
+///  Each step preserves recording wf.
 pub proof fn lemma_step_preserves_wf(
     ctx: RecordingContext,
     cg: CompiledGraph,
@@ -271,7 +271,7 @@ pub proof fn lemma_step_preserves_wf(
     lemma_record_barrier_plan_preserves_state(ctx, cg.barrier_plans[step as int]);
 }
 
-/// Each step preserves recording state.
+///  Each step preserves recording state.
 pub proof fn lemma_step_preserves_state(
     ctx: RecordingContext,
     cg: CompiledGraph,
@@ -285,7 +285,7 @@ pub proof fn lemma_step_preserves_state(
     lemma_record_barrier_plan_preserves_state(ctx, cg.barrier_plans[step as int]);
 }
 
-/// The final barrier log after full execution matches the spec.
+///  The final barrier log after full execution matches the spec.
 pub proof fn lemma_execution_barrier_log_matches(
     cg: CompiledGraph,
     n: nat,
@@ -296,10 +296,10 @@ pub proof fn lemma_execution_barrier_log_matches(
         execute_compiled_graph(cg, n).barrier_log
             == execute_compiled_graph(cg, n).barrier_log,
 {
-    // Tautology — the real content is in the exec postcondition
+    //  Tautology — the real content is in the exec postcondition
 }
 
-/// Full graph execution is sound: connects to lemma_graph_step_maintains_sync.
+///  Full graph execution is sound: connects to lemma_graph_step_maintains_sync.
 pub proof fn lemma_graph_execution_sound(
     cg: CompiledGraph,
     n: nat,
@@ -315,11 +315,11 @@ pub proof fn lemma_graph_execution_sound(
     decreases n,
 {
     if n == 0 {
-        // Base case: trivial
+        //  Base case: trivial
     } else {
-        // IH: readable holds after n-1 steps
+        //  IH: readable holds after n-1 steps
         lemma_graph_execution_sound(cg, (n - 1) as nat, state, dst_stage, dst_access);
-        // Each step maintains readability
+        //  Each step maintains readability
         if (n - 1) < cg.barrier_plans.len() {
             lemma_graph_step_maintains_sync(
                 execute_compiled_graph(cg, (n - 1) as nat),
@@ -333,4 +333,4 @@ pub proof fn lemma_graph_execution_sound(
     }
 }
 
-} // verus!
+} //  verus!

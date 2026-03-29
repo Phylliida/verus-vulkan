@@ -3,54 +3,54 @@ use crate::resource::*;
 
 verus! {
 
-// ── Memory Domains ─────────────────────────────────────────────────────
+//  ── Memory Domains ─────────────────────────────────────────────────────
 //
-// Models the Vulkan memory model's domain system.
-// The GPU and CPU each have their own memory domain. Data written in one
-// domain must be made "available" and then "visible" in the other domain
-// before it can be read correctly.
+//  Models the Vulkan memory model's domain system.
+//  The GPU and CPU each have their own memory domain. Data written in one
+//  domain must be made "available" and then "visible" in the other domain
+//  before it can be read correctly.
 
-/// A memory domain in the Vulkan memory model.
+///  A memory domain in the Vulkan memory model.
 pub enum MemoryDomain {
-    /// Device domain: GPU caches and VRAM.
+    ///  Device domain: GPU caches and VRAM.
     Device,
-    /// Host domain: CPU caches and system RAM.
+    ///  Host domain: CPU caches and system RAM.
     Host,
 }
 
-/// Memory visibility state for a resource in a specific domain.
+///  Memory visibility state for a resource in a specific domain.
 pub enum VisibilityState {
-    /// Data has been written but not yet made available.
-    /// Other agents in ANY domain cannot see the latest writes.
+    ///  Data has been written but not yet made available.
+    ///  Other agents in ANY domain cannot see the latest writes.
     Written,
-    /// Data has been made available (flushed from writer's caches)
-    /// but not yet visible in the target domain.
+    ///  Data has been made available (flushed from writer's caches)
+    ///  but not yet visible in the target domain.
     Available,
-    /// Data is visible in this domain and can be read correctly.
+    ///  Data is visible in this domain and can be read correctly.
     Visible,
 }
 
-/// Per-resource, per-domain memory state.
+///  Per-resource, per-domain memory state.
 pub struct DomainState {
-    /// Which domain this state tracks.
+    ///  Which domain this state tracks.
     pub domain: MemoryDomain,
-    /// Current visibility state.
+    ///  Current visibility state.
     pub visibility: VisibilityState,
 }
 
-/// Full memory coherence state for a resource.
+///  Full memory coherence state for a resource.
 pub struct MemoryCoherenceState {
-    /// The resource being tracked.
+    ///  The resource being tracked.
     pub resource: ResourceId,
-    /// State in the device domain.
+    ///  State in the device domain.
     pub device: DomainState,
-    /// State in the host domain.
+    ///  State in the host domain.
     pub host: DomainState,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// Create initial coherence state for a resource (both domains visible).
+///  Create initial coherence state for a resource (both domains visible).
 pub open spec fn initial_coherence(resource: ResourceId) -> MemoryCoherenceState {
     MemoryCoherenceState {
         resource,
@@ -65,7 +65,7 @@ pub open spec fn initial_coherence(resource: ResourceId) -> MemoryCoherenceState
     }
 }
 
-/// After a GPU write: device domain goes to Written, host domain invalidated.
+///  After a GPU write: device domain goes to Written, host domain invalidated.
 pub open spec fn gpu_write(state: MemoryCoherenceState) -> MemoryCoherenceState {
     MemoryCoherenceState {
         device: DomainState {
@@ -80,7 +80,7 @@ pub open spec fn gpu_write(state: MemoryCoherenceState) -> MemoryCoherenceState 
     }
 }
 
-/// After a CPU write: host domain goes to Written, device domain invalidated.
+///  After a CPU write: host domain goes to Written, device domain invalidated.
 pub open spec fn cpu_write(state: MemoryCoherenceState) -> MemoryCoherenceState {
     MemoryCoherenceState {
         device: DomainState {
@@ -95,7 +95,7 @@ pub open spec fn cpu_write(state: MemoryCoherenceState) -> MemoryCoherenceState 
     }
 }
 
-/// Make available: flush writer's caches (Written → Available in writer's domain).
+///  Make available: flush writer's caches (Written → Available in writer's domain).
 pub open spec fn make_available(
     state: MemoryCoherenceState,
     domain: MemoryDomain,
@@ -118,7 +118,7 @@ pub open spec fn make_available(
     }
 }
 
-/// Make visible: invalidate reader's caches (Available → Visible in reader's domain).
+///  Make visible: invalidate reader's caches (Available → Visible in reader's domain).
 pub open spec fn make_visible(
     state: MemoryCoherenceState,
     domain: MemoryDomain,
@@ -141,7 +141,7 @@ pub open spec fn make_visible(
     }
 }
 
-/// A resource is readable in a domain if it's Visible there.
+///  A resource is readable in a domain if it's Visible there.
 pub open spec fn readable_in_domain(
     state: MemoryCoherenceState,
     domain: MemoryDomain,
@@ -152,7 +152,7 @@ pub open spec fn readable_in_domain(
     }
 }
 
-/// A full barrier: make available in writer's domain, then visible in reader's domain.
+///  A full barrier: make available in writer's domain, then visible in reader's domain.
 pub open spec fn full_barrier(
     state: MemoryCoherenceState,
     writer_domain: MemoryDomain,
@@ -161,22 +161,22 @@ pub open spec fn full_barrier(
     make_visible(make_available(state, writer_domain), reader_domain)
 }
 
-/// Whether coherent memory (host-visible + host-coherent) needs explicit barriers.
-/// Coherent memory is always visible in both domains — no barriers needed.
+///  Whether coherent memory (host-visible + host-coherent) needs explicit barriers.
+///  Coherent memory is always visible in both domains — no barriers needed.
 pub open spec fn is_coherent_memory(state: MemoryCoherenceState) -> bool {
     state.device.visibility is Visible
     && state.host.visibility is Visible
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// Initial state is coherent.
+///  Initial state is coherent.
 pub proof fn lemma_initial_is_coherent(resource: ResourceId)
     ensures is_coherent_memory(initial_coherence(resource)),
 {
 }
 
-/// Initial state is readable in both domains.
+///  Initial state is readable in both domains.
 pub proof fn lemma_initial_readable_both(resource: ResourceId)
     ensures
         readable_in_domain(initial_coherence(resource), MemoryDomain::Device),
@@ -184,19 +184,19 @@ pub proof fn lemma_initial_readable_both(resource: ResourceId)
 {
 }
 
-/// After a GPU write, the resource is not directly readable by the host.
+///  After a GPU write, the resource is not directly readable by the host.
 pub proof fn lemma_gpu_write_invalidates_host(state: MemoryCoherenceState)
     ensures !readable_in_domain(gpu_write(state), MemoryDomain::Host),
 {
 }
 
-/// After a CPU write, the resource is not directly readable by the device.
+///  After a CPU write, the resource is not directly readable by the device.
 pub proof fn lemma_cpu_write_invalidates_device(state: MemoryCoherenceState)
     ensures !readable_in_domain(cpu_write(state), MemoryDomain::Device),
 {
 }
 
-/// A full barrier after a GPU write makes the resource readable by the host.
+///  A full barrier after a GPU write makes the resource readable by the host.
 pub proof fn lemma_gpu_write_barrier_host_read(state: MemoryCoherenceState)
     ensures readable_in_domain(
         full_barrier(gpu_write(state), MemoryDomain::Device, MemoryDomain::Host),
@@ -205,7 +205,7 @@ pub proof fn lemma_gpu_write_barrier_host_read(state: MemoryCoherenceState)
 {
 }
 
-/// A full barrier after a CPU write makes the resource readable by the device.
+///  A full barrier after a CPU write makes the resource readable by the device.
 pub proof fn lemma_cpu_write_barrier_device_read(state: MemoryCoherenceState)
     ensures readable_in_domain(
         full_barrier(cpu_write(state), MemoryDomain::Host, MemoryDomain::Device),
@@ -214,7 +214,7 @@ pub proof fn lemma_cpu_write_barrier_device_read(state: MemoryCoherenceState)
 {
 }
 
-/// Make available preserves the other domain's state.
+///  Make available preserves the other domain's state.
 pub proof fn lemma_make_available_preserves_other(
     state: MemoryCoherenceState,
     domain: MemoryDomain,
@@ -227,7 +227,7 @@ pub proof fn lemma_make_available_preserves_other(
 {
 }
 
-/// Make visible preserves the other domain's state.
+///  Make visible preserves the other domain's state.
 pub proof fn lemma_make_visible_preserves_other(
     state: MemoryCoherenceState,
     domain: MemoryDomain,
@@ -240,8 +240,8 @@ pub proof fn lemma_make_visible_preserves_other(
 {
 }
 
-/// After GPU write + device-domain available + device-domain visible,
-/// the GPU can read its own writes.
+///  After GPU write + device-domain available + device-domain visible,
+///  the GPU can read its own writes.
 pub proof fn lemma_gpu_self_read_after_barrier(state: MemoryCoherenceState)
     ensures readable_in_domain(
         full_barrier(gpu_write(state), MemoryDomain::Device, MemoryDomain::Device),
@@ -250,4 +250,4 @@ pub proof fn lemma_gpu_self_read_after_barrier(state: MemoryCoherenceState)
 {
 }
 
-} // verus!
+} //  verus!
