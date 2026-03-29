@@ -2,9 +2,9 @@ use vstd::prelude::*;
 
 verus! {
 
-// ── Types ───────────────────────────────────────────────────────────────
+//  ── Types ───────────────────────────────────────────────────────────────
 
-/// The four modular parts of a graphics pipeline (VK_EXT_graphics_pipeline_library).
+///  The four modular parts of a graphics pipeline (VK_EXT_graphics_pipeline_library).
 pub enum PipelineLibraryType {
     VertexInput,
     PreRasterization,
@@ -12,21 +12,21 @@ pub enum PipelineLibraryType {
     FragmentOutput,
 }
 
-/// A push constant range.
+///  A push constant range.
 pub struct PushConstantRange {
     pub stage_flags: nat,
     pub offset: nat,
     pub size: nat,
 }
 
-/// A vertex binding description.
+///  A vertex binding description.
 pub struct VertexBinding {
     pub binding: nat,
     pub stride: nat,
     pub input_rate: nat,
 }
 
-/// A vertex attribute description.
+///  A vertex attribute description.
 pub struct VertexAttribute {
     pub location: nat,
     pub binding: nat,
@@ -34,7 +34,7 @@ pub struct VertexAttribute {
     pub offset: nat,
 }
 
-/// Ghost state for a pipeline library part.
+///  Ghost state for a pipeline library part.
 pub struct PipelineLibraryState {
     pub id: nat,
     pub library_type: PipelineLibraryType,
@@ -43,15 +43,15 @@ pub struct PipelineLibraryState {
     pub alive: bool,
 }
 
-/// A linked pipeline composed of library parts.
+///  A linked pipeline composed of library parts.
 pub struct LinkedPipeline {
     pub libraries: Seq<PipelineLibraryState>,
     pub complete: bool,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// Library type equality.
+///  Library type equality.
 pub open spec fn library_type_eq(a: PipelineLibraryType, b: PipelineLibraryType) -> bool {
     match (a, b) {
         (PipelineLibraryType::VertexInput, PipelineLibraryType::VertexInput) => true,
@@ -62,12 +62,12 @@ pub open spec fn library_type_eq(a: PipelineLibraryType, b: PipelineLibraryType)
     }
 }
 
-/// A library is well-formed: alive.
+///  A library is well-formed: alive.
 pub open spec fn library_well_formed(state: PipelineLibraryState) -> bool {
     state.alive
 }
 
-/// At least one library of the given type is present.
+///  At least one library of the given type is present.
 pub open spec fn library_type_present(
     libs: Seq<PipelineLibraryState>,
     lt: PipelineLibraryType,
@@ -76,7 +76,7 @@ pub open spec fn library_type_present(
         && library_type_eq(libs[i].library_type, lt)
 }
 
-/// All 4 library types are present.
+///  All 4 library types are present.
 pub open spec fn libraries_cover_all_types(libs: Seq<PipelineLibraryState>) -> bool {
     library_type_present(libs, PipelineLibraryType::VertexInput)
     && library_type_present(libs, PipelineLibraryType::PreRasterization)
@@ -84,27 +84,27 @@ pub open spec fn libraries_cover_all_types(libs: Seq<PipelineLibraryState>) -> b
     && library_type_present(libs, PipelineLibraryType::FragmentOutput)
 }
 
-/// Push constant ranges are compatible (identical) across all libraries.
+///  Push constant ranges are compatible (identical) across all libraries.
 pub open spec fn push_constants_compatible(libs: Seq<PipelineLibraryState>) -> bool {
     forall|i: int, j: int|
         0 <= i < libs.len() && 0 <= j < libs.len()
         ==> libs[i].push_constant_ranges =~= libs[j].push_constant_ranges
 }
 
-/// Descriptor layouts are compatible (identical) across all libraries.
+///  Descriptor layouts are compatible (identical) across all libraries.
 pub open spec fn descriptor_layouts_compatible(libs: Seq<PipelineLibraryState>) -> bool {
     forall|i: int, j: int|
         0 <= i < libs.len() && 0 <= j < libs.len()
         ==> libs[i].descriptor_set_layouts =~= libs[j].descriptor_set_layouts
 }
 
-/// All libraries in the list are well-formed.
+///  All libraries in the list are well-formed.
 pub open spec fn all_libraries_well_formed(libs: Seq<PipelineLibraryState>) -> bool {
     forall|i: int| 0 <= i < libs.len() ==> library_well_formed(libs[i])
 }
 
-/// Linking is valid: covers all types, push constants + descriptors compatible,
-/// all parts well-formed.
+///  Linking is valid: covers all types, push constants + descriptors compatible,
+///  all parts well-formed.
 pub open spec fn link_valid(libs: Seq<PipelineLibraryState>) -> bool {
     all_libraries_well_formed(libs)
     && libraries_cover_all_types(libs)
@@ -112,7 +112,7 @@ pub open spec fn link_valid(libs: Seq<PipelineLibraryState>) -> bool {
     && descriptor_layouts_compatible(libs)
 }
 
-/// Ghost: link libraries into a complete pipeline.
+///  Ghost: link libraries into a complete pipeline.
 pub open spec fn link_libraries_ghost(
     libs: Seq<PipelineLibraryState>,
 ) -> LinkedPipeline {
@@ -122,7 +122,7 @@ pub open spec fn link_libraries_ghost(
     }
 }
 
-/// Ghost: create a library part.
+///  Ghost: create a library part.
 pub open spec fn create_library_ghost(
     id: nat,
     lt: PipelineLibraryType,
@@ -138,37 +138,37 @@ pub open spec fn create_library_ghost(
     }
 }
 
-/// Ghost: destroy a library.
+///  Ghost: destroy a library.
 pub open spec fn destroy_library_ghost(
     state: PipelineLibraryState,
 ) -> PipelineLibraryState {
     PipelineLibraryState { alive: false, ..state }
 }
 
-/// A linked pipeline is well-formed: complete, all parts well-formed, covers all types.
+///  A linked pipeline is well-formed: complete, all parts well-formed, covers all types.
 pub open spec fn linked_pipeline_well_formed(lp: LinkedPipeline) -> bool {
     lp.complete
     && all_libraries_well_formed(lp.libraries)
     && libraries_cover_all_types(lp.libraries)
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// Valid link produces a complete linked pipeline.
+///  Valid link produces a complete linked pipeline.
 pub proof fn lemma_link_is_complete(libs: Seq<PipelineLibraryState>)
     requires link_valid(libs),
     ensures link_libraries_ghost(libs).complete,
 {
 }
 
-/// Complete linked pipeline has all 4 types.
+///  Complete linked pipeline has all 4 types.
 pub proof fn lemma_complete_has_all_types(lp: LinkedPipeline)
     requires linked_pipeline_well_formed(lp),
     ensures libraries_cover_all_types(lp.libraries),
 {
 }
 
-/// Created library is alive.
+///  Created library is alive.
 pub proof fn lemma_create_alive(
     id: nat,
     lt: PipelineLibraryType,
@@ -179,17 +179,17 @@ pub proof fn lemma_create_alive(
 {
 }
 
-/// Destroyed library is not alive.
+///  Destroyed library is not alive.
 pub proof fn lemma_destroy_not_alive(state: PipelineLibraryState)
     ensures !destroy_library_ghost(state).alive,
 {
 }
 
-/// A single library of one type does not cover all 4 types.
+///  A single library of one type does not cover all 4 types.
 pub proof fn lemma_single_type_not_complete(state: PipelineLibraryState)
     ensures !libraries_cover_all_types(seq![state]),
 {
-    // A single library has exactly one type, so it cannot have all 4.
+    //  A single library has exactly one type, so it cannot have all 4.
     match state.library_type {
         PipelineLibraryType::VertexInput => {
             assert(!library_type_present(seq![state], PipelineLibraryType::PreRasterization));
@@ -206,7 +206,7 @@ pub proof fn lemma_single_type_not_complete(state: PipelineLibraryState)
     }
 }
 
-/// Push constant compatibility is symmetric for any pair.
+///  Push constant compatibility is symmetric for any pair.
 pub proof fn lemma_push_constants_symmetric(
     a: PipelineLibraryState,
     b: PipelineLibraryState,
@@ -216,7 +216,7 @@ pub proof fn lemma_push_constants_symmetric(
 {
 }
 
-/// Linking preserves library ids — the linked pipeline contains the same libraries.
+///  Linking preserves library ids — the linked pipeline contains the same libraries.
 pub proof fn lemma_link_preserves_library_ids(
     libs: Seq<PipelineLibraryState>,
 )
@@ -224,7 +224,7 @@ pub proof fn lemma_link_preserves_library_ids(
 {
 }
 
-/// 4 libraries of distinct types cover all types.
+///  4 libraries of distinct types cover all types.
 pub proof fn lemma_four_distinct_types_suffice(
     vi: PipelineLibraryState,
     pr: PipelineLibraryState,
@@ -239,20 +239,20 @@ pub proof fn lemma_four_distinct_types_suffice(
     ensures libraries_cover_all_types(seq![vi, pr, fs, fo]),
 {
     let libs = seq![vi, pr, fs, fo];
-    // Witness each type
+    //  Witness each type
     assert(library_type_eq(libs[0].library_type, PipelineLibraryType::VertexInput));
     assert(library_type_eq(libs[1].library_type, PipelineLibraryType::PreRasterization));
     assert(library_type_eq(libs[2].library_type, PipelineLibraryType::FragmentShader));
     assert(library_type_eq(libs[3].library_type, PipelineLibraryType::FragmentOutput));
 }
 
-/// Destroyed library fails well_formed.
+///  Destroyed library fails well_formed.
 pub proof fn lemma_destroy_library_not_well_formed(state: PipelineLibraryState)
     ensures !library_well_formed(destroy_library_ghost(state)),
 {
 }
 
-/// Complete linked pipeline has descriptor layouts.
+///  Complete linked pipeline has descriptor layouts.
 pub proof fn lemma_linked_has_descriptors(lp: LinkedPipeline)
     requires
         linked_pipeline_well_formed(lp),
@@ -261,7 +261,7 @@ pub proof fn lemma_linked_has_descriptors(lp: LinkedPipeline)
 {
 }
 
-/// An extra library of the same type doesn't break coverage.
+///  An extra library of the same type doesn't break coverage.
 pub proof fn lemma_duplicate_type_still_covers(
     libs: Seq<PipelineLibraryState>,
     extra: PipelineLibraryState,
@@ -269,13 +269,13 @@ pub proof fn lemma_duplicate_type_still_covers(
     requires libraries_cover_all_types(libs),
     ensures libraries_cover_all_types(libs.push(extra)),
 {
-    // Each type witness from libs still exists at the same index in libs.push(extra)
-    // since push appends at the end.
+    //  Each type witness from libs still exists at the same index in libs.push(extra)
+    //  since push appends at the end.
     let libs2 = libs.push(extra);
     assert forall|i: int| 0 <= i < libs.len() implies libs2[i] == libs[i] by {
         assert(libs2[i] == libs[i]);
     }
-    // Now show each type is still present
+    //  Now show each type is still present
     let vi_witness: int = choose|i: int| 0 <= i < libs.len() && library_type_eq(libs[i].library_type, PipelineLibraryType::VertexInput);
     assert(library_type_eq(libs2[vi_witness].library_type, PipelineLibraryType::VertexInput));
 
@@ -289,4 +289,4 @@ pub proof fn lemma_duplicate_type_still_covers(
     assert(library_type_eq(libs2[fo_witness].library_type, PipelineLibraryType::FragmentOutput));
 }
 
-} // verus!
+} //  verus!

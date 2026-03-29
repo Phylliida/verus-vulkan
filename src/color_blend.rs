@@ -2,9 +2,9 @@ use vstd::prelude::*;
 
 verus! {
 
-// ── Types ───────────────────────────────────────────────────────────────
+//  ── Types ───────────────────────────────────────────────────────────────
 
-/// Color blend factor.
+///  Color blend factor.
 pub enum BlendFactor {
     Zero,
     One,
@@ -23,7 +23,7 @@ pub enum BlendFactor {
     SrcAlphaSaturate,
 }
 
-/// Color blend operation.
+///  Color blend operation.
 pub enum BlendOp {
     Add,
     Subtract,
@@ -32,7 +32,7 @@ pub enum BlendOp {
     Max,
 }
 
-/// Color component write mask flags.
+///  Color component write mask flags.
 pub struct ColorWriteMask {
     pub r: bool,
     pub g: bool,
@@ -40,7 +40,7 @@ pub struct ColorWriteMask {
     pub a: bool,
 }
 
-/// Per-attachment color blend state.
+///  Per-attachment color blend state.
 pub struct AttachmentBlendState {
     pub blend_enable: bool,
     pub src_color_blend_factor: BlendFactor,
@@ -52,17 +52,17 @@ pub struct AttachmentBlendState {
     pub color_write_mask: ColorWriteMask,
 }
 
-/// Full color blend state for a graphics pipeline.
+///  Full color blend state for a graphics pipeline.
 pub struct ColorBlendState {
-    /// Per-attachment blend states.
+    ///  Per-attachment blend states.
     pub attachments: Seq<AttachmentBlendState>,
-    /// Blend constants (used with ConstantColor/ConstantAlpha factors).
+    ///  Blend constants (used with ConstantColor/ConstantAlpha factors).
     pub blend_constants_needed: bool,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// Color blend state attachment count matches pipeline's color attachment count.
+///  Color blend state attachment count matches pipeline's color attachment count.
 pub open spec fn blend_attachment_count_matches(
     state: ColorBlendState,
     color_attachment_count: nat,
@@ -70,7 +70,7 @@ pub open spec fn blend_attachment_count_matches(
     state.attachments.len() == color_attachment_count
 }
 
-/// An attachment blend state uses constant blend factors.
+///  An attachment blend state uses constant blend factors.
 pub open spec fn uses_constant_factors(state: AttachmentBlendState) -> bool {
     state.blend_enable && (
         blend_factor_is_constant(state.src_color_blend_factor)
@@ -80,7 +80,7 @@ pub open spec fn uses_constant_factors(state: AttachmentBlendState) -> bool {
     )
 }
 
-/// A blend factor references blend constants.
+///  A blend factor references blend constants.
 pub open spec fn blend_factor_is_constant(factor: BlendFactor) -> bool {
     factor == BlendFactor::ConstantColor
     || factor == BlendFactor::OneMinusConstantColor
@@ -88,18 +88,18 @@ pub open spec fn blend_factor_is_constant(factor: BlendFactor) -> bool {
     || factor == BlendFactor::OneMinusConstantAlpha
 }
 
-/// If any attachment uses constant factors, blend constants must be set.
+///  If any attachment uses constant factors, blend constants must be set.
 pub open spec fn blend_constants_required(state: ColorBlendState) -> bool {
     exists|i: int| 0 <= i < state.attachments.len()
         && uses_constant_factors(#[trigger] state.attachments[i])
 }
 
-/// Color blend state is well-formed.
+///  Color blend state is well-formed.
 pub open spec fn color_blend_well_formed(state: ColorBlendState) -> bool {
     blend_constants_required(state) ==> state.blend_constants_needed
 }
 
-/// Default blend state: no blending, write all components.
+///  Default blend state: no blending, write all components.
 pub open spec fn default_attachment_blend() -> AttachmentBlendState {
     AttachmentBlendState {
         blend_enable: false,
@@ -113,7 +113,7 @@ pub open spec fn default_attachment_blend() -> AttachmentBlendState {
     }
 }
 
-/// Standard alpha blending (src_alpha, 1-src_alpha).
+///  Standard alpha blending (src_alpha, 1-src_alpha).
 pub open spec fn alpha_blend() -> AttachmentBlendState {
     AttachmentBlendState {
         blend_enable: true,
@@ -127,21 +127,21 @@ pub open spec fn alpha_blend() -> AttachmentBlendState {
     }
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// Default blend doesn't use constant factors.
+///  Default blend doesn't use constant factors.
 pub proof fn lemma_default_blend_no_constants()
     ensures !uses_constant_factors(default_attachment_blend()),
 {
 }
 
-/// Alpha blend doesn't use constant factors.
+///  Alpha blend doesn't use constant factors.
 pub proof fn lemma_alpha_blend_no_constants()
     ensures !uses_constant_factors(alpha_blend()),
 {
 }
 
-/// A single default attachment matches a pipeline with 1 color attachment.
+///  A single default attachment matches a pipeline with 1 color attachment.
 pub proof fn lemma_single_default_matches()
     ensures
         blend_attachment_count_matches(
@@ -154,7 +154,7 @@ pub proof fn lemma_single_default_matches()
 {
 }
 
-/// Empty attachments matches zero color attachments.
+///  Empty attachments matches zero color attachments.
 pub proof fn lemma_empty_matches_zero()
     ensures
         blend_attachment_count_matches(
@@ -167,7 +167,7 @@ pub proof fn lemma_empty_matches_zero()
 {
 }
 
-/// If no attachment enables blending, no blend constants are required.
+///  If no attachment enables blending, no blend constants are required.
 pub proof fn lemma_no_blend_no_constants(state: ColorBlendState)
     requires
         forall|i: int| 0 <= i < state.attachments.len()
@@ -182,4 +182,4 @@ pub proof fn lemma_no_blend_no_constants(state: ColorBlendState)
     }
 }
 
-} // verus!
+} //  verus!

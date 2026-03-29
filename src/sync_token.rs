@@ -3,108 +3,108 @@ use crate::resource::*;
 
 verus! {
 
-// ── Types ───────────────────────────────────────────────────────────────
+//  ── Types ───────────────────────────────────────────────────────────────
 
-/// Thread identifier.
+///  Thread identifier.
 pub type ThreadId = nat;
 
-/// Typed identifier for objects tracked by the sync token registry.
-/// Prevents collisions between different object kinds (e.g., Buffer{id:5}
-/// vs Image{id:5}).
+///  Typed identifier for objects tracked by the sync token registry.
+///  Prevents collisions between different object kinds (e.g., Buffer{id:5}
+///  vs Image{id:5}).
 pub enum SyncObjectId {
-    /// A GPU resource (buffer, image, descriptor set, etc.)
-    /// Using ResourceId prevents Buffer{id:5} / Image{id:5} collisions.
+    ///  A GPU resource (buffer, image, descriptor set, etc.)
+    ///  Using ResourceId prevents Buffer{id:5} / Image{id:5} collisions.
     Resource(ResourceId),
-    /// A queue, identified by queue family + queue index.
+    ///  A queue, identified by queue family + queue index.
     Queue(nat),
-    /// A command pool, identified by pool id.
+    ///  A command pool, identified by pool id.
     CommandPool(nat),
-    /// A generic Vulkan handle (fence, semaphore, event, pipeline, etc.)
-    /// Used for objects that don't need typed discrimination.
+    ///  A generic Vulkan handle (fence, semaphore, event, pipeline, etc.)
+    ///  Used for objects that don't need typed discrimination.
     Handle(nat),
 }
 
-/// Access kind for a tracked object.
+///  Access kind for a tracked object.
 pub enum AccessKind {
-    /// Only one thread can hold exclusive access at a time.
+    ///  Only one thread can hold exclusive access at a time.
     Exclusive,
-    /// Multiple threads can hold shared access simultaneously.
+    ///  Multiple threads can hold shared access simultaneously.
     Shared,
-    /// Object is registered but not currently accessed by any thread.
+    ///  Object is registered but not currently accessed by any thread.
     Available,
 }
 
-/// A ghost synchronization token granting access to a Vulkan object.
+///  A ghost synchronization token granting access to a Vulkan object.
 ///
-/// Inspired by Verus linear ghost types and Rust's Send/Sync model.
-/// Tokens are linear: acquiring produces one, releasing consumes it.
-/// This prevents double-release and ensures access is properly tracked.
+///  Inspired by Verus linear ghost types and Rust's Send/Sync model.
+///  Tokens are linear: acquiring produces one, releasing consumes it.
+///  This prevents double-release and ensures access is properly tracked.
 pub struct SyncToken {
-    /// The object this token grants access to.
+    ///  The object this token grants access to.
     pub object_id: SyncObjectId,
-    /// The thread holding this token.
+    ///  The thread holding this token.
     pub holder: ThreadId,
-    /// Whether access is exclusive or shared.
+    ///  Whether access is exclusive or shared.
     pub access: AccessKind,
-    /// Generation counter — distinguishes reuse of the same object id.
+    ///  Generation counter — distinguishes reuse of the same object id.
     pub generation: nat,
 }
 
-/// Vulkan operation category, determining sync requirements.
-/// Per the Vulkan spec, external synchronization is per-command-parameter,
-/// not per-object. This enum captures the relevant categories.
+///  Vulkan operation category, determining sync requirements.
+///  Per the Vulkan spec, external synchronization is per-command-parameter,
+///  not per-object. This enum captures the relevant categories.
 pub enum VulkanOp {
-    /// Mutating operation (destroy, reset, begin/end recording, etc.)
+    ///  Mutating operation (destroy, reset, begin/end recording, etc.)
     Mutate,
-    /// Read-only operation (bind pipeline, bind descriptor set during recording, etc.)
+    ///  Read-only operation (bind pipeline, bind descriptor set during recording, etc.)
     ReadOnly,
-    /// Queue submission (requires exclusive queue access + CBs not held by others).
+    ///  Queue submission (requires exclusive queue access + CBs not held by others).
     QueueSubmit,
-    /// Pool-scoped operation (implicitly synchronizes all children).
+    ///  Pool-scoped operation (implicitly synchronizes all children).
     PoolScope,
 }
 
-/// The sync requirement for a given operation on a given object.
+///  The sync requirement for a given operation on a given object.
 pub enum SyncRequirement {
-    /// Requires the caller to hold an exclusive token.
+    ///  Requires the caller to hold an exclusive token.
     NeedExclusive,
-    /// No token needed — operation is internally thread-safe.
+    ///  No token needed — operation is internally thread-safe.
     ThreadSafe,
-    /// Requires either exclusive token on the object, or exclusive token
-    /// on the parent pool (transitive sync).
+    ///  Requires either exclusive token on the object, or exclusive token
+    ///  on the parent pool (transitive sync).
     NeedExclusiveOrPoolOwner,
 }
 
-/// Global token registry: tracks which tokens are currently issued.
+///  Global token registry: tracks which tokens are currently issued.
 ///
-/// Maps SyncObjectId → current token state.
-/// When no token is issued, the object is "available."
+///  Maps SyncObjectId → current token state.
+///  When no token is issued, the object is "available."
 pub struct TokenRegistry {
-    /// Per-object state: None = available, Some = token issued.
+    ///  Per-object state: None = available, Some = token issued.
     pub tokens: Map<SyncObjectId, TokenState>,
-    /// Monotonically increasing generation counter.
+    ///  Monotonically increasing generation counter.
     pub next_generation: nat,
 }
 
-/// Per-object token state in the registry.
+///  Per-object token state in the registry.
 pub struct TokenState {
-    /// Which thread holds the token (if exclusive).
+    ///  Which thread holds the token (if exclusive).
     pub holder: Option<ThreadId>,
-    /// Current access kind (Exclusive, Shared, or Available).
+    ///  Current access kind (Exclusive, Shared, or Available).
     pub access: AccessKind,
-    /// Number of shared readers (0 when exclusive or available).
+    ///  Number of shared readers (0 when exclusive or available).
     pub shared_count: nat,
-    /// Current generation.
+    ///  Current generation.
     pub generation: nat,
-    /// Optional parent pool for hierarchical ownership.
-    /// When set, exclusive access to the parent pool grants implicit
-    /// access to this child (transitive synchronization per Vulkan spec).
+    ///  Optional parent pool for hierarchical ownership.
+    ///  When set, exclusive access to the parent pool grants implicit
+    ///  access to this child (transitive synchronization per Vulkan spec).
     pub pool_parent: Option<SyncObjectId>,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// Register a new object in the registry (enters Available state).
+///  Register a new object in the registry (enters Available state).
 pub open spec fn register_object(
     reg: TokenRegistry,
     object_id: SyncObjectId,
@@ -122,7 +122,7 @@ pub open spec fn register_object(
     }
 }
 
-/// An object is available: no tokens issued, in Available state.
+///  An object is available: no tokens issued, in Available state.
 pub open spec fn object_available(reg: TokenRegistry, object_id: SyncObjectId) -> bool {
     reg.tokens.contains_key(object_id)
     && reg.tokens[object_id].holder.is_none()
@@ -130,7 +130,7 @@ pub open spec fn object_available(reg: TokenRegistry, object_id: SyncObjectId) -
     && reg.tokens[object_id].access is Available
 }
 
-/// A token is valid: it matches the registry's current state.
+///  A token is valid: it matches the registry's current state.
 pub open spec fn token_valid(reg: TokenRegistry, token: SyncToken) -> bool {
     reg.tokens.contains_key(token.object_id)
     && reg.tokens[token.object_id].generation == token.generation
@@ -143,13 +143,13 @@ pub open spec fn token_valid(reg: TokenRegistry, token: SyncToken) -> bool {
             reg.tokens[token.object_id].access is Shared
             && reg.tokens[token.object_id].shared_count > 0
         },
-        // Available is not a valid token access kind — tokens are always
-        // Exclusive or Shared.
+        //  Available is not a valid token access kind — tokens are always
+        //  Exclusive or Shared.
         AccessKind::Available => false,
     }
 }
 
-/// Acquire an exclusive token: object must be available.
+///  Acquire an exclusive token: object must be available.
 pub open spec fn acquire_exclusive(
     reg: TokenRegistry,
     object_id: SyncObjectId,
@@ -178,7 +178,7 @@ pub open spec fn acquire_exclusive(
     (new_reg, token)
 }
 
-/// Release an exclusive token: object becomes available.
+///  Release an exclusive token: object becomes available.
 pub open spec fn release_exclusive(
     reg: TokenRegistry,
     token: SyncToken,
@@ -200,7 +200,7 @@ pub open spec fn release_exclusive(
     }
 }
 
-/// Acquire a shared token: object must be available or already shared.
+///  Acquire a shared token: object must be available or already shared.
 pub open spec fn acquire_shared(
     reg: TokenRegistry,
     object_id: SyncObjectId,
@@ -232,8 +232,8 @@ pub open spec fn acquire_shared(
     (new_reg, token)
 }
 
-/// Release a shared token: decrements reader count.
-/// When the last reader releases, the object returns to Available state.
+///  Release a shared token: decrements reader count.
+///  When the last reader releases, the object returns to Available state.
 pub open spec fn release_shared(
     reg: TokenRegistry,
     token: SyncToken,
@@ -256,7 +256,7 @@ pub open spec fn release_shared(
     }
 }
 
-/// Determine the sync requirement for an operation.
+///  Determine the sync requirement for an operation.
 pub open spec fn sync_requirement(op: VulkanOp) -> SyncRequirement {
     match op {
         VulkanOp::Mutate => SyncRequirement::NeedExclusive,
@@ -266,7 +266,7 @@ pub open spec fn sync_requirement(op: VulkanOp) -> SyncRequirement {
     }
 }
 
-/// Whether a thread can perform an operation given the current registry.
+///  Whether a thread can perform an operation given the current registry.
 pub open spec fn operation_permitted(
     reg: TokenRegistry,
     op: VulkanOp,
@@ -281,9 +281,9 @@ pub open spec fn operation_permitted(
             true
         },
         SyncRequirement::NeedExclusiveOrPoolOwner => {
-            // Direct exclusive access to the object
+            //  Direct exclusive access to the object
             holds_exclusive(reg, object_id, thread)
-            // Or implicit access via parent pool ownership
+            //  Or implicit access via parent pool ownership
             || (reg.tokens.contains_key(object_id)
                 && reg.tokens[object_id].pool_parent.is_some()
                 && holds_exclusive(reg, reg.tokens[object_id].pool_parent.unwrap(), thread))
@@ -291,24 +291,24 @@ pub open spec fn operation_permitted(
     }
 }
 
-/// No data race: an object is either exclusively owned, shared-read, or available.
+///  No data race: an object is either exclusively owned, shared-read, or available.
 pub open spec fn no_data_race(reg: TokenRegistry, object_id: SyncObjectId) -> bool {
     reg.tokens.contains_key(object_id)
     && (
-        // Exclusively owned by one thread
+        //  Exclusively owned by one thread
         (reg.tokens[object_id].access is Exclusive
          && reg.tokens[object_id].holder.is_some()
          && reg.tokens[object_id].shared_count == 0)
-        // Shared by readers (no exclusive owner)
+        //  Shared by readers (no exclusive owner)
         || (reg.tokens[object_id].access is Shared
             && reg.tokens[object_id].holder.is_none()
             && reg.tokens[object_id].shared_count > 0)
-        // Available (nobody accessing)
+        //  Available (nobody accessing)
         || object_available(reg, object_id)
     )
 }
 
-/// A thread holds exclusive access to an object (convenience predicate).
+///  A thread holds exclusive access to an object (convenience predicate).
 pub open spec fn holds_exclusive(
     reg: TokenRegistry,
     object_id: SyncObjectId,
@@ -319,7 +319,7 @@ pub open spec fn holds_exclusive(
     && reg.tokens[object_id].access is Exclusive
 }
 
-/// No other thread holds exclusive access to an object.
+///  No other thread holds exclusive access to an object.
 pub open spec fn not_held_by_other(
     reg: TokenRegistry,
     object_id: SyncObjectId,
@@ -332,9 +332,9 @@ pub open spec fn not_held_by_other(
     || reg.tokens[object_id].access is Available
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// Registering an object makes it available.
+///  Registering an object makes it available.
 pub proof fn lemma_register_makes_available(
     reg: TokenRegistry,
     object_id: SyncObjectId,
@@ -345,7 +345,7 @@ pub proof fn lemma_register_makes_available(
 {
 }
 
-/// Registering preserves other objects.
+///  Registering preserves other objects.
 pub proof fn lemma_register_preserves_others(
     reg: TokenRegistry,
     object_id: SyncObjectId,
@@ -360,7 +360,7 @@ pub proof fn lemma_register_preserves_others(
 {
 }
 
-/// After acquiring exclusive, the token is valid and the thread holds it.
+///  After acquiring exclusive, the token is valid and the thread holds it.
 pub proof fn lemma_acquire_exclusive_valid(
     reg: TokenRegistry,
     object_id: SyncObjectId,
@@ -378,7 +378,7 @@ pub proof fn lemma_acquire_exclusive_valid(
 {
 }
 
-/// After acquiring exclusive, no data race exists.
+///  After acquiring exclusive, no data race exists.
 pub proof fn lemma_acquire_exclusive_no_race(
     reg: TokenRegistry,
     object_id: SyncObjectId,
@@ -392,7 +392,7 @@ pub proof fn lemma_acquire_exclusive_no_race(
 {
 }
 
-/// After releasing exclusive, the object is available.
+///  After releasing exclusive, the object is available.
 pub proof fn lemma_release_makes_available(
     reg: TokenRegistry,
     token: SyncToken,
@@ -405,7 +405,7 @@ pub proof fn lemma_release_makes_available(
 {
 }
 
-/// Exclusive access blocks other threads.
+///  Exclusive access blocks other threads.
 pub proof fn lemma_exclusive_blocks_others(
     reg: TokenRegistry,
     object_id: SyncObjectId,
@@ -420,7 +420,7 @@ pub proof fn lemma_exclusive_blocks_others(
 {
 }
 
-/// Mutate operations require exclusive access.
+///  Mutate operations require exclusive access.
 pub proof fn lemma_mutate_requires_exclusive(
     reg: TokenRegistry,
     object_id: SyncObjectId,
@@ -433,7 +433,7 @@ pub proof fn lemma_mutate_requires_exclusive(
 {
 }
 
-/// Read-only operations are always permitted.
+///  Read-only operations are always permitted.
 pub proof fn lemma_readonly_always_permitted(
     reg: TokenRegistry,
     object_id: SyncObjectId,
@@ -444,7 +444,7 @@ pub proof fn lemma_readonly_always_permitted(
 {
 }
 
-/// Acquiring/releasing doesn't affect other objects.
+///  Acquiring/releasing doesn't affect other objects.
 pub proof fn lemma_acquire_preserves_others(
     reg: TokenRegistry,
     object_id: SyncObjectId,
@@ -462,7 +462,7 @@ pub proof fn lemma_acquire_preserves_others(
 {
 }
 
-/// Release preserves other objects.
+///  Release preserves other objects.
 pub proof fn lemma_release_preserves_others(
     reg: TokenRegistry,
     token: SyncToken,
@@ -478,7 +478,7 @@ pub proof fn lemma_release_preserves_others(
 {
 }
 
-/// Available object has no data race (trivially).
+///  Available object has no data race (trivially).
 pub proof fn lemma_available_no_race(
     reg: TokenRegistry,
     object_id: SyncObjectId,
@@ -488,7 +488,7 @@ pub proof fn lemma_available_no_race(
 {
 }
 
-/// After acquiring shared, shared count increases.
+///  After acquiring shared, shared count increases.
 pub proof fn lemma_acquire_shared_valid(
     reg: TokenRegistry,
     object_id: SyncObjectId,
@@ -508,7 +508,7 @@ pub proof fn lemma_acquire_shared_valid(
 {
 }
 
-/// Shared access doesn't grant exclusive.
+///  Shared access doesn't grant exclusive.
 pub proof fn lemma_shared_not_exclusive(
     reg: TokenRegistry,
     object_id: SyncObjectId,
@@ -523,7 +523,7 @@ pub proof fn lemma_shared_not_exclusive(
 {
 }
 
-/// Queue submit requires exclusive queue access.
+///  Queue submit requires exclusive queue access.
 pub proof fn lemma_submit_requires_exclusive(
     reg: TokenRegistry,
     queue_id: SyncObjectId,
@@ -536,7 +536,7 @@ pub proof fn lemma_submit_requires_exclusive(
 {
 }
 
-/// Pool-scoped operations can use parent pool ownership.
+///  Pool-scoped operations can use parent pool ownership.
 pub proof fn lemma_pool_scope_via_parent(
     reg: TokenRegistry,
     object_id: SyncObjectId,
@@ -552,7 +552,7 @@ pub proof fn lemma_pool_scope_via_parent(
 {
 }
 
-/// After releasing the last shared reader, object becomes available.
+///  After releasing the last shared reader, object becomes available.
 pub proof fn lemma_release_last_shared_makes_available(
     reg: TokenRegistry,
     token: SyncToken,
@@ -566,7 +566,7 @@ pub proof fn lemma_release_last_shared_makes_available(
 {
 }
 
-/// Acquire exclusive preserves pool_parent.
+///  Acquire exclusive preserves pool_parent.
 pub proof fn lemma_acquire_preserves_pool_parent(
     reg: TokenRegistry,
     object_id: SyncObjectId,
@@ -581,7 +581,7 @@ pub proof fn lemma_acquire_preserves_pool_parent(
 {
 }
 
-/// Release exclusive preserves pool_parent.
+///  Release exclusive preserves pool_parent.
 pub proof fn lemma_release_preserves_pool_parent(
     reg: TokenRegistry,
     token: SyncToken,
@@ -595,4 +595,4 @@ pub proof fn lemma_release_preserves_pool_parent(
 {
 }
 
-} // verus!
+} //  verus!

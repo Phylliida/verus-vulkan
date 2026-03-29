@@ -61,38 +61,38 @@ use crate::taint_proofs::*;
 
 verus! {
 
-// ═══════════════════════════════════════════════════════════════════════
-// Thread-Safe Operation Wrappers
+//  ═══════════════════════════════════════════════════════════════════════
+//  Thread-Safe Operation Wrappers
 //
-// Each wrapper combines the base operation's spec with the Vulkan spec's
-// external synchronization requirements. Using these instead of the
-// raw specs forces the caller to prove thread safety.
+//  Each wrapper combines the base operation's spec with the Vulkan spec's
+//  external synchronization requirements. Using these instead of the
+//  raw specs forces the caller to prove thread safety.
 //
-// Per the Vulkan spec §3.6 "Threading Behavior":
-// - vkBeginCommandBuffer: externally sync CB + parent pool
-// - vkEndCommandBuffer: externally sync CB + parent pool
-// - vkQueueSubmit: externally sync queue + fence
-// - vkResetCommandPool: externally sync pool
-// - vkUpdateDescriptorSets: externally sync dstSet of each write
-// - vkAllocateCommandBuffers: externally sync pool
-// - vkFreeCommandBuffers: externally sync pool
-// - Queue family ownership transfers: externally sync queue
-// - vkResetFences: externally sync fence
-// - vkDestroyFence: externally sync fence
-// - vkDestroySemaphore: externally sync semaphore
-// - vkSetEvent / vkResetEvent / vkDestroyEvent: externally sync event
-// - vkResetQueryPool: externally sync query pool
-// - vkMapMemory / vkUnmapMemory: externally sync device memory
-// - vkFlushMappedMemoryRanges / vkInvalidateMappedMemoryRanges: externally sync memory
-// ═══════════════════════════════════════════════════════════════════════
+//  Per the Vulkan spec §3.6 "Threading Behavior":
+//  - vkBeginCommandBuffer: externally sync CB + parent pool
+//  - vkEndCommandBuffer: externally sync CB + parent pool
+//  - vkQueueSubmit: externally sync queue + fence
+//  - vkResetCommandPool: externally sync pool
+//  - vkUpdateDescriptorSets: externally sync dstSet of each write
+//  - vkAllocateCommandBuffers: externally sync pool
+//  - vkFreeCommandBuffers: externally sync pool
+//  - Queue family ownership transfers: externally sync queue
+//  - vkResetFences: externally sync fence
+//  - vkDestroyFence: externally sync fence
+//  - vkDestroySemaphore: externally sync semaphore
+//  - vkSetEvent / vkResetEvent / vkDestroyEvent: externally sync event
+//  - vkResetQueryPool: externally sync query pool
+//  - vkMapMemory / vkUnmapMemory: externally sync device memory
+//  - vkFlushMappedMemoryRanges / vkInvalidateMappedMemoryRanges: externally sync memory
+//  ═══════════════════════════════════════════════════════════════════════
 
-// ── Command Buffer Recording ────────────────────────────────────────────
+//  ── Command Buffer Recording ────────────────────────────────────────────
 
-/// Thread-safe vkBeginCommandBuffer: requires exclusive access to both
-/// the command buffer AND its parent pool (implicit external sync).
+///  Thread-safe vkBeginCommandBuffer: requires exclusive access to both
+///  the command buffer AND its parent pool (implicit external sync).
 ///
-/// Note: begin_recording already requires exclusive CB access.
-/// This additionally requires pool-level sync per the Vulkan spec.
+///  Note: begin_recording already requires exclusive CB access.
+///  This additionally requires pool-level sync per the Vulkan spec.
 pub open spec fn ts_begin_recording(
     cb_state: CommandBufferState,
     cb_id: nat,
@@ -103,14 +103,14 @@ pub open spec fn ts_begin_recording(
     if can_mutate_pool(pool, thread, reg)
        && pool.children.contains(cb_id)
     {
-        // begin_recording internally checks holds_exclusive(reg, cb_id, thread)
+        //  begin_recording internally checks holds_exclusive(reg, cb_id, thread)
         begin_recording(cb_state, cb_id, thread, reg)
     } else {
         None
     }
 }
 
-/// Thread-safe vkEndCommandBuffer: same sync requirements as begin.
+///  Thread-safe vkEndCommandBuffer: same sync requirements as begin.
 pub open spec fn ts_end_recording(
     cb_state: CommandBufferState,
     cb_id: nat,
@@ -127,8 +127,8 @@ pub open spec fn ts_end_recording(
     }
 }
 
-/// Thread-safe vkResetCommandBuffer: requires exclusive CB access,
-/// pool must allow individual reset, and pool must be synced.
+///  Thread-safe vkResetCommandBuffer: requires exclusive CB access,
+///  pool must allow individual reset, and pool must be synced.
 pub open spec fn ts_reset_command_buffer(
     cb_state: CommandBufferState,
     cb_id: nat,
@@ -141,18 +141,18 @@ pub open spec fn ts_reset_command_buffer(
        && pool.children.contains(cb_id)
        && individual_reset_allowed(cmd_pool, cb_id)
     {
-        // reset internally checks holds_exclusive(reg, cb_id, thread)
+        //  reset internally checks holds_exclusive(reg, cb_id, thread)
         reset(cb_state, cb_id, thread, reg)
     } else {
         None
     }
 }
 
-// ── Queue Submission ────────────────────────────────────────────────────
+//  ── Queue Submission ────────────────────────────────────────────────────
 
-/// Thread-safe vkQueueSubmit: requires exclusive access to the queue
-/// and (if present) the fence. All submitted CBs must not be exclusively
-/// held by another thread.
+///  Thread-safe vkQueueSubmit: requires exclusive access to the queue
+///  and (if present) the fence. All submitted CBs must not be exclusively
+///  held by another thread.
 pub open spec fn ts_submit(
     queue: QueueState,
     info: SubmitInfo,
@@ -164,14 +164,14 @@ pub open spec fn ts_submit(
     reg: TokenRegistry,
 ) -> Option<(QueueState, SubmissionRecord)> {
     if holds_exclusive(reg, SyncObjectId::Queue(queue.queue_id), thread)
-       // If a fence is specified, thread must have exclusive access to it
+       //  If a fence is specified, thread must have exclusive access to it
        && (info.fence_id.is_none()
            || holds_exclusive(reg, SyncObjectId::Handle(info.fence_id.unwrap()), thread))
-       // All submitted CBs must not be held by another thread
+       //  All submitted CBs must not be held by another thread
        && (forall|i: int| #![trigger info.command_buffers[i]]
            0 <= i < info.command_buffers.len() ==>
            not_held_by_other(reg, SyncObjectId::Handle(info.command_buffers[i]), thread))
-       // Base validation must pass (now includes resource liveness + threading checks)
+       //  Base validation must pass (now includes resource liveness + threading checks)
        && submission_valid(info, cb_states, sem_states, fence_states, lifecycle_states, queue.queue_id, thread, reg)
     {
         submit_ghost(queue, info, thread, reg)
@@ -180,13 +180,13 @@ pub open spec fn ts_submit(
     }
 }
 
-// ── Command Pool Operations ─────────────────────────────────────────────
+//  ── Command Pool Operations ─────────────────────────────────────────────
 
-/// Thread-safe vkResetCommandPool: requires exclusive pool access
-/// (via PoolOwnership) and no CBs from this pool in Pending state.
+///  Thread-safe vkResetCommandPool: requires exclusive pool access
+///  (via PoolOwnership) and no CBs from this pool in Pending state.
 ///
-/// Note: reset_pool_cbs already requires holds_exclusive on the pool.
-/// This adds PoolOwnership-level checks and Pending-state validation.
+///  Note: reset_pool_cbs already requires holds_exclusive on the pool.
+///  This adds PoolOwnership-level checks and Pending-state validation.
 pub open spec fn ts_reset_command_pool(
     pool: CommandPoolState,
     pool_own: PoolOwnership,
@@ -199,14 +199,14 @@ pub open spec fn ts_reset_command_pool(
            && cb_states.contains_key(cb)
            ==> cb_states[cb] != CommandBufferState::Pending)
     {
-        // reset_pool_cbs internally checks holds_exclusive
+        //  reset_pool_cbs internally checks holds_exclusive
         reset_pool_cbs(pool, thread, reg)
     } else {
         None
     }
 }
 
-/// Thread-safe vkAllocateCommandBuffers: requires exclusive pool access.
+///  Thread-safe vkAllocateCommandBuffers: requires exclusive pool access.
 pub open spec fn ts_allocate_cb(
     pool: CommandPoolState,
     pool_own: PoolOwnership,
@@ -215,15 +215,15 @@ pub open spec fn ts_allocate_cb(
     reg: TokenRegistry,
 ) -> Option<CommandPoolState> {
     if can_mutate_pool(pool_own, thread, reg) {
-        // allocate_cb internally checks holds_exclusive
+        //  allocate_cb internally checks holds_exclusive
         allocate_cb(pool, cb_id, thread, reg)
     } else {
         None
     }
 }
 
-/// Thread-safe vkFreeCommandBuffers: requires exclusive pool access,
-/// and the CB must not be Pending.
+///  Thread-safe vkFreeCommandBuffers: requires exclusive pool access,
+///  and the CB must not be Pending.
 pub open spec fn ts_free_cb(
     pool: CommandPoolState,
     pool_own: PoolOwnership,
@@ -236,21 +236,21 @@ pub open spec fn ts_free_cb(
        && cb_state != CommandBufferState::Pending
        && pool.allocated_cbs.contains(cb_id)
     {
-        // free_cb internally checks holds_exclusive
+        //  free_cb internally checks holds_exclusive
         free_cb(pool, cb_id, thread, reg)
     } else {
         None
     }
 }
 
-// ── Descriptor Set Updates ──────────────────────────────────────────────
+//  ── Descriptor Set Updates ──────────────────────────────────────────────
 
-/// Thread-safe vkUpdateDescriptorSets: the caller must have exclusive
-/// access to the destination descriptor set's pool.
+///  Thread-safe vkUpdateDescriptorSets: the caller must have exclusive
+///  access to the destination descriptor set's pool.
 ///
-/// Per the Vulkan spec, the externally synchronized parameter is
-/// "dstSet of each element of pDescriptorWrites" — but since sets
-/// are allocated from pools, pool-level sync is sufficient.
+///  Per the Vulkan spec, the externally synchronized parameter is
+///  "dstSet of each element of pDescriptorWrites" — but since sets
+///  are allocated from pools, pool-level sync is sufficient.
 pub open spec fn ts_update_descriptor_set(
     set: DescriptorSetState,
     writes: Seq<(DescriptorWrite, DescriptorBinding)>,
@@ -265,9 +265,9 @@ pub open spec fn ts_update_descriptor_set(
     }
 }
 
-// ── Queue Family Ownership Transfer ─────────────────────────────────────
+//  ── Queue Family Ownership Transfer ─────────────────────────────────────
 
-/// Thread-safe release barrier: requires exclusive queue access.
+///  Thread-safe release barrier: requires exclusive queue access.
 pub open spec fn ts_release_ownership(
     ownership: QueueFamilyOwnership,
     src_family: nat,
@@ -283,8 +283,8 @@ pub open spec fn ts_release_ownership(
     }
 }
 
-/// Thread-safe acquire barrier: requires exclusive queue access
-/// on the destination queue.
+///  Thread-safe acquire barrier: requires exclusive queue access
+///  on the destination queue.
 pub open spec fn ts_acquire_ownership(
     ownership: QueueFamilyOwnership,
     dst_family: nat,
@@ -301,11 +301,11 @@ pub open spec fn ts_acquire_ownership(
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Proofs: Thread-safe operations enforce the required invariants
-// ═══════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════
+//  Proofs: Thread-safe operations enforce the required invariants
+//  ═══════════════════════════════════════════════════════════════════════
 
-/// Thread-safe begin_recording guarantees exclusive CB access.
+///  Thread-safe begin_recording guarantees exclusive CB access.
 pub proof fn lemma_ts_begin_requires_exclusive_cb(
     cb_state: CommandBufferState,
     cb_id: nat,
@@ -318,7 +318,7 @@ pub proof fn lemma_ts_begin_requires_exclusive_cb(
 {
 }
 
-/// Thread-safe begin_recording guarantees exclusive pool access.
+///  Thread-safe begin_recording guarantees exclusive pool access.
 pub proof fn lemma_ts_begin_requires_pool_sync(
     cb_state: CommandBufferState,
     cb_id: nat,
@@ -331,7 +331,7 @@ pub proof fn lemma_ts_begin_requires_pool_sync(
 {
 }
 
-/// Thread-safe submit guarantees exclusive queue access.
+///  Thread-safe submit guarantees exclusive queue access.
 pub proof fn lemma_ts_submit_requires_queue_exclusive(
     queue: QueueState,
     info: SubmitInfo,
@@ -347,7 +347,7 @@ pub proof fn lemma_ts_submit_requires_queue_exclusive(
 {
 }
 
-/// Thread-safe submit blocks other threads from the queue.
+///  Thread-safe submit blocks other threads from the queue.
 pub proof fn lemma_ts_submit_blocks_others(
     queue: QueueState,
     info: SubmitInfo,
@@ -367,7 +367,7 @@ pub proof fn lemma_ts_submit_blocks_others(
 {
 }
 
-/// Thread-safe submit ensures all CBs are not held by others.
+///  Thread-safe submit ensures all CBs are not held by others.
 pub proof fn lemma_ts_submit_cbs_not_held(
     queue: QueueState,
     info: SubmitInfo,
@@ -387,7 +387,7 @@ pub proof fn lemma_ts_submit_cbs_not_held(
 {
 }
 
-/// Thread-safe submit preserves base validation.
+///  Thread-safe submit preserves base validation.
 pub proof fn lemma_ts_submit_implies_valid(
     queue: QueueState,
     info: SubmitInfo,
@@ -403,7 +403,7 @@ pub proof fn lemma_ts_submit_implies_valid(
 {
 }
 
-/// Thread-safe pool reset blocks Pending CBs.
+///  Thread-safe pool reset blocks Pending CBs.
 pub proof fn lemma_ts_reset_pool_no_pending(
     pool: CommandPoolState,
     pool_own: PoolOwnership,
@@ -421,7 +421,7 @@ pub proof fn lemma_ts_reset_pool_no_pending(
 {
 }
 
-/// Thread-safe descriptor update requires pool access.
+///  Thread-safe descriptor update requires pool access.
 pub proof fn lemma_ts_descriptor_update_requires_access(
     set: DescriptorSetState,
     writes: Seq<(DescriptorWrite, DescriptorBinding)>,
@@ -436,7 +436,7 @@ pub proof fn lemma_ts_descriptor_update_requires_access(
 {
 }
 
-/// Thread-safe descriptor update produces the same result as raw.
+///  Thread-safe descriptor update produces the same result as raw.
 pub proof fn lemma_ts_descriptor_update_matches_raw(
     set: DescriptorSetState,
     writes: Seq<(DescriptorWrite, DescriptorBinding)>,
@@ -452,7 +452,7 @@ pub proof fn lemma_ts_descriptor_update_matches_raw(
 {
 }
 
-/// Thread-safe release requires exclusive queue access.
+///  Thread-safe release requires exclusive queue access.
 pub proof fn lemma_ts_release_requires_queue(
     ownership: QueueFamilyOwnership,
     src_family: nat,
@@ -468,9 +468,9 @@ pub proof fn lemma_ts_release_requires_queue(
 {
 }
 
-/// Two threads recording into different pools is safe:
-/// if both hold exclusive access to their own pools, thread 2
-/// can't hold thread 1's pool (and vice versa).
+///  Two threads recording into different pools is safe:
+///  if both hold exclusive access to their own pools, thread 2
+///  can't hold thread 1's pool (and vice versa).
 pub proof fn lemma_parallel_recording_safe(
     pool1: PoolOwnership,
     pool2: PoolOwnership,
@@ -481,20 +481,20 @@ pub proof fn lemma_parallel_recording_safe(
     requires
         thread1 != thread2,
         pool1.pool_id != pool2.pool_id,
-        // Both threads hold exclusive access to their own pool
+        //  Both threads hold exclusive access to their own pool
         holds_exclusive(reg, SyncObjectId::CommandPool(pool1.pool_id), thread1),
         holds_exclusive(reg, SyncObjectId::CommandPool(pool2.pool_id), thread2),
     ensures
-        // Neither thread holds the other's pool
+        //  Neither thread holds the other's pool
         !holds_exclusive(reg, SyncObjectId::CommandPool(pool1.pool_id), thread2),
         !holds_exclusive(reg, SyncObjectId::CommandPool(pool2.pool_id), thread1),
 {
-    // pool1.pool_id: holder is thread1, so thread2 can't hold it
-    // pool2.pool_id: holder is thread2, so thread1 can't hold it
+    //  pool1.pool_id: holder is thread1, so thread2 can't hold it
+    //  pool2.pool_id: holder is thread2, so thread1 can't hold it
 }
 
-/// A thread-safe submit followed by the base check is redundant:
-/// ts_submit already enforces submission_valid.
+///  A thread-safe submit followed by the base check is redundant:
+///  ts_submit already enforces submission_valid.
 pub proof fn lemma_ts_submit_is_sufficient(
     queue: QueueState,
     info: SubmitInfo,
@@ -513,9 +513,9 @@ pub proof fn lemma_ts_submit_is_sufficient(
 {
 }
 
-// ── Fence Operations ─────────────────────────────────────────────────
+//  ── Fence Operations ─────────────────────────────────────────────────
 
-/// Thread-safe vkResetFences: requires exclusive fence access.
+///  Thread-safe vkResetFences: requires exclusive fence access.
 pub open spec fn ts_reset_fence(
     fence: FenceState,
     thread: ThreadId,
@@ -528,7 +528,7 @@ pub open spec fn ts_reset_fence(
     }
 }
 
-/// Thread-safe vkDestroyFence: requires exclusive fence access.
+///  Thread-safe vkDestroyFence: requires exclusive fence access.
 pub open spec fn ts_destroy_fence(
     fence: FenceState,
     thread: ThreadId,
@@ -541,9 +541,9 @@ pub open spec fn ts_destroy_fence(
     }
 }
 
-// ── Semaphore Operations ─────────────────────────────────────────────
+//  ── Semaphore Operations ─────────────────────────────────────────────
 
-/// Thread-safe vkDestroySemaphore: requires exclusive semaphore access.
+///  Thread-safe vkDestroySemaphore: requires exclusive semaphore access.
 pub open spec fn ts_destroy_semaphore(
     sem: SemaphoreState,
     thread: ThreadId,
@@ -556,9 +556,9 @@ pub open spec fn ts_destroy_semaphore(
     }
 }
 
-// ── Event Operations ─────────────────────────────────────────────────
+//  ── Event Operations ─────────────────────────────────────────────────
 
-/// Thread-safe vkSetEvent: requires exclusive event access.
+///  Thread-safe vkSetEvent: requires exclusive event access.
 pub open spec fn ts_set_event(
     event: EventState,
     stages: Set<nat>,
@@ -572,7 +572,7 @@ pub open spec fn ts_set_event(
     }
 }
 
-/// Thread-safe vkResetEvent: requires exclusive event access.
+///  Thread-safe vkResetEvent: requires exclusive event access.
 pub open spec fn ts_reset_event(
     event: EventState,
     thread: ThreadId,
@@ -585,7 +585,7 @@ pub open spec fn ts_reset_event(
     }
 }
 
-/// Thread-safe vkDestroyEvent: requires exclusive event access.
+///  Thread-safe vkDestroyEvent: requires exclusive event access.
 pub open spec fn ts_destroy_event(
     event: EventState,
     thread: ThreadId,
@@ -598,9 +598,9 @@ pub open spec fn ts_destroy_event(
     }
 }
 
-// ── Query Pool Operations ────────────────────────────────────────────
+//  ── Query Pool Operations ────────────────────────────────────────────
 
-/// Thread-safe vkResetQueryPool: requires exclusive pool access.
+///  Thread-safe vkResetQueryPool: requires exclusive pool access.
 pub open spec fn ts_reset_queries(
     pool: QueryPoolState,
     first: nat,
@@ -615,9 +615,9 @@ pub open spec fn ts_reset_queries(
     }
 }
 
-// ── Memory Map Operations ────────────────────────────────────────────
+//  ── Memory Map Operations ────────────────────────────────────────────
 
-/// Thread-safe vkMapMemory: requires exclusive access to the memory object.
+///  Thread-safe vkMapMemory: requires exclusive access to the memory object.
 pub open spec fn ts_map_memory(
     state: MemoryMapState,
     offset: nat,
@@ -632,7 +632,7 @@ pub open spec fn ts_map_memory(
     }
 }
 
-/// Thread-safe vkUnmapMemory: requires exclusive access to the memory object.
+///  Thread-safe vkUnmapMemory: requires exclusive access to the memory object.
 pub open spec fn ts_unmap_memory(
     state: MemoryMapState,
     thread: ThreadId,
@@ -645,7 +645,7 @@ pub open spec fn ts_unmap_memory(
     }
 }
 
-/// Thread-safe vkFlushMappedMemoryRanges: requires exclusive access.
+///  Thread-safe vkFlushMappedMemoryRanges: requires exclusive access.
 pub open spec fn ts_flush_memory(
     state: MemoryMapState,
     thread: ThreadId,
@@ -658,7 +658,7 @@ pub open spec fn ts_flush_memory(
     }
 }
 
-/// Thread-safe vkInvalidateMappedMemoryRanges: requires exclusive access.
+///  Thread-safe vkInvalidateMappedMemoryRanges: requires exclusive access.
 pub open spec fn ts_invalidate_memory(
     state: MemoryMapState,
     thread: ThreadId,
@@ -671,13 +671,13 @@ pub open spec fn ts_invalidate_memory(
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Proofs: New thread-safe operations enforce exclusivity
-// ═══════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════
+//  Proofs: New thread-safe operations enforce exclusivity
+//  ═══════════════════════════════════════════════════════════════════════
 
-// ── Fence proofs ─────────────────────────────────────────────────────
+//  ── Fence proofs ─────────────────────────────────────────────────────
 
-/// Thread-safe fence reset requires exclusive access.
+///  Thread-safe fence reset requires exclusive access.
 pub proof fn lemma_ts_reset_fence_requires_exclusive(
     fence: FenceState,
     thread: ThreadId,
@@ -688,7 +688,7 @@ pub proof fn lemma_ts_reset_fence_requires_exclusive(
 {
 }
 
-/// Thread-safe fence reset matches the raw operation.
+///  Thread-safe fence reset matches the raw operation.
 pub proof fn lemma_ts_reset_fence_matches_raw(
     fence: FenceState,
     thread: ThreadId,
@@ -699,7 +699,7 @@ pub proof fn lemma_ts_reset_fence_matches_raw(
 {
 }
 
-/// Thread-safe fence destroy requires exclusive access.
+///  Thread-safe fence destroy requires exclusive access.
 pub proof fn lemma_ts_destroy_fence_requires_exclusive(
     fence: FenceState,
     thread: ThreadId,
@@ -710,7 +710,7 @@ pub proof fn lemma_ts_destroy_fence_requires_exclusive(
 {
 }
 
-/// Thread-safe fence reset blocks other threads from the fence.
+///  Thread-safe fence reset blocks other threads from the fence.
 pub proof fn lemma_ts_reset_fence_blocks_others(
     fence: FenceState,
     thread: ThreadId,
@@ -725,9 +725,9 @@ pub proof fn lemma_ts_reset_fence_blocks_others(
 {
 }
 
-// ── Semaphore proofs ─────────────────────────────────────────────────
+//  ── Semaphore proofs ─────────────────────────────────────────────────
 
-/// Thread-safe semaphore destroy requires exclusive access.
+///  Thread-safe semaphore destroy requires exclusive access.
 pub proof fn lemma_ts_destroy_semaphore_requires_exclusive(
     sem: SemaphoreState,
     thread: ThreadId,
@@ -738,9 +738,9 @@ pub proof fn lemma_ts_destroy_semaphore_requires_exclusive(
 {
 }
 
-// ── Event proofs ─────────────────────────────────────────────────────
+//  ── Event proofs ─────────────────────────────────────────────────────
 
-/// Thread-safe set event requires exclusive access.
+///  Thread-safe set event requires exclusive access.
 pub proof fn lemma_ts_set_event_requires_exclusive(
     event: EventState,
     stages: Set<nat>,
@@ -752,7 +752,7 @@ pub proof fn lemma_ts_set_event_requires_exclusive(
 {
 }
 
-/// Thread-safe reset event requires exclusive access.
+///  Thread-safe reset event requires exclusive access.
 pub proof fn lemma_ts_reset_event_requires_exclusive(
     event: EventState,
     thread: ThreadId,
@@ -763,7 +763,7 @@ pub proof fn lemma_ts_reset_event_requires_exclusive(
 {
 }
 
-/// Thread-safe destroy event requires exclusive access.
+///  Thread-safe destroy event requires exclusive access.
 pub proof fn lemma_ts_destroy_event_requires_exclusive(
     event: EventState,
     thread: ThreadId,
@@ -774,7 +774,7 @@ pub proof fn lemma_ts_destroy_event_requires_exclusive(
 {
 }
 
-/// Thread-safe set then reset returns unsignaled (preserves base property).
+///  Thread-safe set then reset returns unsignaled (preserves base property).
 pub proof fn lemma_ts_set_then_reset_unsignaled(
     event: EventState,
     stages: Set<nat>,
@@ -790,9 +790,9 @@ pub proof fn lemma_ts_set_then_reset_unsignaled(
 {
 }
 
-// ── Query Pool proofs ────────────────────────────────────────────────
+//  ── Query Pool proofs ────────────────────────────────────────────────
 
-/// Thread-safe query pool reset requires exclusive access.
+///  Thread-safe query pool reset requires exclusive access.
 pub proof fn lemma_ts_reset_queries_requires_exclusive(
     pool: QueryPoolState,
     first: nat,
@@ -805,7 +805,7 @@ pub proof fn lemma_ts_reset_queries_requires_exclusive(
 {
 }
 
-/// Thread-safe query pool reset matches raw operation.
+///  Thread-safe query pool reset matches raw operation.
 pub proof fn lemma_ts_reset_queries_matches_raw(
     pool: QueryPoolState,
     first: nat,
@@ -818,9 +818,9 @@ pub proof fn lemma_ts_reset_queries_matches_raw(
 {
 }
 
-// ── Memory Map proofs ────────────────────────────────────────────────
+//  ── Memory Map proofs ────────────────────────────────────────────────
 
-/// Thread-safe map requires exclusive access.
+///  Thread-safe map requires exclusive access.
 pub proof fn lemma_ts_map_memory_requires_exclusive(
     state: MemoryMapState,
     offset: nat,
@@ -833,7 +833,7 @@ pub proof fn lemma_ts_map_memory_requires_exclusive(
 {
 }
 
-/// Thread-safe unmap requires exclusive access.
+///  Thread-safe unmap requires exclusive access.
 pub proof fn lemma_ts_unmap_memory_requires_exclusive(
     state: MemoryMapState,
     thread: ThreadId,
@@ -844,7 +844,7 @@ pub proof fn lemma_ts_unmap_memory_requires_exclusive(
 {
 }
 
-/// Thread-safe flush requires exclusive access.
+///  Thread-safe flush requires exclusive access.
 pub proof fn lemma_ts_flush_memory_requires_exclusive(
     state: MemoryMapState,
     thread: ThreadId,
@@ -855,7 +855,7 @@ pub proof fn lemma_ts_flush_memory_requires_exclusive(
 {
 }
 
-/// Thread-safe invalidate requires exclusive access.
+///  Thread-safe invalidate requires exclusive access.
 pub proof fn lemma_ts_invalidate_memory_requires_exclusive(
     state: MemoryMapState,
     thread: ThreadId,
@@ -866,7 +866,7 @@ pub proof fn lemma_ts_invalidate_memory_requires_exclusive(
 {
 }
 
-/// Thread-safe map then unmap roundtrip: memory returns to unmapped.
+///  Thread-safe map then unmap roundtrip: memory returns to unmapped.
 pub proof fn lemma_ts_map_unmap_roundtrip(
     state: MemoryMapState,
     offset: nat,
@@ -883,7 +883,7 @@ pub proof fn lemma_ts_map_unmap_roundtrip(
 {
 }
 
-/// Thread-safe flush makes host writes visible.
+///  Thread-safe flush makes host writes visible.
 pub proof fn lemma_ts_flush_makes_visible(
     state: MemoryMapState,
     thread: ThreadId,
@@ -894,7 +894,7 @@ pub proof fn lemma_ts_flush_makes_visible(
 {
 }
 
-/// Two threads cannot both reset the same fence.
+///  Two threads cannot both reset the same fence.
 pub proof fn lemma_fence_reset_mutual_exclusion(
     fence: FenceState,
     thread1: ThreadId,
@@ -909,7 +909,7 @@ pub proof fn lemma_fence_reset_mutual_exclusion(
 {
 }
 
-/// Two threads cannot both map the same memory.
+///  Two threads cannot both map the same memory.
 pub proof fn lemma_map_mutual_exclusion(
     state: MemoryMapState,
     offset1: nat,
@@ -928,11 +928,11 @@ pub proof fn lemma_map_mutual_exclusion(
 {
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Resource Lifecycle Thread-Safe Wrappers
-// ═══════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════
+//  Resource Lifecycle Thread-Safe Wrappers
+//  ═══════════════════════════════════════════════════════════════════════
 
-/// Thread-safe bind_resource: requires exclusive access to the resource.
+///  Thread-safe bind_resource: requires exclusive access to the resource.
 pub open spec fn ts_bind_resource(
     state: ResourceLifecycleState,
     thread: ThreadId,
@@ -947,7 +947,7 @@ pub open spec fn ts_bind_resource(
     }
 }
 
-/// Thread-safe submit_resource: requires exclusive access to the resource.
+///  Thread-safe submit_resource: requires exclusive access to the resource.
 pub open spec fn ts_submit_resource(
     state: ResourceLifecycleState,
     thread: ThreadId,
@@ -962,7 +962,7 @@ pub open spec fn ts_submit_resource(
     }
 }
 
-/// Thread-safe complete_use: requires exclusive access to the resource.
+///  Thread-safe complete_use: requires exclusive access to the resource.
 pub open spec fn ts_complete_use(
     state: ResourceLifecycleState,
     thread: ThreadId,
@@ -977,7 +977,7 @@ pub open spec fn ts_complete_use(
     }
 }
 
-/// Thread-safe destroy_resource: requires exclusive access to the resource.
+///  Thread-safe destroy_resource: requires exclusive access to the resource.
 pub open spec fn ts_destroy_resource(
     state: ResourceLifecycleState,
     thread: ThreadId,
@@ -992,7 +992,7 @@ pub open spec fn ts_destroy_resource(
     }
 }
 
-// ── Resource Lifecycle Proofs ──────────────────────────────────────────
+//  ── Resource Lifecycle Proofs ──────────────────────────────────────────
 
 pub proof fn lemma_ts_bind_resource_requires_exclusive(
     state: ResourceLifecycleState, thread: ThreadId, reg: TokenRegistry,
@@ -1026,11 +1026,11 @@ pub proof fn lemma_ts_destroy_resource_requires_exclusive(
 {
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Swapchain Thread-Safe Wrappers
-// ═══════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════
+//  Swapchain Thread-Safe Wrappers
+//  ═══════════════════════════════════════════════════════════════════════
 
-/// Thread-safe vkAcquireNextImageKHR: requires exclusive swapchain access.
+///  Thread-safe vkAcquireNextImageKHR: requires exclusive swapchain access.
 pub open spec fn ts_acquire_image(
     swapchain: SwapchainState,
     idx: nat,
@@ -1044,7 +1044,7 @@ pub open spec fn ts_acquire_image(
     }
 }
 
-/// Thread-safe vkQueuePresentKHR: requires exclusive swapchain access.
+///  Thread-safe vkQueuePresentKHR: requires exclusive swapchain access.
 pub open spec fn ts_present_image(
     swapchain: SwapchainState,
     idx: nat,
@@ -1058,7 +1058,7 @@ pub open spec fn ts_present_image(
     }
 }
 
-// ── Swapchain Proofs ───────────────────────────────────────────────────
+//  ── Swapchain Proofs ───────────────────────────────────────────────────
 
 pub proof fn lemma_ts_acquire_image_requires_exclusive(
     swapchain: SwapchainState, idx: nat, thread: ThreadId, reg: TokenRegistry,
@@ -1076,11 +1076,11 @@ pub proof fn lemma_ts_present_image_requires_exclusive(
 {
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Device Thread-Safe Wrappers
-// ═══════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════
+//  Device Thread-Safe Wrappers
+//  ═══════════════════════════════════════════════════════════════════════
 
-/// Thread-safe vkAllocateMemory: requires exclusive device access.
+///  Thread-safe vkAllocateMemory: requires exclusive device access.
 pub open spec fn ts_allocate_memory(
     dev: DeviceState,
     heap_idx: nat,
@@ -1096,7 +1096,7 @@ pub open spec fn ts_allocate_memory(
     }
 }
 
-/// Thread-safe vkFreeMemory: requires exclusive device access.
+///  Thread-safe vkFreeMemory: requires exclusive device access.
 pub open spec fn ts_free_memory(
     dev: DeviceState,
     heap_idx: nat,
@@ -1112,7 +1112,7 @@ pub open spec fn ts_free_memory(
     }
 }
 
-/// Thread-safe vkCreateBuffer: requires exclusive device access.
+///  Thread-safe vkCreateBuffer: requires exclusive device access.
 pub open spec fn ts_create_buffer(
     dev: DeviceState,
     device_id: nat,
@@ -1126,7 +1126,7 @@ pub open spec fn ts_create_buffer(
     }
 }
 
-/// Thread-safe vkDestroyBuffer: requires exclusive device access.
+///  Thread-safe vkDestroyBuffer: requires exclusive device access.
 pub open spec fn ts_destroy_buffer(
     dev: DeviceState,
     device_id: nat,
@@ -1140,7 +1140,7 @@ pub open spec fn ts_destroy_buffer(
     }
 }
 
-/// Thread-safe vkCreateImage: requires exclusive device access.
+///  Thread-safe vkCreateImage: requires exclusive device access.
 pub open spec fn ts_create_image(
     dev: DeviceState,
     device_id: nat,
@@ -1154,7 +1154,7 @@ pub open spec fn ts_create_image(
     }
 }
 
-/// Thread-safe vkDestroyImage: requires exclusive device access.
+///  Thread-safe vkDestroyImage: requires exclusive device access.
 pub open spec fn ts_destroy_image(
     dev: DeviceState,
     device_id: nat,
@@ -1168,7 +1168,7 @@ pub open spec fn ts_destroy_image(
     }
 }
 
-// ── Device Proofs ──────────────────────────────────────────────────────
+//  ── Device Proofs ──────────────────────────────────────────────────────
 
 pub proof fn lemma_ts_allocate_memory_requires_exclusive(
     dev: DeviceState, heap_idx: nat, size: nat, device_id: nat, thread: ThreadId, reg: TokenRegistry,
@@ -1218,11 +1218,11 @@ pub proof fn lemma_ts_destroy_image_requires_exclusive(
 {
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Memory Binding Thread-Safe Wrappers
-// ═══════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════
+//  Memory Binding Thread-Safe Wrappers
+//  ═══════════════════════════════════════════════════════════════════════
 
-/// Thread-safe vkBindBufferMemory: requires exclusive buffer access.
+///  Thread-safe vkBindBufferMemory: requires exclusive buffer access.
 pub open spec fn ts_bind_buffer_memory(
     buf: BufferState,
     allocation_id: nat,
@@ -1237,7 +1237,7 @@ pub open spec fn ts_bind_buffer_memory(
     }
 }
 
-/// Thread-safe vkBindImageMemory: requires exclusive image access.
+///  Thread-safe vkBindImageMemory: requires exclusive image access.
 pub open spec fn ts_bind_image_memory(
     img: ImageState,
     allocation_id: nat,
@@ -1252,7 +1252,7 @@ pub open spec fn ts_bind_image_memory(
     }
 }
 
-/// Thread-safe image layout transition: requires exclusive image access.
+///  Thread-safe image layout transition: requires exclusive image access.
 pub open spec fn ts_transition_image_layout(
     img: ImageState,
     sub: ImageSubresource,
@@ -1267,7 +1267,7 @@ pub open spec fn ts_transition_image_layout(
     }
 }
 
-// ── Memory Binding Proofs ──────────────────────────────────────────────
+//  ── Memory Binding Proofs ──────────────────────────────────────────────
 
 pub proof fn lemma_ts_bind_buffer_memory_requires_exclusive(
     buf: BufferState, allocation_id: nat, offset: nat, thread: ThreadId, reg: TokenRegistry,
@@ -1293,11 +1293,11 @@ pub proof fn lemma_ts_transition_image_layout_requires_exclusive(
 {
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Ring Buffer Thread-Safe Wrappers
-// ═══════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════
+//  Ring Buffer Thread-Safe Wrappers
+//  ═══════════════════════════════════════════════════════════════════════
 
-/// Thread-safe ring buffer acquire: requires exclusive ring buffer access.
+///  Thread-safe ring buffer acquire: requires exclusive ring buffer access.
 pub open spec fn ts_ring_acquire(
     ring: RingBufferState,
     thread: ThreadId,
@@ -1313,7 +1313,7 @@ pub open spec fn ts_ring_acquire(
     }
 }
 
-/// Thread-safe ring buffer retire: requires exclusive ring buffer access.
+///  Thread-safe ring buffer retire: requires exclusive ring buffer access.
 pub open spec fn ts_ring_retire(
     ring: RingBufferState,
     thread: ThreadId,
@@ -1329,7 +1329,7 @@ pub open spec fn ts_ring_retire(
     }
 }
 
-// ── Ring Buffer Proofs ─────────────────────────────────────────────────
+//  ── Ring Buffer Proofs ─────────────────────────────────────────────────
 
 pub proof fn lemma_ts_ring_acquire_requires_exclusive(
     ring: RingBufferState, thread: ThreadId, reg: TokenRegistry,
@@ -1347,11 +1347,11 @@ pub proof fn lemma_ts_ring_retire_requires_exclusive(
 {
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Timeline Semaphore Thread-Safe Wrappers
-// ═══════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════
+//  Timeline Semaphore Thread-Safe Wrappers
+//  ═══════════════════════════════════════════════════════════════════════
 
-/// Thread-safe timeline semaphore submit signal: requires exclusive access.
+///  Thread-safe timeline semaphore submit signal: requires exclusive access.
 pub open spec fn ts_timeline_submit_signal(
     sem: TimelineSemaphoreState,
     value: nat,
@@ -1367,7 +1367,7 @@ pub open spec fn ts_timeline_submit_signal(
     }
 }
 
-/// Thread-safe timeline semaphore submit wait: requires exclusive access.
+///  Thread-safe timeline semaphore submit wait: requires exclusive access.
 pub open spec fn ts_timeline_submit_wait(
     sem: TimelineSemaphoreState,
     value: nat,
@@ -1381,7 +1381,7 @@ pub open spec fn ts_timeline_submit_wait(
     }
 }
 
-/// Thread-safe timeline semaphore host wait: requires exclusive access.
+///  Thread-safe timeline semaphore host wait: requires exclusive access.
 pub open spec fn ts_timeline_host_wait(
     sem: TimelineSemaphoreState,
     value: nat,
@@ -1397,7 +1397,7 @@ pub open spec fn ts_timeline_host_wait(
     }
 }
 
-// ── Timeline Semaphore Proofs ──────────────────────────────────────────
+//  ── Timeline Semaphore Proofs ──────────────────────────────────────────
 
 pub proof fn lemma_ts_timeline_submit_signal_requires_exclusive(
     sem: TimelineSemaphoreState, value: nat, thread: ThreadId, reg: TokenRegistry,
@@ -1423,11 +1423,11 @@ pub proof fn lemma_ts_timeline_host_wait_requires_exclusive(
 {
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Descriptor Pool Thread-Safe Wrappers
-// ═══════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════
+//  Descriptor Pool Thread-Safe Wrappers
+//  ═══════════════════════════════════════════════════════════════════════
 
-/// Thread-safe vkAllocateDescriptorSets: requires exclusive pool access.
+///  Thread-safe vkAllocateDescriptorSets: requires exclusive pool access.
 pub open spec fn ts_allocate_from_pool(
     pool: DescriptorPoolState,
     thread: ThreadId,
@@ -1442,7 +1442,7 @@ pub open spec fn ts_allocate_from_pool(
     }
 }
 
-/// Thread-safe vkFreeDescriptorSets: requires exclusive pool access.
+///  Thread-safe vkFreeDescriptorSets: requires exclusive pool access.
 pub open spec fn ts_free_to_pool(
     pool: DescriptorPoolState,
     thread: ThreadId,
@@ -1457,7 +1457,7 @@ pub open spec fn ts_free_to_pool(
     }
 }
 
-// ── Descriptor Pool Proofs ─────────────────────────────────────────────
+//  ── Descriptor Pool Proofs ─────────────────────────────────────────────
 
 pub proof fn lemma_ts_allocate_from_pool_requires_exclusive(
     pool: DescriptorPoolState, thread: ThreadId, reg: TokenRegistry,
@@ -1475,11 +1475,11 @@ pub proof fn lemma_ts_free_to_pool_requires_exclusive(
 {
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Cross-Cutting Integration Proofs
-// ═══════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════
+//  Cross-Cutting Integration Proofs
+//  ═══════════════════════════════════════════════════════════════════════
 
-/// Two threads cannot both acquire from the same swapchain.
+///  Two threads cannot both acquire from the same swapchain.
 pub proof fn lemma_swapchain_acquire_mutual_exclusion(
     swapchain: SwapchainState,
     idx1: nat,
@@ -1496,7 +1496,7 @@ pub proof fn lemma_swapchain_acquire_mutual_exclusion(
 {
 }
 
-/// Exclusive ring buffer ownership prevents concurrent slot writes.
+///  Exclusive ring buffer ownership prevents concurrent slot writes.
 pub proof fn lemma_ring_buffer_exclusive_prevents_concurrent(
     ring: RingBufferState,
     thread1: ThreadId,
@@ -1511,7 +1511,7 @@ pub proof fn lemma_ring_buffer_exclusive_prevents_concurrent(
 {
 }
 
-/// After ts_destroy_resource, the resource is dead — no further ops possible.
+///  After ts_destroy_resource, the resource is dead — no further ops possible.
 pub proof fn lemma_destroy_then_release_safe(
     state: ResourceLifecycleState,
     thread: ThreadId,
@@ -1528,7 +1528,7 @@ pub proof fn lemma_destroy_then_release_safe(
 {
 }
 
-/// A destroyed resource cannot be submitted again.
+///  A destroyed resource cannot be submitted again.
 pub proof fn lemma_destroyed_no_resubmit(
     state: ResourceLifecycleState,
     thread: ThreadId,
@@ -1542,7 +1542,7 @@ pub proof fn lemma_destroyed_no_resubmit(
 {
 }
 
-/// Thread-safe descriptor update + not-in-flight = no GPU hazard.
+///  Thread-safe descriptor update + not-in-flight = no GPU hazard.
 pub proof fn lemma_ts_update_no_gpu_hazard(
     set: DescriptorSetState,
     writes: Seq<(DescriptorWrite, DescriptorBinding)>,
@@ -1555,26 +1555,26 @@ pub proof fn lemma_ts_update_no_gpu_hazard(
         ts_update_descriptor_set(set, writes, pool_own, thread, reg).is_some(),
         descriptor_not_in_flight(dev, set.id),
     ensures
-        // The update is safe: we have exclusive access AND no GPU is using the set
+        //  The update is safe: we have exclusive access AND no GPU is using the set
         can_access_child(pool_own, set.id, thread, reg)
         && no_pending_references(dev.pending_submissions, ResourceId::DescriptorSet { id: set.id }),
 {
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Lock-Ordered Operation Wrappers
+//  ═══════════════════════════════════════════════════════════════════════
+//  Lock-Ordered Operation Wrappers
 //
-// These wrappers enforce deadlock freedom by requiring lock ordering
-// compliance. Each wrapper checks that the caller's held locks allow
-// acquiring at the required level before delegating to the base ts_* op.
+//  These wrappers enforce deadlock freedom by requiring lock ordering
+//  compliance. Each wrapper checks that the caller's held locks allow
+//  acquiring at the required level before delegating to the base ts_* op.
 //
-// Lock levels: Device(0) < Queue(1) < CommandPool(2) < CommandBuffer(3)
-//              < DescriptorPool(4) < Fence(5)
-// ═══════════════════════════════════════════════════════════════════════
+//  Lock levels: Device(0) < Queue(1) < CommandPool(2) < CommandBuffer(3)
+//               < DescriptorPool(4) < Fence(5)
+//  ═══════════════════════════════════════════════════════════════════════
 
-// ── Device Level (0) ────────────────────────────────────────────────────
+//  ── Device Level (0) ────────────────────────────────────────────────────
 
-/// Lock-ordered vkAllocateMemory.
+///  Lock-ordered vkAllocateMemory.
 pub open spec fn ts_lo_allocate_memory(
     dev: DeviceState, heap_idx: nat, size: nat,
     device_id: nat, thread: ThreadId, reg: TokenRegistry, held: HeldLocks,
@@ -1584,7 +1584,7 @@ pub open spec fn ts_lo_allocate_memory(
     } else { None }
 }
 
-/// Lock-ordered vkFreeMemory.
+///  Lock-ordered vkFreeMemory.
 pub open spec fn ts_lo_free_memory(
     dev: DeviceState, heap_idx: nat, size: nat,
     device_id: nat, thread: ThreadId, reg: TokenRegistry, held: HeldLocks,
@@ -1594,7 +1594,7 @@ pub open spec fn ts_lo_free_memory(
     } else { None }
 }
 
-/// Lock-ordered vkCreateBuffer.
+///  Lock-ordered vkCreateBuffer.
 pub open spec fn ts_lo_create_buffer(
     dev: DeviceState, device_id: nat,
     thread: ThreadId, reg: TokenRegistry, held: HeldLocks,
@@ -1604,7 +1604,7 @@ pub open spec fn ts_lo_create_buffer(
     } else { None }
 }
 
-/// Lock-ordered vkDestroyBuffer.
+///  Lock-ordered vkDestroyBuffer.
 pub open spec fn ts_lo_destroy_buffer(
     dev: DeviceState, device_id: nat,
     thread: ThreadId, reg: TokenRegistry, held: HeldLocks,
@@ -1614,7 +1614,7 @@ pub open spec fn ts_lo_destroy_buffer(
     } else { None }
 }
 
-/// Lock-ordered vkCreateImage.
+///  Lock-ordered vkCreateImage.
 pub open spec fn ts_lo_create_image(
     dev: DeviceState, device_id: nat,
     thread: ThreadId, reg: TokenRegistry, held: HeldLocks,
@@ -1624,7 +1624,7 @@ pub open spec fn ts_lo_create_image(
     } else { None }
 }
 
-/// Lock-ordered vkDestroyImage.
+///  Lock-ordered vkDestroyImage.
 pub open spec fn ts_lo_destroy_image(
     dev: DeviceState, device_id: nat,
     thread: ThreadId, reg: TokenRegistry, held: HeldLocks,
@@ -1634,9 +1634,9 @@ pub open spec fn ts_lo_destroy_image(
     } else { None }
 }
 
-// ── Queue Level (1) ─────────────────────────────────────────────────────
+//  ── Queue Level (1) ─────────────────────────────────────────────────────
 
-/// Lock-ordered vkQueueSubmit.
+///  Lock-ordered vkQueueSubmit.
 pub open spec fn ts_lo_submit(
     queue: QueueState, info: SubmitInfo,
     cb_states: Map<nat, CommandBufferState>,
@@ -1650,7 +1650,7 @@ pub open spec fn ts_lo_submit(
     } else { None }
 }
 
-/// Lock-ordered vkAcquireNextImageKHR.
+///  Lock-ordered vkAcquireNextImageKHR.
 pub open spec fn ts_lo_acquire_image(
     swapchain: SwapchainState, idx: nat,
     thread: ThreadId, reg: TokenRegistry, held: HeldLocks,
@@ -1660,7 +1660,7 @@ pub open spec fn ts_lo_acquire_image(
     } else { None }
 }
 
-/// Lock-ordered vkQueuePresentKHR.
+///  Lock-ordered vkQueuePresentKHR.
 pub open spec fn ts_lo_present_image(
     swapchain: SwapchainState, idx: nat,
     thread: ThreadId, reg: TokenRegistry, held: HeldLocks,
@@ -1670,9 +1670,9 @@ pub open spec fn ts_lo_present_image(
     } else { None }
 }
 
-// ── Command Pool Level (2) ──────────────────────────────────────────────
+//  ── Command Pool Level (2) ──────────────────────────────────────────────
 
-/// Lock-ordered vkResetCommandPool.
+///  Lock-ordered vkResetCommandPool.
 pub open spec fn ts_lo_reset_command_pool(
     pool: CommandPoolState, pool_own: PoolOwnership,
     thread: ThreadId, reg: TokenRegistry,
@@ -1683,7 +1683,7 @@ pub open spec fn ts_lo_reset_command_pool(
     } else { None }
 }
 
-/// Lock-ordered vkAllocateCommandBuffers.
+///  Lock-ordered vkAllocateCommandBuffers.
 pub open spec fn ts_lo_allocate_cb(
     pool: CommandPoolState, pool_own: PoolOwnership,
     cb_id: nat, thread: ThreadId, reg: TokenRegistry, held: HeldLocks,
@@ -1693,7 +1693,7 @@ pub open spec fn ts_lo_allocate_cb(
     } else { None }
 }
 
-/// Lock-ordered vkFreeCommandBuffers.
+///  Lock-ordered vkFreeCommandBuffers.
 pub open spec fn ts_lo_free_cb(
     pool: CommandPoolState, pool_own: PoolOwnership,
     cb_id: nat, cb_state: CommandBufferState,
@@ -1704,9 +1704,9 @@ pub open spec fn ts_lo_free_cb(
     } else { None }
 }
 
-// ── Command Buffer Level (3) ────────────────────────────────────────────
+//  ── Command Buffer Level (3) ────────────────────────────────────────────
 
-/// Lock-ordered vkBeginCommandBuffer.
+///  Lock-ordered vkBeginCommandBuffer.
 pub open spec fn ts_lo_begin_recording(
     cb_state: CommandBufferState, cb_id: nat,
     pool: PoolOwnership, thread: ThreadId, reg: TokenRegistry, held: HeldLocks,
@@ -1716,7 +1716,7 @@ pub open spec fn ts_lo_begin_recording(
     } else { None }
 }
 
-/// Lock-ordered vkEndCommandBuffer.
+///  Lock-ordered vkEndCommandBuffer.
 pub open spec fn ts_lo_end_recording(
     cb_state: CommandBufferState, cb_id: nat,
     pool: PoolOwnership, thread: ThreadId, reg: TokenRegistry, held: HeldLocks,
@@ -1726,9 +1726,9 @@ pub open spec fn ts_lo_end_recording(
     } else { None }
 }
 
-// ── Descriptor Pool Level (4) ───────────────────────────────────────────
+//  ── Descriptor Pool Level (4) ───────────────────────────────────────────
 
-/// Lock-ordered vkUpdateDescriptorSets.
+///  Lock-ordered vkUpdateDescriptorSets.
 pub open spec fn ts_lo_update_descriptor_set(
     set: DescriptorSetState,
     writes: Seq<(DescriptorWrite, DescriptorBinding)>,
@@ -1739,9 +1739,9 @@ pub open spec fn ts_lo_update_descriptor_set(
     } else { None }
 }
 
-// ── Fence Level (5) ─────────────────────────────────────────────────────
+//  ── Fence Level (5) ─────────────────────────────────────────────────────
 
-/// Lock-ordered vkResetFences.
+///  Lock-ordered vkResetFences.
 pub open spec fn ts_lo_reset_fence(
     fence: FenceState, thread: ThreadId, reg: TokenRegistry, held: HeldLocks,
 ) -> Option<FenceState> {
@@ -1750,10 +1750,10 @@ pub open spec fn ts_lo_reset_fence(
     } else { None }
 }
 
-// ── Lock Ordering Proofs ────────────────────────────────────────────────
+//  ── Lock Ordering Proofs ────────────────────────────────────────────────
 
-/// Master deadlock freedom: if two threads both use lock-ordered wrappers,
-/// no circular wait is possible. This is immediate from the ordered locking theorem.
+///  Master deadlock freedom: if two threads both use lock-ordered wrappers,
+///  no circular wait is possible. This is immediate from the ordered locking theorem.
 pub proof fn lemma_lo_deadlock_free(
     level_a: nat, level_b: nat,
     held1: HeldLocks, held2: HeldLocks,
@@ -1767,7 +1767,7 @@ pub proof fn lemma_lo_deadlock_free(
     lemma_ordered_no_circular_wait(level_a, level_b, held1.max_level, held2.max_level);
 }
 
-/// Lock-ordered allocate_memory requires lock order compliance.
+///  Lock-ordered allocate_memory requires lock order compliance.
 pub proof fn lemma_lo_allocate_memory_requires_lock_order(
     dev: DeviceState, heap_idx: nat, size: nat,
     device_id: nat, thread: ThreadId, reg: TokenRegistry, held: HeldLocks,
@@ -1777,7 +1777,7 @@ pub proof fn lemma_lo_allocate_memory_requires_lock_order(
 {
 }
 
-/// Lock-ordered submit requires lock order compliance.
+///  Lock-ordered submit requires lock order compliance.
 pub proof fn lemma_lo_submit_requires_lock_order(
     queue: QueueState, info: SubmitInfo,
     cb_states: Map<nat, CommandBufferState>,
@@ -1791,7 +1791,7 @@ pub proof fn lemma_lo_submit_requires_lock_order(
 {
 }
 
-/// Lock-ordered reset_command_pool requires lock order compliance.
+///  Lock-ordered reset_command_pool requires lock order compliance.
 pub proof fn lemma_lo_reset_command_pool_requires_lock_order(
     pool: CommandPoolState, pool_own: PoolOwnership,
     thread: ThreadId, reg: TokenRegistry,
@@ -1802,7 +1802,7 @@ pub proof fn lemma_lo_reset_command_pool_requires_lock_order(
 {
 }
 
-/// Lock-ordered begin_recording requires lock order compliance.
+///  Lock-ordered begin_recording requires lock order compliance.
 pub proof fn lemma_lo_begin_recording_requires_lock_order(
     cb_state: CommandBufferState, cb_id: nat,
     pool: PoolOwnership, thread: ThreadId, reg: TokenRegistry, held: HeldLocks,
@@ -1812,7 +1812,7 @@ pub proof fn lemma_lo_begin_recording_requires_lock_order(
 {
 }
 
-/// Lock-ordered update_descriptor_set requires lock order compliance.
+///  Lock-ordered update_descriptor_set requires lock order compliance.
 pub proof fn lemma_lo_update_descriptor_set_requires_lock_order(
     set: DescriptorSetState,
     writes: Seq<(DescriptorWrite, DescriptorBinding)>,
@@ -1823,7 +1823,7 @@ pub proof fn lemma_lo_update_descriptor_set_requires_lock_order(
 {
 }
 
-/// Lock-ordered reset_fence requires lock order compliance.
+///  Lock-ordered reset_fence requires lock order compliance.
 pub proof fn lemma_lo_reset_fence_requires_lock_order(
     fence: FenceState, thread: ThreadId, reg: TokenRegistry, held: HeldLocks,
 )
@@ -1832,7 +1832,7 @@ pub proof fn lemma_lo_reset_fence_requires_lock_order(
 {
 }
 
-/// Lock-ordered acquire_image requires lock order compliance.
+///  Lock-ordered acquire_image requires lock order compliance.
 pub proof fn lemma_lo_acquire_image_requires_lock_order(
     swapchain: SwapchainState, idx: nat,
     thread: ThreadId, reg: TokenRegistry, held: HeldLocks,
@@ -1842,7 +1842,7 @@ pub proof fn lemma_lo_acquire_image_requires_lock_order(
 {
 }
 
-/// Lock-ordered present_image requires lock order compliance.
+///  Lock-ordered present_image requires lock order compliance.
 pub proof fn lemma_lo_present_image_requires_lock_order(
     swapchain: SwapchainState, idx: nat,
     thread: ThreadId, reg: TokenRegistry, held: HeldLocks,
@@ -1852,29 +1852,29 @@ pub proof fn lemma_lo_present_image_requires_lock_order(
 {
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Barrier Necessity Wrappers
+//  ═══════════════════════════════════════════════════════════════════════
+//  Barrier Necessity Wrappers
 //
-// Vulkan requires explicit pipeline barriers to resolve data hazards.
-// These wrappers check that all accessed resources have been properly
-// synchronized before draws/dispatches.
-// ═══════════════════════════════════════════════════════════════════════
+//  Vulkan requires explicit pipeline barriers to resolve data hazards.
+//  These wrappers check that all accessed resources have been properly
+//  synchronized before draws/dispatches.
+//  ═══════════════════════════════════════════════════════════════════════
 
-/// A requirement that a resource be synchronized before use.
+///  A requirement that a resource be synchronized before use.
 pub struct ResourceSyncRequirement {
-    /// The resource to synchronize.
+    ///  The resource to synchronize.
     pub resource: ResourceId,
-    /// Current sync state of the resource.
+    ///  Current sync state of the resource.
     pub sync_state: SyncState,
-    /// Pipeline stage the resource will be accessed in.
+    ///  Pipeline stage the resource will be accessed in.
     pub dst_stage: nat,
-    /// Access type the resource will be used with.
+    ///  Access type the resource will be used with.
     pub dst_access: nat,
-    /// Whether the access is a write (requires writable) or read (requires readable).
+    ///  Whether the access is a write (requires writable) or read (requires readable).
     pub is_write: bool,
 }
 
-/// All resources are properly synchronized for use.
+///  All resources are properly synchronized for use.
 pub open spec fn all_resources_synchronized(
     barrier_log: BarrierLog,
     requirements: Seq<ResourceSyncRequirement>,
@@ -1890,8 +1890,8 @@ pub open spec fn all_resources_synchronized(
         }
 }
 
-/// Thread-safe draw with barrier necessity: requires both the draw call
-/// to be valid AND all resources to be properly synchronized.
+///  Thread-safe draw with barrier necessity: requires both the draw call
+///  to be valid AND all resources to be properly synchronized.
 pub open spec fn ts_record_draw_synced(
     ctx: RecordingContext,
     resources: Set<ResourceId>,
@@ -1913,7 +1913,7 @@ pub open spec fn ts_record_draw_synced(
     }
 }
 
-/// Thread-safe dispatch with barrier necessity.
+///  Thread-safe dispatch with barrier necessity.
 pub open spec fn ts_record_dispatch_synced(
     ctx: RecordingContext,
     resources: Set<ResourceId>,
@@ -1934,9 +1934,9 @@ pub open spec fn ts_record_dispatch_synced(
     }
 }
 
-// ── Barrier Necessity Proofs ────────────────────────────────────────────
+//  ── Barrier Necessity Proofs ────────────────────────────────────────────
 
-/// A synced draw has no data hazards: all resources are synchronized.
+///  A synced draw has no data hazards: all resources are synchronized.
 pub proof fn lemma_ts_synced_draw_no_hazards(
     ctx: RecordingContext,
     resources: Set<ResourceId>,
@@ -1950,7 +1950,7 @@ pub proof fn lemma_ts_synced_draw_no_hazards(
 {
 }
 
-/// A synced draw is a valid draw call.
+///  A synced draw is a valid draw call.
 pub proof fn lemma_ts_synced_draw_valid(
     ctx: RecordingContext,
     resources: Set<ResourceId>,
@@ -1964,7 +1964,7 @@ pub proof fn lemma_ts_synced_draw_valid(
 {
 }
 
-/// A synced dispatch has no data hazards.
+///  A synced dispatch has no data hazards.
 pub proof fn lemma_ts_synced_dispatch_no_hazards(
     ctx: RecordingContext,
     resources: Set<ResourceId>,
@@ -1977,12 +1977,12 @@ pub proof fn lemma_ts_synced_dispatch_no_hazards(
 {
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Strengthened Descriptor Update
-// ═══════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════
+//  Strengthened Descriptor Update
+//  ═══════════════════════════════════════════════════════════════════════
 
-/// Thread-safe descriptor update with in-flight check: ensures no GPU
-/// is using the descriptor set when it is updated.
+///  Thread-safe descriptor update with in-flight check: ensures no GPU
+///  is using the descriptor set when it is updated.
 pub open spec fn ts_update_descriptor_set_safe(
     set: DescriptorSetState,
     writes: Seq<(DescriptorWrite, DescriptorBinding)>,
@@ -2000,7 +2000,7 @@ pub open spec fn ts_update_descriptor_set_safe(
     }
 }
 
-/// Strengthened descriptor update implies not-in-flight.
+///  Strengthened descriptor update implies not-in-flight.
 pub proof fn lemma_ts_update_safe_not_in_flight(
     set: DescriptorSetState,
     writes: Seq<(DescriptorWrite, DescriptorBinding)>,
@@ -2014,13 +2014,13 @@ pub proof fn lemma_ts_update_safe_not_in_flight(
 {
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Secondary Command Buffer Execution
-// ═══════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════
+//  Secondary Command Buffer Execution
+//  ═══════════════════════════════════════════════════════════════════════
 
-/// Thread-safe vkCmdExecuteCommands: execute a single secondary CB.
-/// Requires the primary's context satisfies the secondary's assumptions
-/// and the secondary is in Executable state.
+///  Thread-safe vkCmdExecuteCommands: execute a single secondary CB.
+///  Requires the primary's context satisfies the secondary's assumptions
+///  and the secondary is in Executable state.
 pub open spec fn ts_execute_secondary(
     primary_ctx: RecordingContext,
     secondary: SecondaryCommandBuffer,
@@ -2042,8 +2042,8 @@ pub open spec fn ts_execute_secondary(
     }
 }
 
-/// Thread-safe vkCmdExecuteCommands: execute multiple secondaries.
-/// All secondaries must be executable with satisfied assumptions.
+///  Thread-safe vkCmdExecuteCommands: execute multiple secondaries.
+///  All secondaries must be executable with satisfied assumptions.
 pub open spec fn ts_execute_n_secondaries(
     primary_ctx: RecordingContext,
     secondaries: Seq<SecondaryCommandBuffer>,
@@ -2063,7 +2063,7 @@ pub open spec fn ts_execute_n_secondaries(
         && not_held_by_other(reg, SyncObjectId::Handle(secondary_cb_ids[i]), thread))
 }
 
-/// Executing a secondary requires the secondary to be executable.
+///  Executing a secondary requires the secondary to be executable.
 pub proof fn lemma_ts_execute_secondary_requires_executable(
     primary_ctx: RecordingContext,
     secondary: SecondaryCommandBuffer,
@@ -2079,7 +2079,7 @@ pub proof fn lemma_ts_execute_secondary_requires_executable(
 {
 }
 
-/// Executing a secondary requires assumptions satisfied.
+///  Executing a secondary requires assumptions satisfied.
 pub proof fn lemma_ts_execute_secondary_requires_assumptions(
     primary_ctx: RecordingContext,
     secondary: SecondaryCommandBuffer,
@@ -2095,7 +2095,7 @@ pub proof fn lemma_ts_execute_secondary_requires_assumptions(
 {
 }
 
-/// Executing a secondary requires pool access.
+///  Executing a secondary requires pool access.
 pub proof fn lemma_ts_execute_secondary_requires_access(
     primary_ctx: RecordingContext,
     secondary: SecondaryCommandBuffer,
@@ -2111,11 +2111,11 @@ pub proof fn lemma_ts_execute_secondary_requires_access(
 {
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Wait-Idle Thread-Safe Wrappers
-// ═══════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════
+//  Wait-Idle Thread-Safe Wrappers
+//  ═══════════════════════════════════════════════════════════════════════
 
-/// Thread-safe vkDeviceWaitIdle: requires exclusive device access.
+///  Thread-safe vkDeviceWaitIdle: requires exclusive device access.
 pub open spec fn ts_device_wait_idle(
     dev: DeviceState,
     device_id: nat,
@@ -2129,7 +2129,7 @@ pub open spec fn ts_device_wait_idle(
     }
 }
 
-/// Thread-safe vkQueueWaitIdle: requires exclusive queue access.
+///  Thread-safe vkQueueWaitIdle: requires exclusive queue access.
 pub open spec fn ts_queue_wait_idle(
     dev: DeviceState,
     queue_id: nat,
@@ -2143,7 +2143,7 @@ pub open spec fn ts_queue_wait_idle(
     }
 }
 
-/// Device wait idle clears all pending references.
+///  Device wait idle clears all pending references.
 pub proof fn lemma_ts_device_wait_idle_clears_all(
     dev: DeviceState,
     device_id: nat,
@@ -2161,7 +2161,7 @@ pub proof fn lemma_ts_device_wait_idle_clears_all(
     lemma_device_wait_idle_clears_all(resource);
 }
 
-/// Device wait idle + zero counters enables shutdown.
+///  Device wait idle + zero counters enables shutdown.
 pub proof fn lemma_ts_device_wait_idle_enables_shutdown(
     dev: DeviceState,
     device_id: nat,
@@ -2182,7 +2182,7 @@ pub proof fn lemma_ts_device_wait_idle_enables_shutdown(
     lemma_wait_idle_enables_shutdown(dev);
 }
 
-/// Device wait idle requires exclusive access.
+///  Device wait idle requires exclusive access.
 pub proof fn lemma_ts_device_wait_idle_requires_exclusive(
     dev: DeviceState,
     device_id: nat,
@@ -2194,13 +2194,13 @@ pub proof fn lemma_ts_device_wait_idle_requires_exclusive(
 {
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Render Pass Begin Thread-Safe Wrapper
-// ═══════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════
+//  Render Pass Begin Thread-Safe Wrapper
+//  ═══════════════════════════════════════════════════════════════════════
 
-/// Thread-safe vkCmdBeginRenderPass: requires the command buffer to be
-/// in a recording state outside a render pass, the render pass and
-/// framebuffer to be well-formed, and all attachment layouts to match.
+///  Thread-safe vkCmdBeginRenderPass: requires the command buffer to be
+///  in a recording state outside a render pass, the render pass and
+///  framebuffer to be well-formed, and all attachment layouts to match.
 pub open spec fn ts_begin_render_pass(
     ctx: RecordingContext,
     rp: RenderPassState,
@@ -2227,7 +2227,7 @@ pub open spec fn ts_begin_render_pass(
     }
 }
 
-/// Begin render pass requires well-formed render pass.
+///  Begin render pass requires well-formed render pass.
 pub proof fn lemma_ts_begin_render_pass_requires_well_formed(
     ctx: RecordingContext,
     rp: RenderPassState,
@@ -2241,7 +2241,7 @@ pub proof fn lemma_ts_begin_render_pass_requires_well_formed(
 {
 }
 
-/// Begin render pass requires attachment layout compatibility.
+///  Begin render pass requires attachment layout compatibility.
 pub proof fn lemma_ts_begin_render_pass_requires_layouts(
     ctx: RecordingContext,
     rp: RenderPassState,
@@ -2255,19 +2255,19 @@ pub proof fn lemma_ts_begin_render_pass_requires_layouts(
 {
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// TIER 1: Draw Completeness Enforcement
+//  ═══════════════════════════════════════════════════════════════════════
+//  TIER 1: Draw Completeness Enforcement
 //
-// These wrappers enforce that ALL draw/dispatch preconditions are met:
-// - Recording state (pipeline bound, render pass active)
-// - Draw state (vertex/index buffers, dynamic state, push constants)
-// - Descriptor validation (all sets fully bound per layout)
-// - Pipeline layout compatibility (descriptor set layouts match)
-// - Barrier stage/access validity
-// ═══════════════════════════════════════════════════════════════════════
+//  These wrappers enforce that ALL draw/dispatch preconditions are met:
+//  - Recording state (pipeline bound, render pass active)
+//  - Draw state (vertex/index buffers, dynamic state, push constants)
+//  - Descriptor validation (all sets fully bound per layout)
+//  - Pipeline layout compatibility (descriptor set layouts match)
+//  - Barrier stage/access validity
+//  ═══════════════════════════════════════════════════════════════════════
 
-/// Complete draw call: recording + draw state + descriptor + barrier + bounds validation.
-/// Dynamic state requirements are derived from pipeline.required_dynamic_states.
+///  Complete draw call: recording + draw state + descriptor + barrier + bounds validation.
+///  Dynamic state requirements are derived from pipeline.required_dynamic_states.
 pub open spec fn ts_record_draw_complete(
     ctx: RecordingContext,
     draw: DrawCallState,
@@ -2298,8 +2298,8 @@ pub open spec fn ts_record_draw_complete(
     } else { None }
 }
 
-/// Complete draw-indexed call: same as draw + index buffer bound + index bounds.
-/// Dynamic state requirements are derived from pipeline.required_dynamic_states.
+///  Complete draw-indexed call: same as draw + index buffer bound + index bounds.
+///  Dynamic state requirements are derived from pipeline.required_dynamic_states.
 pub open spec fn ts_record_draw_indexed_complete(
     ctx: RecordingContext,
     draw: DrawCallState,
@@ -2332,7 +2332,7 @@ pub open spec fn ts_record_draw_indexed_complete(
     } else { None }
 }
 
-/// Complete dispatch call with descriptor validation.
+///  Complete dispatch call with descriptor validation.
 pub open spec fn ts_record_dispatch_complete(
     ctx: RecordingContext,
     resources: Set<ResourceId>,
@@ -2354,7 +2354,7 @@ pub open spec fn ts_record_dispatch_complete(
     } else { None }
 }
 
-/// Record a pipeline barrier with valid stage/access masks.
+///  Record a pipeline barrier with valid stage/access masks.
 pub open spec fn ts_record_barrier_validated(
     ctx: RecordingContext,
     entry: BarrierEntry,
@@ -2373,9 +2373,9 @@ pub open spec fn ts_record_barrier_validated(
     } else { None }
 }
 
-// ── Tier 1 Proofs ───────────────────────────────────────────────────────
+//  ── Tier 1 Proofs ───────────────────────────────────────────────────────
 
-/// Complete draw enforces full_draw_valid.
+///  Complete draw enforces full_draw_valid.
 pub proof fn lemma_ts_draw_complete_enforces_draw_valid(
     ctx: RecordingContext, draw: DrawCallState, resources: Set<ResourceId>,
     sync_requirements: Seq<ResourceSyncRequirement>,
@@ -2399,7 +2399,7 @@ pub proof fn lemma_ts_draw_complete_enforces_draw_valid(
 {
 }
 
-/// Complete draw enforces barrier sync.
+///  Complete draw enforces barrier sync.
 pub proof fn lemma_ts_draw_complete_enforces_sync(
     ctx: RecordingContext, draw: DrawCallState, resources: Set<ResourceId>,
     sync_requirements: Seq<ResourceSyncRequirement>,
@@ -2418,7 +2418,7 @@ pub proof fn lemma_ts_draw_complete_enforces_sync(
 {
 }
 
-/// Validated barrier preserves barrier log validity.
+///  Validated barrier preserves barrier log validity.
 pub proof fn lemma_ts_barrier_validated_preserves_valid(
     ctx: RecordingContext, entry: BarrierEntry,
     cb_id: nat, pool: PoolOwnership, thread: ThreadId, reg: TokenRegistry,
@@ -2434,11 +2434,11 @@ pub proof fn lemma_ts_barrier_validated_preserves_valid(
     lemma_append_valid_barrier(ctx.barrier_log, entry);
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// TIER 2: Transfer & Resource Safety Enforcement
-// ═══════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════
+//  TIER 2: Transfer & Resource Safety Enforcement
+//  ═══════════════════════════════════════════════════════════════════════
 
-/// Thread-safe vkCmdCopyImage with layout and bounds validation.
+///  Thread-safe vkCmdCopyImage with layout and bounds validation.
 pub open spec fn ts_copy_image(
     src: ImageState, dst: ImageState,
     src_layout: ImageLayout, dst_layout: ImageLayout,
@@ -2452,7 +2452,7 @@ pub open spec fn ts_copy_image(
     } else { None }
 }
 
-/// Thread-safe vkCmdCopyBufferToImage.
+///  Thread-safe vkCmdCopyBufferToImage.
 pub open spec fn ts_copy_buffer_to_image(
     buffer: BufferState, image: ImageState,
     dst_layout: ImageLayout, regions: Seq<BufferImageCopyRegion>,
@@ -2465,7 +2465,7 @@ pub open spec fn ts_copy_buffer_to_image(
     } else { None }
 }
 
-/// Thread-safe vkCmdCopyImageToBuffer.
+///  Thread-safe vkCmdCopyImageToBuffer.
 pub open spec fn ts_copy_image_to_buffer(
     image: ImageState, buffer: BufferState,
     src_layout: ImageLayout, regions: Seq<BufferImageCopyRegion>,
@@ -2478,7 +2478,7 @@ pub open spec fn ts_copy_image_to_buffer(
     } else { None }
 }
 
-/// Thread-safe vkCmdBlitImage.
+///  Thread-safe vkCmdBlitImage.
 pub open spec fn ts_blit_image(
     src: ImageState, dst: ImageState,
     src_layout: ImageLayout, dst_layout: ImageLayout,
@@ -2491,7 +2491,7 @@ pub open spec fn ts_blit_image(
     } else { None }
 }
 
-/// Memory aliasing safety: submit only when aliased resources are safe.
+///  Memory aliasing safety: submit only when aliased resources are safe.
 pub open spec fn ts_submit_aliasing_safe(
     queue: QueueState, info: SubmitInfo,
     bindings: Map<ResourceId, MemoryRange>,
@@ -2509,7 +2509,7 @@ pub open spec fn ts_submit_aliasing_safe(
     } else { None }
 }
 
-/// Thread-safe indirect draw with buffer validation.
+///  Thread-safe indirect draw with buffer validation.
 pub open spec fn ts_draw_indirect(
     ctx: RecordingContext,
     resources: Set<ResourceId>,
@@ -2524,7 +2524,7 @@ pub open spec fn ts_draw_indirect(
     } else { None }
 }
 
-/// Thread-safe indirect dispatch with buffer validation.
+///  Thread-safe indirect dispatch with buffer validation.
 pub open spec fn ts_dispatch_indirect(
     ctx: RecordingContext,
     resources: Set<ResourceId>,
@@ -2539,7 +2539,7 @@ pub open spec fn ts_dispatch_indirect(
     } else { None }
 }
 
-/// Thread-safe readback: requires fence wait + staging buffer readable.
+///  Thread-safe readback: requires fence wait + staging buffer readable.
 pub open spec fn ts_readback(
     submissions: Seq<SubmissionRecord>,
     staging: StagingBufferState,
@@ -2551,9 +2551,9 @@ pub open spec fn ts_readback(
     } else { None }
 }
 
-// ── Tier 2 Proofs ───────────────────────────────────────────────────────
+//  ── Tier 2 Proofs ───────────────────────────────────────────────────────
 
-/// ts_copy_image enforces layout and bounds.
+///  ts_copy_image enforces layout and bounds.
 pub proof fn lemma_ts_copy_image_enforces_valid(
     src: ImageState, dst: ImageState,
     src_layout: ImageLayout, dst_layout: ImageLayout,
@@ -2565,7 +2565,7 @@ pub proof fn lemma_ts_copy_image_enforces_valid(
 {
 }
 
-/// ts_submit_aliasing_safe enforces memory aliasing safety.
+///  ts_submit_aliasing_safe enforces memory aliasing safety.
 pub proof fn lemma_ts_submit_aliasing_enforces_safe(
     queue: QueueState, info: SubmitInfo,
     bindings: Map<ResourceId, MemoryRange>,
@@ -2581,7 +2581,7 @@ pub proof fn lemma_ts_submit_aliasing_enforces_safe(
 {
 }
 
-/// ts_draw_indirect enforces buffer sufficiency.
+///  ts_draw_indirect enforces buffer sufficiency.
 pub proof fn lemma_ts_draw_indirect_enforces_valid(
     ctx: RecordingContext, resources: Set<ResourceId>,
     pipeline: GraphicsPipelineState, rp: RenderPassState,
@@ -2593,7 +2593,7 @@ pub proof fn lemma_ts_draw_indirect_enforces_valid(
 {
 }
 
-/// ts_readback enforces host readability and content match.
+///  ts_readback enforces host readability and content match.
 pub proof fn lemma_ts_readback_enforces_valid(
     submissions: Seq<SubmissionRecord>,
     staging: StagingBufferState, gpu: GpuBufferState,
@@ -2604,13 +2604,13 @@ pub proof fn lemma_ts_readback_enforces_valid(
 {
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// Tier 3: Pipeline Configuration Safety
-// ══════════════════════════════════════════════════════════════════════
+//  ══════════════════════════════════════════════════════════════════════
+//  Tier 3: Pipeline Configuration Safety
+//  ══════════════════════════════════════════════════════════════════════
 
-// ── MSAA ─────────────────────────────────────────────────────────────
+//  ── MSAA ─────────────────────────────────────────────────────────────
 
-/// Thread-safe MSAA resolve: validates resolve operation and thread access.
+///  Thread-safe MSAA resolve: validates resolve operation and thread access.
 pub open spec fn ts_resolve(
     op: ResolveOperation,
     cb_id: nat, pool: PoolOwnership, thread: ThreadId, reg: TokenRegistry,
@@ -2624,7 +2624,7 @@ pub open spec fn ts_resolve(
     }
 }
 
-/// Thread-safe draw with MSAA validation: pipeline samples must match attachments.
+///  Thread-safe draw with MSAA validation: pipeline samples must match attachments.
 pub open spec fn ts_draw_msaa_validated(
     ctx: RecordingContext, resources: Set<ResourceId>,
     pipeline: GraphicsPipelineState, rp: RenderPassState,
@@ -2642,9 +2642,9 @@ pub open spec fn ts_draw_msaa_validated(
     }
 }
 
-// ── Depth/Stencil ────────────────────────────────────────────────────
+//  ── Depth/Stencil ────────────────────────────────────────────────────
 
-/// Thread-safe pipeline creation with depth/stencil validation.
+///  Thread-safe pipeline creation with depth/stencil validation.
 pub open spec fn ts_create_pipeline_depth_stencil(
     ds_state: DepthStencilState,
     pipeline: GraphicsPipelineState,
@@ -2659,9 +2659,9 @@ pub open spec fn ts_create_pipeline_depth_stencil(
     }
 }
 
-// ── Color Blend ──────────────────────────────────────────────────────
+//  ── Color Blend ──────────────────────────────────────────────────────
 
-/// Thread-safe pipeline creation with color blend validation.
+///  Thread-safe pipeline creation with color blend validation.
 pub open spec fn ts_create_pipeline_color_blend(
     blend_state: ColorBlendState,
     color_attachment_count: nat,
@@ -2676,9 +2676,9 @@ pub open spec fn ts_create_pipeline_color_blend(
     }
 }
 
-// ── Viewport/Scissor ─────────────────────────────────────────────────
+//  ── Viewport/Scissor ─────────────────────────────────────────────────
 
-/// Thread-safe pipeline creation with viewport/scissor validation.
+///  Thread-safe pipeline creation with viewport/scissor validation.
 pub open spec fn ts_create_pipeline_viewport_scissor(
     vs_state: ViewportScissorState,
     max_viewports: nat, max_width: nat, max_height: nat,
@@ -2691,9 +2691,9 @@ pub open spec fn ts_create_pipeline_viewport_scissor(
     }
 }
 
-// ── Format Properties ────────────────────────────────────────────────
+//  ── Format Properties ────────────────────────────────────────────────
 
-/// Thread-safe attachment format validation.
+///  Thread-safe attachment format validation.
 pub open spec fn ts_validate_attachment_format(
     props: FormatProperties,
     is_color: bool, is_depth: bool, blend_enabled: bool,
@@ -2705,7 +2705,7 @@ pub open spec fn ts_validate_attachment_format(
     }
 }
 
-/// Thread-safe sampled image format validation.
+///  Thread-safe sampled image format validation.
 pub open spec fn ts_validate_sampling_format(
     props: FormatProperties,
 ) -> Option<()> {
@@ -2716,9 +2716,9 @@ pub open spec fn ts_validate_sampling_format(
     }
 }
 
-// ── Shader Interface ─────────────────────────────────────────────────
+//  ── Shader Interface ─────────────────────────────────────────────────
 
-/// Thread-safe pipeline creation with shader interface validation.
+///  Thread-safe pipeline creation with shader interface validation.
 pub open spec fn ts_create_pipeline_shader_validated(
     vertex_shader: ShaderInterface,
     fragment_shader: ShaderInterface,
@@ -2739,9 +2739,9 @@ pub open spec fn ts_create_pipeline_shader_validated(
     }
 }
 
-// ── Tier 3 Proofs ────────────────────────────────────────────────────
+//  ── Tier 3 Proofs ────────────────────────────────────────────────────
 
-/// ts_resolve enforces resolve validity.
+///  ts_resolve enforces resolve validity.
 pub proof fn lemma_ts_resolve_enforces_valid(
     op: ResolveOperation,
     cb_id: nat, pool: PoolOwnership, thread: ThreadId, reg: TokenRegistry,
@@ -2751,7 +2751,7 @@ pub proof fn lemma_ts_resolve_enforces_valid(
 {
 }
 
-/// ts_draw_msaa_validated enforces sample count matching.
+///  ts_draw_msaa_validated enforces sample count matching.
 pub proof fn lemma_ts_draw_msaa_enforces_match(
     ctx: RecordingContext, resources: Set<ResourceId>,
     pipeline: GraphicsPipelineState, rp: RenderPassState,
@@ -2766,7 +2766,7 @@ pub proof fn lemma_ts_draw_msaa_enforces_match(
 {
 }
 
-/// ts_create_pipeline_depth_stencil enforces depth/stencil well-formedness.
+///  ts_create_pipeline_depth_stencil enforces depth/stencil well-formedness.
 pub proof fn lemma_ts_depth_stencil_enforces_wf(
     ds_state: DepthStencilState,
     pipeline: GraphicsPipelineState,
@@ -2777,7 +2777,7 @@ pub proof fn lemma_ts_depth_stencil_enforces_wf(
 {
 }
 
-/// ts_create_pipeline_color_blend enforces blend well-formedness and count matching.
+///  ts_create_pipeline_color_blend enforces blend well-formedness and count matching.
 pub proof fn lemma_ts_color_blend_enforces_wf(
     blend_state: ColorBlendState,
     color_attachment_count: nat,
@@ -2790,7 +2790,7 @@ pub proof fn lemma_ts_color_blend_enforces_wf(
 {
 }
 
-/// ts_create_pipeline_shader_validated enforces shader-pipeline compatibility.
+///  ts_create_pipeline_shader_validated enforces shader-pipeline compatibility.
 pub proof fn lemma_ts_shader_validated_enforces_compatible(
     vertex_shader: ShaderInterface,
     fragment_shader: ShaderInterface,
@@ -2805,13 +2805,13 @@ pub proof fn lemma_ts_shader_validated_enforces_compatible(
 {
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// Tier 4: Advanced / Extension Feature Safety
-// ══════════════════════════════════════════════════════════════════════
+//  ══════════════════════════════════════════════════════════════════════
+//  Tier 4: Advanced / Extension Feature Safety
+//  ══════════════════════════════════════════════════════════════════════
 
-// ── Dynamic Rendering ────────────────────────────────────────────────
+//  ── Dynamic Rendering ────────────────────────────────────────────────
 
-/// Thread-safe begin dynamic rendering: validates info and thread access.
+///  Thread-safe begin dynamic rendering: validates info and thread access.
 pub open spec fn ts_begin_dynamic_rendering(
     info: DynamicRenderingInfo,
     pipeline_samples: SampleCount,
@@ -2827,9 +2827,9 @@ pub open spec fn ts_begin_dynamic_rendering(
     }
 }
 
-// ── Bindless Descriptors ─────────────────────────────────────────────
+//  ── Bindless Descriptors ─────────────────────────────────────────────
 
-/// Thread-safe bindless descriptor access validation.
+///  Thread-safe bindless descriptor access validation.
 pub open spec fn ts_bindless_access(
     set: BindlessDescriptorSetState,
     binding: nat,
@@ -2846,9 +2846,9 @@ pub open spec fn ts_bindless_access(
     }
 }
 
-// ── Conditional Rendering ────────────────────────────────────────────
+//  ── Conditional Rendering ────────────────────────────────────────────
 
-/// Thread-safe begin conditional rendering: validates buffer and thread access.
+///  Thread-safe begin conditional rendering: validates buffer and thread access.
 pub open spec fn ts_begin_conditional_rendering(
     buffer: BufferState,
     offset: nat,
@@ -2863,9 +2863,9 @@ pub open spec fn ts_begin_conditional_rendering(
     }
 }
 
-// ── Sampler ──────────────────────────────────────────────────────────
+//  ── Sampler ──────────────────────────────────────────────────────────
 
-/// Thread-safe sampler creation: validates sampler well-formedness.
+///  Thread-safe sampler creation: validates sampler well-formedness.
 pub open spec fn ts_create_sampler(
     sampler: SamplerState,
     thread: ThreadId, reg: TokenRegistry,
@@ -2877,7 +2877,7 @@ pub open spec fn ts_create_sampler(
     }
 }
 
-/// Thread-safe sampler-image binding validation.
+///  Thread-safe sampler-image binding validation.
 pub open spec fn ts_bind_sampler_image(
     sampler: SamplerState,
     image_dimensions: nat,
@@ -2894,9 +2894,9 @@ pub open spec fn ts_bind_sampler_image(
     }
 }
 
-// ── Tier 4 Proofs ────────────────────────────────────────────────────
+//  ── Tier 4 Proofs ────────────────────────────────────────────────────
 
-/// ts_begin_dynamic_rendering enforces well-formedness and sample matching.
+///  ts_begin_dynamic_rendering enforces well-formedness and sample matching.
 pub proof fn lemma_ts_dynamic_rendering_enforces_wf(
     info: DynamicRenderingInfo,
     pipeline_samples: SampleCount,
@@ -2909,7 +2909,7 @@ pub proof fn lemma_ts_dynamic_rendering_enforces_wf(
 {
 }
 
-/// ts_bindless_access enforces set well-formedness and access validity.
+///  ts_bindless_access enforces set well-formedness and access validity.
 pub proof fn lemma_ts_bindless_enforces_valid(
     set: BindlessDescriptorSetState,
     binding: nat,
@@ -2924,7 +2924,7 @@ pub proof fn lemma_ts_bindless_enforces_valid(
 {
 }
 
-/// ts_begin_conditional_rendering enforces buffer validity.
+///  ts_begin_conditional_rendering enforces buffer validity.
 pub proof fn lemma_ts_conditional_rendering_enforces_valid(
     buffer: BufferState,
     offset: nat,
@@ -2935,7 +2935,7 @@ pub proof fn lemma_ts_conditional_rendering_enforces_valid(
 {
 }
 
-/// ts_create_sampler enforces sampler well-formedness.
+///  ts_create_sampler enforces sampler well-formedness.
 pub proof fn lemma_ts_sampler_enforces_wf(
     sampler: SamplerState,
     thread: ThreadId, reg: TokenRegistry,
@@ -2945,7 +2945,7 @@ pub proof fn lemma_ts_sampler_enforces_wf(
 {
 }
 
-/// ts_bind_sampler_image enforces sampler-image compatibility.
+///  ts_bind_sampler_image enforces sampler-image compatibility.
 pub proof fn lemma_ts_sampler_image_enforces_compatible(
     sampler: SamplerState,
     image_dimensions: nat,
@@ -2960,13 +2960,13 @@ pub proof fn lemma_ts_sampler_image_enforces_compatible(
 {
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// Tier 5: Framework-Level Safety
-// ══════════════════════════════════════════════════════════════════════
+//  ══════════════════════════════════════════════════════════════════════
+//  Tier 5: Framework-Level Safety
+//  ══════════════════════════════════════════════════════════════════════
 
-// ── Render Graph ─────────────────────────────────────────────────────
+//  ── Render Graph ─────────────────────────────────────────────────────
 
-/// Thread-safe render graph validation: well-formedness + acyclicity.
+///  Thread-safe render graph validation: well-formedness + acyclicity.
 pub open spec fn ts_validate_render_graph(
     graph: RenderGraph,
     external_inputs: Set<ResourceId>,
@@ -2981,9 +2981,9 @@ pub open spec fn ts_validate_render_graph(
     }
 }
 
-// ── Render Graph Execution ───────────────────────────────────────────
+//  ── Render Graph Execution ───────────────────────────────────────────
 
-/// Thread-safe render graph execution validation.
+///  Thread-safe render graph execution validation.
 pub open spec fn ts_execute_render_graph(
     graph: RenderGraph,
     order: Seq<nat>,
@@ -2999,7 +2999,7 @@ pub open spec fn ts_execute_render_graph(
     }
 }
 
-/// Thread-safe check that all passes completed.
+///  Thread-safe check that all passes completed.
 pub open spec fn ts_render_graph_completed(
     graph: RenderGraph,
     state: GraphExecutionState,
@@ -3012,9 +3012,9 @@ pub open spec fn ts_render_graph_completed(
     }
 }
 
-// ── Temporal Resource Budget ─────────────────────────────────────────
+//  ── Temporal Resource Budget ─────────────────────────────────────────
 
-/// Thread-safe resource budget check.
+///  Thread-safe resource budget check.
 pub open spec fn ts_check_resource_budget(
     dev: DeviceState,
     budget: ResourceBudget,
@@ -3030,9 +3030,9 @@ pub open spec fn ts_check_resource_budget(
     }
 }
 
-// ── Ghost Checkpoint ─────────────────────────────────────────────────
+//  ── Ghost Checkpoint ─────────────────────────────────────────────────
 
-/// Thread-safe ghost checkpoint consistency check.
+///  Thread-safe ghost checkpoint consistency check.
 pub open spec fn ts_validate_checkpoint(
     cp: GhostCheckpoint,
     ctx: RecordingContext,
@@ -3047,9 +3047,9 @@ pub open spec fn ts_validate_checkpoint(
     }
 }
 
-// ── Asset Pipeline ───────────────────────────────────────────────────
+//  ── Asset Pipeline ───────────────────────────────────────────────────
 
-/// Thread-safe draw with full mesh buffer safety chain.
+///  Thread-safe draw with full mesh buffer safety chain.
 pub open spec fn ts_draw_mesh_safe(
     inv: MeshBufferInvariants,
     vbuf_size: nat, ibuf_size: nat,
@@ -3068,7 +3068,7 @@ pub open spec fn ts_draw_mesh_safe(
     }
 }
 
-/// Thread-safe mesh upload readiness check.
+///  Thread-safe mesh upload readiness check.
 pub open spec fn ts_mesh_upload_ready(
     inv: MeshBufferInvariants,
 ) -> Option<()> {
@@ -3079,9 +3079,9 @@ pub open spec fn ts_mesh_upload_ready(
     }
 }
 
-// ── Hot Reload ───────────────────────────────────────────────────────
+//  ── Hot Reload ───────────────────────────────────────────────────────
 
-/// Thread-safe shader hot reload validation.
+///  Thread-safe shader hot reload validation.
 pub open spec fn ts_hot_reload(
     request: ReloadRequest,
     old_vertex_interface: ShaderInterface,
@@ -3100,9 +3100,9 @@ pub open spec fn ts_hot_reload(
     }
 }
 
-// ── Taint / Information Flow ─────────────────────────────────────────
+//  ── Taint / Information Flow ─────────────────────────────────────────
 
-/// Thread-safe taint check for rendering: all read resources must be visible to the viewer.
+///  Thread-safe taint check for rendering: all read resources must be visible to the viewer.
 pub open spec fn ts_render_taint_checked(
     read_taints: Seq<TaintSet>,
     viewer: PlayerId,
@@ -3120,9 +3120,9 @@ pub open spec fn ts_render_taint_checked(
     }
 }
 
-// ── Tier 5 Proofs ────────────────────────────────────────────────────
+//  ── Tier 5 Proofs ────────────────────────────────────────────────────
 
-/// ts_validate_render_graph enforces well-formedness and acyclicity.
+///  ts_validate_render_graph enforces well-formedness and acyclicity.
 pub proof fn lemma_ts_render_graph_enforces_wf(
     graph: RenderGraph,
     external_inputs: Set<ResourceId>,
@@ -3135,7 +3135,7 @@ pub proof fn lemma_ts_render_graph_enforces_wf(
 {
 }
 
-/// ts_execute_render_graph enforces valid execution order.
+///  ts_execute_render_graph enforces valid execution order.
 pub proof fn lemma_ts_execute_render_graph_enforces_order(
     graph: RenderGraph,
     order: Seq<nat>,
@@ -3147,7 +3147,7 @@ pub proof fn lemma_ts_execute_render_graph_enforces_order(
 {
 }
 
-/// ts_render_graph_completed enforces all passes done.
+///  ts_render_graph_completed enforces all passes done.
 pub proof fn lemma_ts_render_graph_completed_enforces(
     graph: RenderGraph,
     state: GraphExecutionState,
@@ -3158,7 +3158,7 @@ pub proof fn lemma_ts_render_graph_completed_enforces(
 {
 }
 
-/// ts_check_resource_budget enforces budget compliance.
+///  ts_check_resource_budget enforces budget compliance.
 pub proof fn lemma_ts_budget_enforces_within(
     dev: DeviceState,
     budget: ResourceBudget,
@@ -3170,7 +3170,7 @@ pub proof fn lemma_ts_budget_enforces_within(
 {
 }
 
-/// ts_validate_checkpoint enforces checkpoint consistency.
+///  ts_validate_checkpoint enforces checkpoint consistency.
 pub proof fn lemma_ts_checkpoint_enforces_consistent(
     cp: GhostCheckpoint,
     ctx: RecordingContext,
@@ -3181,7 +3181,7 @@ pub proof fn lemma_ts_checkpoint_enforces_consistent(
 {
 }
 
-/// ts_draw_mesh_safe enforces the full asset-to-draw safety chain.
+///  ts_draw_mesh_safe enforces the full asset-to-draw safety chain.
 pub proof fn lemma_ts_draw_mesh_enforces_safety_chain(
     inv: MeshBufferInvariants,
     vbuf_size: nat, ibuf_size: nat,
@@ -3197,7 +3197,7 @@ pub proof fn lemma_ts_draw_mesh_enforces_safety_chain(
 {
 }
 
-/// ts_hot_reload enforces reload validity and swap safety.
+///  ts_hot_reload enforces reload validity and swap safety.
 pub proof fn lemma_ts_hot_reload_enforces_valid(
     request: ReloadRequest,
     old_vertex_interface: ShaderInterface,
@@ -3213,7 +3213,7 @@ pub proof fn lemma_ts_hot_reload_enforces_valid(
 {
 }
 
-/// ts_render_taint_checked enforces information-flow safety.
+///  ts_render_taint_checked enforces information-flow safety.
 pub proof fn lemma_ts_render_taint_enforces_safe(
     read_taints: Seq<TaintSet>,
     viewer: PlayerId,
@@ -3228,13 +3228,13 @@ pub proof fn lemma_ts_render_taint_enforces_safe(
 {
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Destroy Wrappers — Pipeline, Framebuffer, Descriptor, Sampler, CommandPool
-// ═══════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════
+//  Destroy Wrappers — Pipeline, Framebuffer, Descriptor, Sampler, CommandPool
+//  ═══════════════════════════════════════════════════════════════════════
 
-// ── Graphics Pipeline ──────────────────────────────────────────────────
+//  ── Graphics Pipeline ──────────────────────────────────────────────────
 
-/// Thread-safe vkDestroyPipeline (graphics): requires exclusive pipeline access.
+///  Thread-safe vkDestroyPipeline (graphics): requires exclusive pipeline access.
 pub open spec fn ts_destroy_graphics_pipeline(
     pipeline: GraphicsPipelineState,
     thread: ThreadId,
@@ -3247,7 +3247,7 @@ pub open spec fn ts_destroy_graphics_pipeline(
     }
 }
 
-/// Thread-safe graphics pipeline destroy requires exclusive access.
+///  Thread-safe graphics pipeline destroy requires exclusive access.
 pub proof fn lemma_ts_destroy_graphics_pipeline_requires_exclusive(
     pipeline: GraphicsPipelineState,
     thread: ThreadId,
@@ -3258,7 +3258,7 @@ pub proof fn lemma_ts_destroy_graphics_pipeline_requires_exclusive(
 {
 }
 
-/// After thread-safe destroy, a graphics pipeline is not alive.
+///  After thread-safe destroy, a graphics pipeline is not alive.
 pub proof fn lemma_ts_destroy_graphics_pipeline_not_alive(
     pipeline: GraphicsPipelineState,
     thread: ThreadId,
@@ -3269,9 +3269,9 @@ pub proof fn lemma_ts_destroy_graphics_pipeline_not_alive(
 {
 }
 
-// ── Compute Pipeline ──────────────────────────────────────────────────
+//  ── Compute Pipeline ──────────────────────────────────────────────────
 
-/// Thread-safe vkDestroyPipeline (compute): requires exclusive pipeline access.
+///  Thread-safe vkDestroyPipeline (compute): requires exclusive pipeline access.
 pub open spec fn ts_destroy_compute_pipeline(
     pipeline: ComputePipelineState,
     thread: ThreadId,
@@ -3284,7 +3284,7 @@ pub open spec fn ts_destroy_compute_pipeline(
     }
 }
 
-/// Thread-safe compute pipeline destroy requires exclusive access.
+///  Thread-safe compute pipeline destroy requires exclusive access.
 pub proof fn lemma_ts_destroy_compute_pipeline_requires_exclusive(
     pipeline: ComputePipelineState,
     thread: ThreadId,
@@ -3295,7 +3295,7 @@ pub proof fn lemma_ts_destroy_compute_pipeline_requires_exclusive(
 {
 }
 
-/// After thread-safe destroy, a compute pipeline is not alive.
+///  After thread-safe destroy, a compute pipeline is not alive.
 pub proof fn lemma_ts_destroy_compute_pipeline_not_alive(
     pipeline: ComputePipelineState,
     thread: ThreadId,
@@ -3306,9 +3306,9 @@ pub proof fn lemma_ts_destroy_compute_pipeline_not_alive(
 {
 }
 
-// ── Framebuffer ────────────────────────────────────────────────────────
+//  ── Framebuffer ────────────────────────────────────────────────────────
 
-/// Thread-safe vkDestroyFramebuffer: requires exclusive framebuffer access.
+///  Thread-safe vkDestroyFramebuffer: requires exclusive framebuffer access.
 pub open spec fn ts_destroy_framebuffer(
     fb: FramebufferState,
     thread: ThreadId,
@@ -3321,7 +3321,7 @@ pub open spec fn ts_destroy_framebuffer(
     }
 }
 
-/// Thread-safe framebuffer destroy requires exclusive access.
+///  Thread-safe framebuffer destroy requires exclusive access.
 pub proof fn lemma_ts_destroy_framebuffer_requires_exclusive(
     fb: FramebufferState,
     thread: ThreadId,
@@ -3332,7 +3332,7 @@ pub proof fn lemma_ts_destroy_framebuffer_requires_exclusive(
 {
 }
 
-/// After thread-safe destroy, a framebuffer is not alive.
+///  After thread-safe destroy, a framebuffer is not alive.
 pub proof fn lemma_ts_destroy_framebuffer_not_alive(
     fb: FramebufferState,
     thread: ThreadId,
@@ -3343,9 +3343,9 @@ pub proof fn lemma_ts_destroy_framebuffer_not_alive(
 {
 }
 
-// ── Image View ─────────────────────────────────────────────────────────
+//  ── Image View ─────────────────────────────────────────────────────────
 
-/// Thread-safe vkDestroyImageView: requires exclusive image view access.
+///  Thread-safe vkDestroyImageView: requires exclusive image view access.
 pub open spec fn ts_destroy_image_view(
     view: ImageViewState,
     thread: ThreadId,
@@ -3358,7 +3358,7 @@ pub open spec fn ts_destroy_image_view(
     }
 }
 
-/// Thread-safe image view destroy requires exclusive access.
+///  Thread-safe image view destroy requires exclusive access.
 pub proof fn lemma_ts_destroy_image_view_requires_exclusive(
     view: ImageViewState,
     thread: ThreadId,
@@ -3369,7 +3369,7 @@ pub proof fn lemma_ts_destroy_image_view_requires_exclusive(
 {
 }
 
-/// After thread-safe destroy, an image view is not alive.
+///  After thread-safe destroy, an image view is not alive.
 pub proof fn lemma_ts_destroy_image_view_not_alive(
     view: ImageViewState,
     thread: ThreadId,
@@ -3380,9 +3380,9 @@ pub proof fn lemma_ts_destroy_image_view_not_alive(
 {
 }
 
-// ── Descriptor Pool ────────────────────────────────────────────────────
+//  ── Descriptor Pool ────────────────────────────────────────────────────
 
-/// Thread-safe vkDestroyDescriptorPool: requires exclusive pool access.
+///  Thread-safe vkDestroyDescriptorPool: requires exclusive pool access.
 pub open spec fn ts_destroy_descriptor_pool(
     pool: DescriptorPoolState,
     thread: ThreadId,
@@ -3395,7 +3395,7 @@ pub open spec fn ts_destroy_descriptor_pool(
     }
 }
 
-/// Thread-safe descriptor pool destroy requires exclusive access.
+///  Thread-safe descriptor pool destroy requires exclusive access.
 pub proof fn lemma_ts_destroy_descriptor_pool_requires_exclusive(
     pool: DescriptorPoolState,
     thread: ThreadId,
@@ -3406,7 +3406,7 @@ pub proof fn lemma_ts_destroy_descriptor_pool_requires_exclusive(
 {
 }
 
-/// After thread-safe destroy, a descriptor pool is not alive.
+///  After thread-safe destroy, a descriptor pool is not alive.
 pub proof fn lemma_ts_destroy_descriptor_pool_not_alive(
     pool: DescriptorPoolState,
     thread: ThreadId,
@@ -3417,9 +3417,9 @@ pub proof fn lemma_ts_destroy_descriptor_pool_not_alive(
 {
 }
 
-// ── Descriptor Set Layout ──────────────────────────────────────────────
+//  ── Descriptor Set Layout ──────────────────────────────────────────────
 
-/// Thread-safe vkDestroyDescriptorSetLayout: requires exclusive layout access.
+///  Thread-safe vkDestroyDescriptorSetLayout: requires exclusive layout access.
 pub open spec fn ts_destroy_descriptor_set_layout(
     layout: DescriptorSetLayoutState,
     thread: ThreadId,
@@ -3432,7 +3432,7 @@ pub open spec fn ts_destroy_descriptor_set_layout(
     }
 }
 
-/// Thread-safe descriptor set layout destroy requires exclusive access.
+///  Thread-safe descriptor set layout destroy requires exclusive access.
 pub proof fn lemma_ts_destroy_descriptor_set_layout_requires_exclusive(
     layout: DescriptorSetLayoutState,
     thread: ThreadId,
@@ -3443,7 +3443,7 @@ pub proof fn lemma_ts_destroy_descriptor_set_layout_requires_exclusive(
 {
 }
 
-/// After thread-safe destroy, a descriptor set layout is not alive.
+///  After thread-safe destroy, a descriptor set layout is not alive.
 pub proof fn lemma_ts_destroy_descriptor_set_layout_not_alive(
     layout: DescriptorSetLayoutState,
     thread: ThreadId,
@@ -3454,9 +3454,9 @@ pub proof fn lemma_ts_destroy_descriptor_set_layout_not_alive(
 {
 }
 
-// ── Sampler ────────────────────────────────────────────────────────────
+//  ── Sampler ────────────────────────────────────────────────────────────
 
-/// Thread-safe vkDestroySampler: requires exclusive sampler access.
+///  Thread-safe vkDestroySampler: requires exclusive sampler access.
 pub open spec fn ts_destroy_sampler(
     sampler: SamplerState,
     thread: ThreadId,
@@ -3469,7 +3469,7 @@ pub open spec fn ts_destroy_sampler(
     }
 }
 
-/// Thread-safe sampler destroy requires exclusive access.
+///  Thread-safe sampler destroy requires exclusive access.
 pub proof fn lemma_ts_destroy_sampler_requires_exclusive(
     sampler: SamplerState,
     thread: ThreadId,
@@ -3480,7 +3480,7 @@ pub proof fn lemma_ts_destroy_sampler_requires_exclusive(
 {
 }
 
-/// After thread-safe destroy, a sampler is not alive.
+///  After thread-safe destroy, a sampler is not alive.
 pub proof fn lemma_ts_destroy_sampler_not_alive(
     sampler: SamplerState,
     thread: ThreadId,
@@ -3491,10 +3491,10 @@ pub proof fn lemma_ts_destroy_sampler_not_alive(
 {
 }
 
-// ── Command Pool ───────────────────────────────────────────────────────
+//  ── Command Pool ───────────────────────────────────────────────────────
 
-/// Thread-safe vkDestroyCommandPool: requires exclusive pool access AND
-/// the pool must be empty (no allocated CBs).
+///  Thread-safe vkDestroyCommandPool: requires exclusive pool access AND
+///  the pool must be empty (no allocated CBs).
 pub open spec fn ts_destroy_command_pool(
     pool: CommandPoolState,
     thread: ThreadId,
@@ -3507,7 +3507,7 @@ pub open spec fn ts_destroy_command_pool(
     }
 }
 
-/// Thread-safe command pool destroy requires exclusive access.
+///  Thread-safe command pool destroy requires exclusive access.
 pub proof fn lemma_ts_destroy_command_pool_requires_exclusive(
     pool: CommandPoolState,
     thread: ThreadId,
@@ -3518,7 +3518,7 @@ pub proof fn lemma_ts_destroy_command_pool_requires_exclusive(
 {
 }
 
-/// Thread-safe command pool destroy requires the pool to be empty.
+///  Thread-safe command pool destroy requires the pool to be empty.
 pub proof fn lemma_ts_destroy_command_pool_requires_empty(
     pool: CommandPoolState,
     thread: ThreadId,
@@ -3529,7 +3529,7 @@ pub proof fn lemma_ts_destroy_command_pool_requires_empty(
 {
 }
 
-/// After thread-safe destroy, a command pool is not alive.
+///  After thread-safe destroy, a command pool is not alive.
 pub proof fn lemma_ts_destroy_command_pool_not_alive(
     pool: CommandPoolState,
     thread: ThreadId,
@@ -3540,4 +3540,4 @@ pub proof fn lemma_ts_destroy_command_pool_not_alive(
 {
 }
 
-} // verus!
+} //  verus!

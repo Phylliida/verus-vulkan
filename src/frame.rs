@@ -14,29 +14,29 @@ use crate::sync_token::*;
 
 verus! {
 
-// ── Types ───────────────────────────────────────────────────────────────
+//  ── Types ───────────────────────────────────────────────────────────────
 
-/// Describes a complete frame submission: acquire image, submit work, present.
+///  Describes a complete frame submission: acquire image, submit work, present.
 pub struct FrameSubmission {
-    /// The swapchain image index to render to.
+    ///  The swapchain image index to render to.
     pub image_index: nat,
-    /// Semaphore signaled when acquire completes (GPU can start rendering).
+    ///  Semaphore signaled when acquire completes (GPU can start rendering).
     pub acquire_semaphore: nat,
-    /// Semaphore signaled when rendering completes (presentation can begin).
+    ///  Semaphore signaled when rendering completes (presentation can begin).
     pub render_semaphore: nat,
-    /// Fence signaled when the GPU finishes this frame's work.
+    ///  Fence signaled when the GPU finishes this frame's work.
     pub frame_fence: nat,
-    /// The submit info for the rendering work.
+    ///  The submit info for the rendering work.
     pub submit_info: SubmitInfo,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// A frame submission is well-formed:
-/// - The submit info waits on the acquire semaphore.
-/// - The submit info signals the render semaphore.
-/// - The submit info uses the frame fence.
-/// - The submit info is otherwise well-formed.
+///  A frame submission is well-formed:
+///  - The submit info waits on the acquire semaphore.
+///  - The submit info signals the render semaphore.
+///  - The submit info uses the frame fence.
+///  - The submit info is otherwise well-formed.
 pub open spec fn frame_submission_well_formed(frame: FrameSubmission) -> bool {
     submit_info_well_formed(frame.submit_info)
     && frame.submit_info.fence_id == Some(frame.frame_fence)
@@ -46,10 +46,10 @@ pub open spec fn frame_submission_well_formed(frame: FrameSubmission) -> bool {
     && frame.submit_info.signal_semaphores[0] == frame.render_semaphore
 }
 
-/// The full acquire→submit ghost transition.
-/// Returns updated (swapchain, queue, device, cb_states, sem_states, fence_states).
+///  The full acquire→submit ghost transition.
+///  Returns updated (swapchain, queue, device, cb_states, sem_states, fence_states).
 ///
-/// Requires the submitting thread to hold exclusive access to the queue.
+///  Requires the submitting thread to hold exclusive access to the queue.
 pub open spec fn frame_acquire_and_submit(
     swapchain: SwapchainState,
     queue: QueueState,
@@ -64,11 +64,11 @@ pub open spec fn frame_acquire_and_submit(
     recommends
         frame.submit_info.fence_id.is_some() ==> fence_states.contains_key(frame.submit_info.fence_id.unwrap()),
 {
-    // Step 1: Acquire the swapchain image
+    //  Step 1: Acquire the swapchain image
     match acquire_image(swapchain, frame.image_index) {
         None => None,
         Some(new_swapchain) => {
-            // Step 2: Submit the rendering work (requires exclusive queue access)
+            //  Step 2: Submit the rendering work (requires exclusive queue access)
             match submit_ghost(queue, frame.submit_info, thread, reg) {
                 None => None,
                 Some((new_queue, record)) => {
@@ -76,15 +76,15 @@ pub open spec fn frame_acquire_and_submit(
                         pending_submissions: dev.pending_submissions.push(record),
                         ..dev
                     };
-                    // Step 3: Transition CBs to pending
+                    //  Step 3: Transition CBs to pending
                     let new_cbs = transition_cbs_to_pending(
                         frame.submit_info.command_buffers, cb_states,
                     );
-                    // Step 4: Consume wait semaphores
+                    //  Step 4: Consume wait semaphores
                     let new_sems = consume_wait_semaphores(
                         frame.submit_info.wait_semaphores, sem_states,
                     );
-                    // Step 5: Mark fence as associated with this submission
+                    //  Step 5: Mark fence as associated with this submission
                     let new_fences = match frame.submit_info.fence_id {
                         Some(fid) => fence_states.insert(
                             fid,
@@ -99,7 +99,7 @@ pub open spec fn frame_acquire_and_submit(
     }
 }
 
-/// Ghost transition for presenting a frame after rendering completes.
+///  Ghost transition for presenting a frame after rendering completes.
 pub open spec fn frame_present(
     swapchain: SwapchainState,
     frame: FrameSubmission,
@@ -107,9 +107,9 @@ pub open spec fn frame_present(
     present_image(swapchain, frame.image_index)
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// A well-formed frame submission waits on the acquire semaphore.
+///  A well-formed frame submission waits on the acquire semaphore.
 pub proof fn lemma_frame_waits_on_acquire(frame: FrameSubmission)
     requires frame_submission_well_formed(frame),
     ensures
@@ -118,7 +118,7 @@ pub proof fn lemma_frame_waits_on_acquire(frame: FrameSubmission)
 {
 }
 
-/// A well-formed frame submission signals the render semaphore.
+///  A well-formed frame submission signals the render semaphore.
 pub proof fn lemma_frame_signals_render(frame: FrameSubmission)
     requires frame_submission_well_formed(frame),
     ensures
@@ -127,14 +127,14 @@ pub proof fn lemma_frame_signals_render(frame: FrameSubmission)
 {
 }
 
-/// A well-formed frame submission uses a fence.
+///  A well-formed frame submission uses a fence.
 pub proof fn lemma_frame_uses_fence(frame: FrameSubmission)
     requires frame_submission_well_formed(frame),
     ensures frame.submit_info.fence_id == Some(frame.frame_fence),
 {
 }
 
-/// If acquire succeeds, the swapchain image transitions to Acquired.
+///  If acquire succeeds, the swapchain image transitions to Acquired.
 pub proof fn lemma_acquire_makes_acquired(
     swapchain: SwapchainState,
     idx: nat,
@@ -152,7 +152,7 @@ pub proof fn lemma_acquire_makes_acquired(
 {
 }
 
-/// If present succeeds, the swapchain image transitions to PresentPending.
+///  If present succeeds, the swapchain image transitions to PresentPending.
 pub proof fn lemma_present_makes_pending(
     swapchain: SwapchainState,
     idx: nat,
@@ -168,7 +168,7 @@ pub proof fn lemma_present_makes_pending(
 {
 }
 
-/// The full acquire→present cycle returns the image to PresentPending.
+///  The full acquire→present cycle returns the image to PresentPending.
 pub proof fn lemma_acquire_present_cycle(
     swapchain: SwapchainState,
     idx: nat,
@@ -188,7 +188,7 @@ pub proof fn lemma_acquire_present_cycle(
     let after_acquire = acquire_image(swapchain, idx).unwrap();
 }
 
-/// After present_complete, the image returns to Available.
+///  After present_complete, the image returns to Available.
 pub proof fn lemma_full_frame_cycle(
     swapchain: SwapchainState,
     idx: nat,
@@ -208,4 +208,4 @@ pub proof fn lemma_full_frame_cycle(
 {
 }
 
-} // verus!
+} //  verus!

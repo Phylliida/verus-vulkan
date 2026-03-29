@@ -10,22 +10,22 @@ use winit::{
     window::{Window, WindowId, WindowAttributes},
 };
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Rational → f32 conversion
-// ═══════════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════════
+//  Rational → f32 conversion
+//  ═══════════════════════════════════════════════════════════════════════════
 
 use verus_rational::RuntimeRational;
 
-/// Convert a RuntimeRational to f32 by reading the underlying BigInt limbs.
-/// Only used for GPU rendering — not verified, just a convenience helper.
+///  Convert a RuntimeRational to f32 by reading the underlying BigInt limbs.
+///  Only used for GPU rendering — not verified, just a convenience helper.
 fn rational_to_f32(r: &RuntimeRational) -> f32 {
-    // Numerator: signed, magnitude stored as little-endian u32 limbs
+    //  Numerator: signed, magnitude stored as little-endian u32 limbs
     let num_neg = r.numerator.is_negative;
     let num_mag = &r.numerator.magnitude.limbs_le;
     let num_val: f64 = limbs_to_f64(num_mag);
     let num = if num_neg { -num_val } else { num_val };
 
-    // Denominator: unsigned, little-endian u32 limbs
+    //  Denominator: unsigned, little-endian u32 limbs
     let den_val: f64 = limbs_to_f64(&r.denominator.limbs_le);
     if den_val == 0.0 {
         return 0.0;
@@ -38,14 +38,14 @@ fn limbs_to_f64(limbs: &[u32]) -> f64 {
     let mut base: f64 = 1.0;
     for &limb in limbs {
         val += limb as f64 * base;
-        base *= 4294967296.0; // 2^32
+        base *= 4294967296.0; //  2^32
     }
     val
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Widget construction helpers
-// ═══════════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════════
+//  Widget construction helpers
+//  ═══════════════════════════════════════════════════════════════════════════
 
 use builtin::Ghost;
 use verus_gui::runtime::widget::*;
@@ -246,33 +246,33 @@ fn listview(spacing: i64, vh: i64, vw: i64, scroll_y: i64, children: Vec<Runtime
     })
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Build the showcase widget tree
-// ═══════════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════════
+//  Build the showcase widget tree
+//  ═══════════════════════════════════════════════════════════════════════════
 
 fn build_showcase() -> RuntimeWidget {
     column(10, 12, vec![
-        // Section 1: Row — three items side by side
+        //  Section 1: Row — three items side by side
         row(8, vec![
             leaf(80, 40),
             leaf(80, 40),
             leaf(80, 40),
         ]),
 
-        // Section 2: Row with center alignment
+        //  Section 2: Row with center alignment
         row_aligned(8, Alignment::Center, vec![
             leaf(60, 50),
             leaf(60, 30),
             leaf(60, 50),
         ]),
 
-        // Section 3: Stack — overlapping elements
+        //  Section 3: Stack — overlapping elements
         stack(Alignment::Center, Alignment::Center, vec![
             leaf(160, 60),
             leaf(80, 30),
         ]),
 
-        // Section 4: Wrap — flowing items
+        //  Section 4: Wrap — flowing items
         wrap(6, 6, vec![
             leaf(50, 28),
             leaf(65, 28),
@@ -282,39 +282,39 @@ fn build_showcase() -> RuntimeWidget {
             leaf(60, 28),
         ]),
 
-        // Section 5: Flex — weighted distribution
+        //  Section 5: Flex — weighted distribution
         flex_row(4, vec![
             (1, leaf(0, 35)),
             (2, leaf(0, 35)),
             (1, leaf(0, 35)),
         ]),
 
-        // Section 6: Grid — 3x2
+        //  Section 6: Grid — 3x2
         grid(3, 2, 80, 35, 6, 6, vec![
             leaf(0, 0), leaf(0, 0), leaf(0, 0),
             leaf(0, 0), leaf(0, 0), leaf(0, 0),
         ]),
 
-        // Section 7: Absolute positioning
+        //  Section 7: Absolute positioning
         absolute(vec![
             (0,  0,  leaf(200, 70)),
             (15, 10, leaf(60, 25)),
             (90, 30, leaf(60, 25)),
         ]),
 
-        // Section 8: Margin wrapper
+        //  Section 8: Margin wrapper
         margin(12, leaf(120, 35)),
 
-        // Section 9: SizedBox — clamps a large child
+        //  Section 9: SizedBox — clamps a large child
         sized_box(0, 0, 100, 30, leaf(300, 300)),
 
-        // Section 10: Conditional — visible
+        //  Section 10: Conditional — visible
         conditional(true, leaf(120, 30)),
 
-        // Section 11: Conditional — hidden (should produce zero-size node)
+        //  Section 11: Conditional — hidden (should produce zero-size node)
         conditional(false, leaf(120, 30)),
 
-        // Section 12: ScrollView
+        //  Section 12: ScrollView
         scroll_view(200, 50, 0, 10, column(0, 4, vec![
             leaf(180, 25),
             leaf(180, 25),
@@ -322,7 +322,7 @@ fn build_showcase() -> RuntimeWidget {
             leaf(180, 25),
         ])),
 
-        // Section 13: ListView
+        //  Section 13: ListView
         listview(4, 60, 200, 0, vec![
             leaf(180, 25),
             leaf(180, 25),
@@ -332,28 +332,28 @@ fn build_showcase() -> RuntimeWidget {
     ])
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Color palette — depth-based coloring
-// ═══════════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════════
+//  Color palette — depth-based coloring
+//  ═══════════════════════════════════════════════════════════════════════════
 
 const PALETTE: &[(f32, f32, f32)] = &[
-    (0.15, 0.15, 0.20),  // depth 0: dark background
-    (0.25, 0.35, 0.55),  // depth 1: slate blue sections
-    (0.90, 0.45, 0.30),  // depth 2: coral widgets
-    (0.30, 0.75, 0.50),  // depth 3: green inner
-    (0.85, 0.70, 0.25),  // depth 4: gold
-    (0.55, 0.40, 0.80),  // depth 5: purple
-    (0.25, 0.70, 0.80),  // depth 6: teal
-    (0.90, 0.55, 0.70),  // depth 7: pink
+    (0.15, 0.15, 0.20),  //  depth 0: dark background
+    (0.25, 0.35, 0.55),  //  depth 1: slate blue sections
+    (0.90, 0.45, 0.30),  //  depth 2: coral widgets
+    (0.30, 0.75, 0.50),  //  depth 3: green inner
+    (0.85, 0.70, 0.25),  //  depth 4: gold
+    (0.55, 0.40, 0.80),  //  depth 5: purple
+    (0.25, 0.70, 0.80),  //  depth 6: teal
+    (0.90, 0.55, 0.70),  //  depth 7: pink
 ];
 
 fn depth_color(depth: usize) -> (f32, f32, f32) {
     PALETTE[depth % PALETTE.len()]
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Vulkan backend
-// ═══════════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════════
+//  Vulkan backend
+//  ═══════════════════════════════════════════════════════════════════════════
 
 mod vulkan {
     use super::*;
@@ -398,7 +398,7 @@ mod vulkan {
         format: vk::Format,
         pub width: u32,
         pub height: u32,
-        // GUI state
+        //  GUI state
         pub draws: Vec<RuntimeDrawCommand>,
     }
 
@@ -471,7 +471,7 @@ mod vulkan {
                 image_views.push(view);
             }
 
-            // Render pass (single color attachment, no depth)
+            //  Render pass (single color attachment, no depth)
             let render_pass = ffi::vk_create_render_pass(
                 &ctx,
                 Ghost::assume_new(),
@@ -494,14 +494,14 @@ mod vulkan {
                 framebuffers.push(fb);
             }
 
-            // Shader modules
+            //  Shader modules
             let vert_code = spv_to_u32(include_bytes!("shaders/gui.vert.spv"));
             let vert_module = ffi::vk_create_shader_module(&ctx, Ghost::assume_new(), &vert_code);
 
             let frag_code = spv_to_u32(include_bytes!("shaders/gui.frag.spv"));
             let frag_module = ffi::vk_create_shader_module(&ctx, Ghost::assume_new(), &frag_code);
 
-            // Pipeline layout: 32-byte push constant at VERTEX|FRAGMENT stages
+            //  Pipeline layout: 32-byte push constant at VERTEX|FRAGMENT stages
             let push_stages = vk::ShaderStageFlags::VERTEX.as_raw()
                 | vk::ShaderStageFlags::FRAGMENT.as_raw();
             let pipeline_layout_handle = ffi::vk_create_pipeline_layout_push(
@@ -509,10 +509,10 @@ mod vulkan {
                 &[],
                 push_stages,
                 0,
-                32, // x,y,w,h,r,g,b,a = 8 × f32 = 32 bytes
+                32, //  x,y,w,h,r,g,b,a = 8 × f32 = 32 bytes
             );
 
-            // Graphics pipeline (no depth test, no culling)
+            //  Graphics pipeline (no depth test, no culling)
             let pipeline = ffi::vk_create_graphics_pipeline(
                 &ctx,
                 Ghost::assume_new(),
@@ -525,7 +525,7 @@ mod vulkan {
                 false, false, 0,
             );
 
-            // Command pool + buffers
+            //  Command pool + buffers
             let command_pool = ffi::vk_create_command_pool(&ctx, Ghost::assume_new(), 0, true);
             let mut command_buffers = Vec::new();
             for _ in 0..image_count {
@@ -537,12 +537,12 @@ mod vulkan {
                 command_buffers.push(cb);
             }
 
-            // Sync objects
+            //  Sync objects
             let in_flight_fence = ffi::vk_create_fence(&ctx, Ghost::assume_new(), true);
             let image_available_sem = ffi::vk_create_semaphore(&ctx, Ghost::assume_new());
             let render_finished_sem = ffi::vk_create_semaphore(&ctx, Ghost::assume_new());
 
-            // Build widget tree, layout, and flatten to draw commands
+            //  Build widget tree, layout, and flatten to draw commands
             let widget = build_showcase();
             let fuel: usize = 20;
             let limits = make_limits(0, 0, width as i64, height as i64);
@@ -571,7 +571,7 @@ mod vulkan {
             }
             self.width = width;
             self.height = height;
-            // Re-layout for new viewport
+            //  Re-layout for new viewport
             let widget = build_showcase();
             let fuel: usize = 20;
             let limits = make_limits(0, 0, width as i64, height as i64);
@@ -607,7 +607,7 @@ mod vulkan {
                 self.framebuffers[idx as usize].handle,
                 self.width,
                 self.height,
-                0.12, 0.12, 0.14, 1.0, // dark background
+                0.12, 0.12, 0.14, 1.0, //  dark background
             );
             ffi::vk_cmd_bind_pipeline(
                 &self.ctx,
@@ -628,7 +628,7 @@ mod vulkan {
                 0, 0, self.width, self.height,
             );
 
-            // Draw each GUI rectangle
+            //  Draw each GUI rectangle
             let vw = self.width as f32;
             let vh = self.height as f32;
             let push_stages = vk::ShaderStageFlags::VERTEX.as_raw()
@@ -640,12 +640,12 @@ mod vulkan {
                 let pw = rational_to_f32(&draw.width);
                 let ph = rational_to_f32(&draw.height);
 
-                // Skip zero-area draws
+                //  Skip zero-area draws
                 if pw <= 0.0 || ph <= 0.0 {
                     continue;
                 }
 
-                // Convert pixel coords to NDC (-1..1)
+                //  Convert pixel coords to NDC (-1..1)
                 let ndc_x = px / vw * 2.0 - 1.0;
                 let ndc_y = py / vh * 2.0 - 1.0;
                 let ndc_w = pw / vw * 2.0;
@@ -746,9 +746,9 @@ mod vulkan {
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Application handler
-// ═══════════════════════════════════════════════════════════════════════════
+//  ═══════════════════════════════════════════════════════════════════════════
+//  Application handler
+//  ═══════════════════════════════════════════════════════════════════════════
 
 struct App {
     window: Option<std::sync::Arc<Window>>,

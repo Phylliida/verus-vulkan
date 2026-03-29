@@ -14,15 +14,15 @@ use super::memory_aliasing::*;
 
 verus! {
 
-/// Runtime wrapper for a Vulkan queue.
+///  Runtime wrapper for a Vulkan queue.
 pub struct RuntimeQueue {
-    /// Opaque handle (maps to VkQueue).
+    ///  Opaque handle (maps to VkQueue).
     pub handle: u64,
-    /// Queue family index.
+    ///  Queue family index.
     pub family_index: u32,
-    /// Queue index within the family.
+    ///  Queue index within the family.
     pub queue_index: u32,
-    /// Ghost queue ID for tracking.
+    ///  Ghost queue ID for tracking.
     pub queue_id: Ghost<nat>,
 }
 
@@ -31,9 +31,9 @@ impl View for RuntimeQueue {
     open spec fn view(&self) -> nat { self.queue_id@ }
 }
 
-/// Exec: submit command buffers to the queue (ghost-level updates device).
-/// Caller must prove all referenced command buffers are Executable via a status map
-/// keyed by CB id. Also marks referenced resources as in-flight in the aliasing tracker.
+///  Exec: submit command buffers to the queue (ghost-level updates device).
+///  Caller must prove all referenced command buffers are Executable via a status map
+///  keyed by CB id. Also marks referenced resources as in-flight in the aliasing tracker.
 pub fn submit_exec(
     dev: &mut RuntimeDevice,
     queue: &RuntimeQueue,
@@ -50,46 +50,46 @@ pub fn submit_exec(
 )
     requires
         runtime_device_wf(&*old(dev)),
-        // Flush guard: all mapped referenced resources must have visible host writes
+        //  Flush guard: all mapped referenced resources must have visible host writes
         submission_writes_visible(mapped_states@, submission@.referenced_resources),
         submission@.queue_id == queue@,
         submission@.command_buffers.len() > 0,
-        // Thread safety: exclusive queue access
+        //  Thread safety: exclusive queue access
         holds_exclusive(reg@, SyncObjectId::Queue(queue@), thread@),
-        // Thread safety: CBs not held by other threads
+        //  Thread safety: CBs not held by other threads
         forall|i: int| 0 <= i < submission@.command_buffers.len()
             ==> not_held_by_other(reg@, SyncObjectId::Handle(#[trigger] submission@.command_buffers[i]), thread@),
-        // CB views: parallel sequence, all must be Executable
+        //  CB views: parallel sequence, all must be Executable
         cb_views@.len() == submission@.command_buffers.len(),
         forall|i: int| 0 <= i < cb_views@.len()
             ==> #[trigger] cb_views@[i] == CommandBufferStatus::Executable,
-        // Wait semaphores must be signaled (parallel sequence)
+        //  Wait semaphores must be signaled (parallel sequence)
         wait_sem_views@.len() == submit_info@.wait_semaphores.len(),
         forall|i: int| 0 <= i < wait_sem_views@.len()
             ==> (#[trigger] wait_sem_views@[i]).id == submit_info@.wait_semaphores[i]
                 && wait_sem_views@[i].signaled,
-        // Signal semaphores must be unsignaled (parallel sequence)
+        //  Signal semaphores must be unsignaled (parallel sequence)
         signal_sem_views@.len() == submit_info@.signal_semaphores.len(),
         forall|i: int| 0 <= i < signal_sem_views@.len()
             ==> (#[trigger] signal_sem_views@[i]).id == submit_info@.signal_semaphores[i]
                 && !signal_sem_views@[i].signaled,
-        // Fence (if any) must be unsignaled and not pending
+        //  Fence (if any) must be unsignaled and not pending
         fence_view@.is_some() == submit_info@.fence_id.is_some(),
         fence_view@.is_some() ==> (
             fence_view@.unwrap().id == submit_info@.fence_id.unwrap()
             && !fence_view@.unwrap().signaled
             && fence_not_pending(submit_info@.fence_id.unwrap(), old(dev)@.pending_submissions)
         ),
-        // Submission record must be consistent with the submit info
+        //  Submission record must be consistent with the submit info
         submission@.command_buffers =~= submit_info@.command_buffers,
         submission@.signal_semaphores =~= submit_info@.signal_semaphores,
         submission@.fence_id == submit_info@.fence_id,
         submission@.referenced_resources =~= submit_info@.referenced_resources,
         !submission@.completed,
-        // All referenced resources are bound in the aliasing tracker
+        //  All referenced resources are bound in the aliasing tracker
         forall|r: ResourceId| submission@.referenced_resources.contains(r)
             ==> old(aliasing_tracker).bindings@.contains_key(r),
-        // No aliasing hazard: combined in-flight set has no overlapping pairs
+        //  No aliasing hazard: combined in-flight set has no overlapping pairs
         no_in_flight_overlaps(old(aliasing_tracker)),
         forall|r1: ResourceId, r2: ResourceId|
             (old(aliasing_tracker).in_flight@.contains(r1) || submission@.referenced_resources.contains(r1))
@@ -116,8 +116,8 @@ pub fn submit_exec(
     aliasing_tracker.in_flight = Ghost(aliasing_tracker.in_flight@.union(submission@.referenced_resources));
 }
 
-/// Exec: queue wait idle — removes all submissions for this queue.
-/// Caller must prove exclusive access to the queue.
+///  Exec: queue wait idle — removes all submissions for this queue.
+///  Caller must prove exclusive access to the queue.
 pub fn queue_wait_idle_exec(
     dev: &mut RuntimeDevice,
     queue: &RuntimeQueue,
@@ -133,14 +133,14 @@ pub fn queue_wait_idle_exec(
     dev.state = Ghost(queue_wait_idle_ghost(dev.state@, queue@));
 }
 
-// ── Extended Specs & Proofs ──────────────────────────────────────────
+//  ── Extended Specs & Proofs ──────────────────────────────────────────
 
-/// Queue ID.
+///  Queue ID.
 pub open spec fn queue_id(queue: &RuntimeQueue) -> nat {
     queue@
 }
 
-/// Proof: submit adds exactly one submission.
+///  Proof: submit adds exactly one submission.
 pub proof fn lemma_submit_adds_one(
     dev: &RuntimeDevice,
     submission: Ghost<SubmissionRecord>,
@@ -157,7 +157,7 @@ pub proof fn lemma_submit_adds_one(
 {
 }
 
-/// Proof: queue wait idle preserves well-formedness.
+///  Proof: queue wait idle preserves well-formedness.
 pub proof fn lemma_queue_wait_idle_wf(
     dev: &RuntimeDevice,
     queue: &RuntimeQueue,
@@ -168,4 +168,4 @@ pub proof fn lemma_queue_wait_idle_wf(
     lemma_queue_wait_idle_preserves_well_formed(dev@, queue@);
 }
 
-} // verus!
+} //  verus!

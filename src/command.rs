@@ -3,24 +3,24 @@ use crate::sync_token::*;
 
 verus! {
 
-/// Lifecycle state of a command buffer, mirroring the Vulkan spec.
+///  Lifecycle state of a command buffer, mirroring the Vulkan spec.
 pub enum CommandBufferState {
-    /// Allocated but not yet begun recording.
+    ///  Allocated but not yet begun recording.
     Initial,
-    /// Between vkBeginCommandBuffer and vkEndCommandBuffer.
+    ///  Between vkBeginCommandBuffer and vkEndCommandBuffer.
     Recording,
-    /// Recording finished; ready for submission.
+    ///  Recording finished; ready for submission.
     Executable,
-    /// Submitted to a queue; pending execution.
+    ///  Submitted to a queue; pending execution.
     Pending,
-    /// Entered an invalid state (e.g., after a failed recording).
+    ///  Entered an invalid state (e.g., after a failed recording).
     Invalid,
 }
 
-/// Transition from Initial to Recording (vkBeginCommandBuffer).
+///  Transition from Initial to Recording (vkBeginCommandBuffer).
 ///
-/// Requires exclusive access to the command buffer.
-/// Per Vulkan spec: "commandBuffer is an externally synchronized parameter."
+///  Requires exclusive access to the command buffer.
+///  Per Vulkan spec: "commandBuffer is an externally synchronized parameter."
 pub open spec fn begin_recording(
     state: CommandBufferState,
     cb_id: nat,
@@ -32,16 +32,16 @@ pub open spec fn begin_recording(
     } else {
         match state {
             CommandBufferState::Initial => Some(CommandBufferState::Recording),
-            // One-time-submit or reset-before-rerecord:
+            //  One-time-submit or reset-before-rerecord:
             CommandBufferState::Executable => Some(CommandBufferState::Recording),
             _ => None,
         }
     }
 }
 
-/// Transition from Recording to Executable (vkEndCommandBuffer).
+///  Transition from Recording to Executable (vkEndCommandBuffer).
 ///
-/// Requires exclusive access to the command buffer.
+///  Requires exclusive access to the command buffer.
 pub open spec fn end_recording(
     state: CommandBufferState,
     cb_id: nat,
@@ -58,10 +58,10 @@ pub open spec fn end_recording(
     }
 }
 
-/// Transition from Executable to Pending (vkQueueSubmit).
+///  Transition from Executable to Pending (vkQueueSubmit).
 ///
-/// Requires exclusive access to the queue (enforced by queue.rs).
-/// The CB itself transitions without per-CB sync (the queue owns it now).
+///  Requires exclusive access to the queue (enforced by queue.rs).
+///  The CB itself transitions without per-CB sync (the queue owns it now).
 pub open spec fn submit(state: CommandBufferState) -> Option<CommandBufferState> {
     match state {
         CommandBufferState::Executable => Some(CommandBufferState::Pending),
@@ -69,7 +69,7 @@ pub open spec fn submit(state: CommandBufferState) -> Option<CommandBufferState>
     }
 }
 
-/// Transition from Pending back to Executable (fence signaled).
+///  Transition from Pending back to Executable (fence signaled).
 pub open spec fn complete_execution(state: CommandBufferState) -> Option<CommandBufferState> {
     match state {
         CommandBufferState::Pending => Some(CommandBufferState::Executable),
@@ -77,9 +77,9 @@ pub open spec fn complete_execution(state: CommandBufferState) -> Option<Command
     }
 }
 
-/// Reset to Initial (vkResetCommandBuffer).
+///  Reset to Initial (vkResetCommandBuffer).
 ///
-/// Requires exclusive access to the command buffer.
+///  Requires exclusive access to the command buffer.
 pub open spec fn reset(
     state: CommandBufferState,
     cb_id: nat,
@@ -98,7 +98,7 @@ pub open spec fn reset(
     }
 }
 
-/// The recording-submit-complete cycle returns to Executable.
+///  The recording-submit-complete cycle returns to Executable.
 pub proof fn lemma_record_submit_complete_cycle(
     cb_id: nat,
     thread: ThreadId,
@@ -116,7 +116,7 @@ pub proof fn lemma_record_submit_complete_cycle(
 {
 }
 
-/// Reset from any non-Initial/non-Pending state produces Initial.
+///  Reset from any non-Initial/non-Pending state produces Initial.
 pub proof fn lemma_reset_produces_initial(
     state: CommandBufferState,
     cb_id: nat,
@@ -132,7 +132,7 @@ pub proof fn lemma_reset_produces_initial(
 {
 }
 
-/// begin_recording requires exclusive access.
+///  begin_recording requires exclusive access.
 pub proof fn lemma_begin_requires_exclusive(
     state: CommandBufferState,
     cb_id: nat,
@@ -144,7 +144,7 @@ pub proof fn lemma_begin_requires_exclusive(
 {
 }
 
-/// Without exclusive access, begin_recording fails.
+///  Without exclusive access, begin_recording fails.
 pub proof fn lemma_no_exclusive_no_recording(
     state: CommandBufferState,
     cb_id: nat,
@@ -156,4 +156,4 @@ pub proof fn lemma_no_exclusive_no_recording(
 {
 }
 
-} // verus!
+} //  verus!

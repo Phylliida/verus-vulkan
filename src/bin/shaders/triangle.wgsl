@@ -1,4 +1,4 @@
-// Hardcoded triangle — no vertex buffer needed.
+//  Hardcoded triangle — no vertex buffer needed.
 
 struct VertexOutput {
     @builtin(position) position: vec4<f32>,

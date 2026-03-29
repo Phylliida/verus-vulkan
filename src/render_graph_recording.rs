@@ -10,17 +10,17 @@ use crate::recording_commands::*;
 
 verus! {
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// Convert a BarrierAction to a BarrierEntry and record it into a RecordingContext.
-/// This bridges the render graph compile layer (BarrierAction) to the recording
-/// layer (BarrierEntry via record_pipeline_barrier_single).
+///  Convert a BarrierAction to a BarrierEntry and record it into a RecordingContext.
+///  This bridges the render graph compile layer (BarrierAction) to the recording
+///  layer (BarrierEntry via record_pipeline_barrier_single).
 pub open spec fn barrier_action_to_recording_entry(ba: BarrierAction) -> BarrierEntry {
     barrier_action_to_entry(ba)
 }
 
-/// Record all pre-barriers from a PassBarrierPlan into a RecordingContext.
-/// Converts each BarrierAction to a BarrierEntry and appends to the barrier log.
+///  Record all pre-barriers from a PassBarrierPlan into a RecordingContext.
+///  Converts each BarrierAction to a BarrierEntry and appends to the barrier log.
 pub open spec fn record_barrier_plan(
     ctx: RecordingContext,
     plan: PassBarrierPlan,
@@ -40,7 +40,7 @@ pub open spec fn record_barrier_plan(
     }
 }
 
-/// Record one step of a compiled graph: apply pre-barriers for the step.
+///  Record one step of a compiled graph: apply pre-barriers for the step.
 pub open spec fn record_graph_step(
     ctx: RecordingContext,
     cg: CompiledGraph,
@@ -51,8 +51,8 @@ pub open spec fn record_graph_step(
     record_barrier_plan(ctx, cg.barrier_plans[step as int])
 }
 
-/// Execute all steps of a compiled graph: fold over steps 0..n,
-/// recording each step's pre-barriers.
+///  Execute all steps of a compiled graph: fold over steps 0..n,
+///  recording each step's pre-barriers.
 pub open spec fn execute_compiled_graph(
     cg: CompiledGraph,
     n: nat,
@@ -67,9 +67,9 @@ pub open spec fn execute_compiled_graph(
     }
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// Recording a barrier plan preserves the RecordingState (bound pipelines, etc.).
+///  Recording a barrier plan preserves the RecordingState (bound pipelines, etc.).
 pub proof fn lemma_record_barrier_plan_preserves_state(
     ctx: RecordingContext,
     plan: PassBarrierPlan,
@@ -89,7 +89,7 @@ pub proof fn lemma_record_barrier_plan_preserves_state(
     }
 }
 
-/// Recording a barrier plan preserves referenced_resources.
+///  Recording a barrier plan preserves referenced_resources.
 pub proof fn lemma_record_barrier_plan_preserves_resources(
     ctx: RecordingContext,
     plan: PassBarrierPlan,
@@ -109,8 +109,8 @@ pub proof fn lemma_record_barrier_plan_preserves_resources(
     }
 }
 
-/// The barrier log after recording a full plan equals the original log
-/// with all plan entries appended (via append_barrier_actions).
+///  The barrier log after recording a full plan equals the original log
+///  with all plan entries appended (via append_barrier_actions).
 pub proof fn lemma_record_barrier_plan_log_equals_append(
     ctx: RecordingContext,
     plan: PassBarrierPlan,
@@ -121,7 +121,7 @@ pub proof fn lemma_record_barrier_plan_log_equals_append(
     decreases plan.pre_barriers.len(),
 {
     if plan.pre_barriers.len() == 0 {
-        // Both sides equal ctx.barrier_log
+        //  Both sides equal ctx.barrier_log
     } else {
         let entry = barrier_action_to_entry(plan.pre_barriers[0]);
         let next_ctx = record_pipeline_barrier_single(ctx, entry);
@@ -130,19 +130,19 @@ pub proof fn lemma_record_barrier_plan_log_equals_append(
             pre_barriers: rest,
             ..plan
         };
-        // next_ctx.barrier_log == ctx.barrier_log.push(entry)
-        // append(log, actions) == append(log.push(entry), rest) when actions non-empty
+        //  next_ctx.barrier_log == ctx.barrier_log.push(entry)
+        //  append(log, actions) == append(log.push(entry), rest) when actions non-empty
         assert(append_barrier_actions(ctx.barrier_log, plan.pre_barriers)
             == append_barrier_actions(ctx.barrier_log.push(entry), rest));
         lemma_record_barrier_plan_log_equals_append(next_ctx, rest_plan);
     }
 }
 
-/// If a barrier plan is adequate for a read, recording it establishes
-/// readable in the updated recording context.
+///  If a barrier plan is adequate for a read, recording it establishes
+///  readable in the updated recording context.
 ///
-/// Bridges render_graph_soundness::lemma_adequate_barrier_action_establishes_readable
-/// to the recording context layer.
+///  Bridges render_graph_soundness::lemma_adequate_barrier_action_establishes_readable
+///  to the recording context layer.
 pub proof fn lemma_record_barrier_plan_readable(
     ctx: RecordingContext,
     plan: PassBarrierPlan,
@@ -167,8 +167,8 @@ pub proof fn lemma_record_barrier_plan_readable(
     );
 }
 
-/// If a barrier plan is adequate for a write, recording it establishes
-/// writable in the updated recording context.
+///  If a barrier plan is adequate for a write, recording it establishes
+///  writable in the updated recording context.
 pub proof fn lemma_record_barrier_plan_writable(
     ctx: RecordingContext,
     plan: PassBarrierPlan,
@@ -193,8 +193,8 @@ pub proof fn lemma_record_barrier_plan_writable(
     );
 }
 
-/// Each graph step maintains the sync invariant: recording the step's
-/// pre-barriers does not lose any previously established readability.
+///  Each graph step maintains the sync invariant: recording the step's
+///  pre-barriers does not lose any previously established readability.
 pub proof fn lemma_graph_step_maintains_sync(
     ctx: RecordingContext,
     cg: CompiledGraph,
@@ -219,8 +219,8 @@ pub proof fn lemma_graph_step_maintains_sync(
     lemma_append_preserves_readable_via_plan(ctx.barrier_log, plan, state, dst_stage, dst_access);
 }
 
-/// Helper: appending a plan's pre-barriers preserves readability (wraps
-/// render_graph_soundness helper at the plan level).
+///  Helper: appending a plan's pre-barriers preserves readability (wraps
+///  render_graph_soundness helper at the plan level).
 proof fn lemma_append_preserves_readable_via_plan(
     log: BarrierLog,
     plan: PassBarrierPlan,
@@ -242,8 +242,8 @@ proof fn lemma_append_preserves_readable_via_plan(
     }
 }
 
-/// A barrier action that is well-formed (non-empty stages/accesses)
-/// converts to a valid BarrierEntry with valid stage/access combinations.
+///  A barrier action that is well-formed (non-empty stages/accesses)
+///  converts to a valid BarrierEntry with valid stage/access combinations.
 pub proof fn lemma_barrier_action_to_entry_valid(
     ba: BarrierAction,
 )
@@ -259,4 +259,4 @@ pub proof fn lemma_barrier_action_to_entry_valid(
 {
 }
 
-} // verus!
+} //  verus!

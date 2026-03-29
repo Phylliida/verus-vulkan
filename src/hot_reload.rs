@@ -8,36 +8,36 @@ use crate::shader_interface::*;
 
 verus! {
 
-// ── Types ───────────────────────────────────────────────────────────────
+//  ── Types ───────────────────────────────────────────────────────────────
 
-/// A hot-reload request: replace one or both shaders in an existing
-/// graphics pipeline.
+///  A hot-reload request: replace one or both shaders in an existing
+///  graphics pipeline.
 ///
-/// Hot-reload happens between frames. The key safety invariant is that
-/// the new pipeline must be layout-compatible with the old one, so that
-/// existing descriptor sets remain valid without rebinding.
+///  Hot-reload happens between frames. The key safety invariant is that
+///  the new pipeline must be layout-compatible with the old one, so that
+///  existing descriptor sets remain valid without rebinding.
 pub struct ReloadRequest {
-    /// The pipeline being replaced.
+    ///  The pipeline being replaced.
     pub old_pipeline_id: nat,
-    /// New vertex shader interface, if replacing. None = keep old.
+    ///  New vertex shader interface, if replacing. None = keep old.
     pub new_vertex_shader: Option<ShaderInterface>,
-    /// New fragment shader interface, if replacing. None = keep old.
+    ///  New fragment shader interface, if replacing. None = keep old.
     pub new_fragment_shader: Option<ShaderInterface>,
 }
 
-/// The result of a successful hot-reload: a new pipeline with
-/// compatibility guarantees.
+///  The result of a successful hot-reload: a new pipeline with
+///  compatibility guarantees.
 pub struct ReloadedPipeline {
-    /// The new pipeline state.
+    ///  The new pipeline state.
     pub pipeline: GraphicsPipelineState,
-    /// The old pipeline id (for tracking destruction).
+    ///  The old pipeline id (for tracking destruction).
     pub replaced_pipeline_id: nat,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// Two pipeline descriptor set layout sequences are layout-compatible:
-/// identical length and same layout IDs at each position.
+///  Two pipeline descriptor set layout sequences are layout-compatible:
+///  identical length and same layout IDs at each position.
 pub open spec fn layouts_identical(
     old_layouts: Seq<nat>,
     new_layouts: Seq<nat>,
@@ -47,15 +47,15 @@ pub open spec fn layouts_identical(
         ==> old_layouts[i] == new_layouts[i])
 }
 
-/// A shader replacement is compatible with the old shader:
-/// - Same descriptor bindings (set/binding/type/count)
-/// - Compatible push constant ranges
-/// - For vertex shaders: same input locations and formats
+///  A shader replacement is compatible with the old shader:
+///  - Same descriptor bindings (set/binding/type/count)
+///  - Compatible push constant ranges
+///  - For vertex shaders: same input locations and formats
 pub open spec fn shader_replacement_compatible(
     old_interface: ShaderInterface,
     new_interface: ShaderInterface,
 ) -> bool {
-    // Same descriptor bindings
+    //  Same descriptor bindings
     old_interface.descriptor_bindings.len() == new_interface.descriptor_bindings.len()
     && (forall|i: int| 0 <= i < old_interface.descriptor_bindings.len() ==> {
         let old_b = #[trigger] old_interface.descriptor_bindings[i];
@@ -65,18 +65,18 @@ pub open spec fn shader_replacement_compatible(
         && old_b.descriptor_type == new_b.descriptor_type
         && old_b.count == new_b.count
     })
-    // Push constants compatible
+    //  Push constants compatible
     && push_constant_range_compatible(old_interface.push_constant_range, new_interface.push_constant_range)
 }
 
-/// A vertex shader replacement is compatible: same inputs plus
-/// general shader compatibility.
+///  A vertex shader replacement is compatible: same inputs plus
+///  general shader compatibility.
 pub open spec fn vertex_shader_replacement_compatible(
     old_interface: ShaderInterface,
     new_interface: ShaderInterface,
 ) -> bool {
     shader_replacement_compatible(old_interface, new_interface)
-    // Same vertex inputs (locations and formats must match)
+    //  Same vertex inputs (locations and formats must match)
     && old_interface.inputs.len() == new_interface.inputs.len()
     && (forall|i: int| 0 <= i < old_interface.inputs.len() ==> {
         let old_in = #[trigger] old_interface.inputs[i];
@@ -86,8 +86,8 @@ pub open spec fn vertex_shader_replacement_compatible(
     })
 }
 
-/// A fragment shader replacement is compatible: same output count
-/// plus general shader compatibility.
+///  A fragment shader replacement is compatible: same output count
+///  plus general shader compatibility.
 pub open spec fn fragment_shader_replacement_compatible(
     old_interface: ShaderInterface,
     new_interface: ShaderInterface,
@@ -96,27 +96,27 @@ pub open spec fn fragment_shader_replacement_compatible(
     && old_interface.output_count == new_interface.output_count
 }
 
-/// A hot-reload is valid: each replaced shader (if any) is compatible
-/// with the old shader.
+///  A hot-reload is valid: each replaced shader (if any) is compatible
+///  with the old shader.
 pub open spec fn hot_reload_valid(
     request: ReloadRequest,
     old_vertex_interface: ShaderInterface,
     old_fragment_interface: ShaderInterface,
 ) -> bool {
-    // If replacing vertex shader, must be compatible
+    //  If replacing vertex shader, must be compatible
     (match request.new_vertex_shader {
         Some(new_vs) => vertex_shader_replacement_compatible(old_vertex_interface, new_vs),
         None => true,
     })
-    // If replacing fragment shader, must be compatible
+    //  If replacing fragment shader, must be compatible
     && (match request.new_fragment_shader {
         Some(new_fs) => fragment_shader_replacement_compatible(old_fragment_interface, new_fs),
         None => true,
     })
 }
 
-/// The old pipeline has no in-flight references: no incomplete submission
-/// references its id.
+///  The old pipeline has no in-flight references: no incomplete submission
+///  references its id.
 pub open spec fn no_in_flight_pipeline_references(
     submissions: Seq<SubmissionRecord>,
     pipeline_id: nat,
@@ -128,7 +128,7 @@ pub open spec fn no_in_flight_pipeline_references(
                 ResourceId::Buffer { id: pipeline_id }))
 }
 
-/// It is safe to swap a pipeline: no in-flight work references it.
+///  It is safe to swap a pipeline: no in-flight work references it.
 pub open spec fn safe_to_swap(
     submissions: Seq<SubmissionRecord>,
     pipeline_id: nat,
@@ -136,8 +136,8 @@ pub open spec fn safe_to_swap(
     no_in_flight_pipeline_references(submissions, pipeline_id)
 }
 
-/// The new pipeline is layout-compatible with the old one:
-/// same descriptor set layouts, same render pass, same subpass.
+///  The new pipeline is layout-compatible with the old one:
+///  same descriptor set layouts, same render pass, same subpass.
 pub open spec fn pipeline_layout_compatible(
     old_pipeline: GraphicsPipelineState,
     new_pipeline: GraphicsPipelineState,
@@ -149,9 +149,9 @@ pub open spec fn pipeline_layout_compatible(
     && old_pipeline.has_depth_attachment == new_pipeline.has_depth_attachment
 }
 
-/// After a reload, existing descriptor sets remain valid: since the
-/// descriptor set layouts are identical, any set that was valid for
-/// the old pipeline's layout is valid for the new one.
+///  After a reload, existing descriptor sets remain valid: since the
+///  descriptor set layouts are identical, any set that was valid for
+///  the old pipeline's layout is valid for the new one.
 pub open spec fn descriptor_sets_remain_valid(
     old_layouts: Seq<nat>,
     new_layouts: Seq<nat>,
@@ -160,13 +160,13 @@ pub open spec fn descriptor_sets_remain_valid(
     layouts_identical(old_layouts, new_layouts)
     ==> (forall|k: nat| bound_sets.contains_key(k)
         && k < old_layouts.len()
-        ==> bound_sets[k] == bound_sets[k]) // trivially true, but establishes the pattern
+        ==> bound_sets[k] == bound_sets[k]) //  trivially true, but establishes the pattern
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// A compatible replacement preserves descriptor set layout identity,
-/// so existing descriptor sets remain valid.
+///  A compatible replacement preserves descriptor set layout identity,
+///  so existing descriptor sets remain valid.
 pub proof fn lemma_compatible_replacement_preserves_descriptors(
     old_pipeline: GraphicsPipelineState,
     new_pipeline: GraphicsPipelineState,
@@ -182,7 +182,7 @@ pub proof fn lemma_compatible_replacement_preserves_descriptors(
 {
 }
 
-/// Reloading with the identity (no shader changes) is always valid.
+///  Reloading with the identity (no shader changes) is always valid.
 pub proof fn lemma_identity_reload_valid(
     old_vs: ShaderInterface,
     old_fs: ShaderInterface,
@@ -200,7 +200,7 @@ pub proof fn lemma_identity_reload_valid(
 {
 }
 
-/// Shader replacement compatibility is reflexive.
+///  Shader replacement compatibility is reflexive.
 pub proof fn lemma_shader_replacement_reflexive(
     interface: ShaderInterface,
 )
@@ -218,7 +218,7 @@ pub proof fn lemma_shader_replacement_reflexive(
     lemma_push_constant_compatible_reflexive(interface.push_constant_range);
 }
 
-/// Pipeline layout compatibility is reflexive.
+///  Pipeline layout compatibility is reflexive.
 pub proof fn lemma_pipeline_layout_compatible_reflexive(
     pipeline: GraphicsPipelineState,
 )
@@ -226,8 +226,8 @@ pub proof fn lemma_pipeline_layout_compatible_reflexive(
 {
 }
 
-/// After fence wait, if all submissions referencing the pipeline's
-/// resource have this fence, the pipeline is safe to swap.
+///  After fence wait, if all submissions referencing the pipeline's
+///  resource have this fence, the pipeline is safe to swap.
 pub proof fn lemma_fence_wait_enables_swap(
     submissions: Seq<SubmissionRecord>,
     fence: nat,
@@ -254,8 +254,8 @@ pub proof fn lemma_fence_wait_enables_swap(
     }
 }
 
-/// If the old pipeline is layout-compatible with the new one,
-/// then the new pipeline is compatible with the same subpass.
+///  If the old pipeline is layout-compatible with the new one,
+///  then the new pipeline is compatible with the same subpass.
 pub proof fn lemma_compatible_reload_preserves_subpass_compatibility(
     old_pipeline: GraphicsPipelineState,
     new_pipeline: GraphicsPipelineState,
@@ -272,7 +272,7 @@ pub proof fn lemma_compatible_reload_preserves_subpass_compatibility(
 {
 }
 
-/// Swapping one pipeline doesn't affect another pipeline's state.
+///  Swapping one pipeline doesn't affect another pipeline's state.
 pub proof fn lemma_swap_preserves_other_pipelines(
     old_id: nat,
     new_pipeline: GraphicsPipelineState,
@@ -287,14 +287,14 @@ pub proof fn lemma_swap_preserves_other_pipelines(
 {
 }
 
-/// An empty submission log is always safe to swap.
+///  An empty submission log is always safe to swap.
 pub proof fn lemma_empty_submissions_safe_to_swap(pipeline_id: nat)
     ensures
         safe_to_swap(Seq::<SubmissionRecord>::empty(), pipeline_id),
 {
 }
 
-/// If all submissions are completed, it is safe to swap.
+///  If all submissions are completed, it is safe to swap.
 pub proof fn lemma_all_completed_safe_to_swap(
     submissions: Seq<SubmissionRecord>,
     pipeline_id: nat,
@@ -307,20 +307,20 @@ pub proof fn lemma_all_completed_safe_to_swap(
 {
 }
 
-/// Layout identity is reflexive.
+///  Layout identity is reflexive.
 pub proof fn lemma_layouts_identical_reflexive(layouts: Seq<nat>)
     ensures layouts_identical(layouts, layouts),
 {
 }
 
-/// Layout identity is symmetric.
+///  Layout identity is symmetric.
 pub proof fn lemma_layouts_identical_symmetric(a: Seq<nat>, b: Seq<nat>)
     requires layouts_identical(a, b),
     ensures layouts_identical(b, a),
 {
 }
 
-/// Layout identity is transitive.
+///  Layout identity is transitive.
 pub proof fn lemma_layouts_identical_transitive(
     a: Seq<nat>,
     b: Seq<nat>,
@@ -334,4 +334,4 @@ pub proof fn lemma_layouts_identical_transitive(
 {
 }
 
-} // verus!
+} //  verus!

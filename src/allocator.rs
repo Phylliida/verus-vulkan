@@ -2,25 +2,25 @@ use vstd::prelude::*;
 
 verus! {
 
-// ── Types ──────────────────────────────────────────────────────────────
+//  ── Types ──────────────────────────────────────────────────────────────
 
-/// Allocation strategy for a sub-allocator.
+///  Allocation strategy for a sub-allocator.
 pub enum AllocationStrategy {
-    /// Linear (bump) allocation.
+    ///  Linear (bump) allocation.
     Linear,
-    /// Power-of-2 buddy system.
+    ///  Power-of-2 buddy system.
     BuddySystem,
-    /// Fixed-size slab allocation.
+    ///  Fixed-size slab allocation.
     Slab { slab_size: nat },
 }
 
-/// A contiguous free region within a memory block.
+///  A contiguous free region within a memory block.
 pub struct FreeBlock {
     pub offset: nat,
     pub size: nat,
 }
 
-/// A live allocation record.
+///  A live allocation record.
 pub struct AllocationRecord {
     pub id: nat,
     pub offset: nat,
@@ -29,53 +29,53 @@ pub struct AllocationRecord {
     pub generation: nat,
 }
 
-/// Ghost state for a sub-allocator managing a single memory block.
+///  Ghost state for a sub-allocator managing a single memory block.
 pub struct SubAllocatorState {
-    /// ID of the underlying VkDeviceMemory block.
+    ///  ID of the underlying VkDeviceMemory block.
     pub memory_block_id: nat,
-    /// Total size of the memory block in bytes.
+    ///  Total size of the memory block in bytes.
     pub block_size: nat,
-    /// Strategy used by this sub-allocator.
+    ///  Strategy used by this sub-allocator.
     pub strategy: AllocationStrategy,
-    /// Sorted list of free regions.
+    ///  Sorted list of free regions.
     pub free_list: Seq<FreeBlock>,
-    /// Live allocations keyed by allocation ID.
+    ///  Live allocations keyed by allocation ID.
     pub allocations: Map<nat, AllocationRecord>,
-    /// Next allocation ID to issue.
+    ///  Next allocation ID to issue.
     pub next_id: nat,
-    /// Monotonically increasing generation counter.
+    ///  Monotonically increasing generation counter.
     pub generation: nat,
-    /// Running total of allocated bytes.
+    ///  Running total of allocated bytes.
     pub total_alloc_size: nat,
 }
 
-/// Ghost state for the top-level allocator managing multiple memory blocks.
+///  Ghost state for the top-level allocator managing multiple memory blocks.
 pub struct AllocatorState {
-    /// Sub-allocators, one per memory block.
+    ///  Sub-allocators, one per memory block.
     pub sub_allocators: Seq<SubAllocatorState>,
-    /// Memory type indices for each sub-allocator.
+    ///  Memory type indices for each sub-allocator.
     pub memory_types: Seq<nat>,
-    /// Total bytes allocated across all sub-allocators.
+    ///  Total bytes allocated across all sub-allocators.
     pub total_allocated: nat,
-    /// Global allocation budget limit.
+    ///  Global allocation budget limit.
     pub budget_limit: nat,
-    /// False after the allocator is destroyed.
+    ///  False after the allocator is destroyed.
     pub alive: bool,
 }
 
-// ── Helper Specs ──────────────────────────────────────────────────────
+//  ── Helper Specs ──────────────────────────────────────────────────────
 
-/// End offset of a free block.
+///  End offset of a free block.
 pub open spec fn free_block_end(block: FreeBlock) -> nat {
     block.offset + block.size
 }
 
-/// End offset of an allocation.
+///  End offset of an allocation.
 pub open spec fn alloc_end(alloc: AllocationRecord) -> nat {
     alloc.offset + alloc.size
 }
 
-/// Round up `offset` to the next multiple of `alignment`.
+///  Round up `offset` to the next multiple of `alignment`.
 pub open spec fn align_up(offset: nat, alignment: nat) -> nat
     recommends alignment > 0,
 {
@@ -84,12 +84,12 @@ pub open spec fn align_up(offset: nat, alignment: nat) -> nat
     else { (offset + alignment - offset % alignment) as nat }
 }
 
-/// True iff `offset` is a multiple of `alignment`.
+///  True iff `offset` is a multiple of `alignment`.
 pub open spec fn is_aligned(offset: nat, alignment: nat) -> bool {
     alignment > 0 && offset % alignment == 0
 }
 
-/// Sum of sizes in a free list.
+///  Sum of sizes in a free list.
 pub open spec fn free_list_total_size(free_list: Seq<FreeBlock>) -> nat
     decreases free_list.len(),
 {
@@ -100,7 +100,7 @@ pub open spec fn free_list_total_size(free_list: Seq<FreeBlock>) -> nat
     }
 }
 
-/// Size of the largest free block.
+///  Size of the largest free block.
 pub open spec fn largest_free_block(free_list: Seq<FreeBlock>) -> nat
     decreases free_list.len(),
 {
@@ -113,14 +113,14 @@ pub open spec fn largest_free_block(free_list: Seq<FreeBlock>) -> nat
     }
 }
 
-/// True iff `n` is a power of 2.
+///  True iff `n` is a power of 2.
 pub open spec fn is_power_of_two(n: nat) -> bool
     decreases n,
 {
     n == 1 || (n > 1 && n % 2 == 0 && is_power_of_two(n / 2))
 }
 
-/// Smallest power of 2 >= size.
+///  Smallest power of 2 >= size.
 pub open spec fn buddy_round_up(size: nat) -> nat
     recommends size > 0,
     decreases size,
@@ -129,7 +129,7 @@ pub open spec fn buddy_round_up(size: nat) -> nat
     else { 2 * buddy_round_up((size + 1) / 2) }
 }
 
-/// Insert a free block into a sorted free list maintaining offset order.
+///  Insert a free block into a sorted free list maintaining offset order.
 pub open spec fn insert_free_block_sorted(
     free_list: Seq<FreeBlock>, block: FreeBlock,
 ) -> Seq<FreeBlock>
@@ -146,9 +146,9 @@ pub open spec fn insert_free_block_sorted(
     }
 }
 
-// ── Well-Formedness Specs ────────────────────────────────────────────
+//  ── Well-Formedness Specs ────────────────────────────────────────────
 
-/// Free list is sorted by offset (strictly increasing).
+///  Free list is sorted by offset (strictly increasing).
 pub open spec fn free_list_sorted(free_list: Seq<FreeBlock>) -> bool {
     forall|i: nat|
         #![trigger free_list[i as int]]
@@ -156,7 +156,7 @@ pub open spec fn free_list_sorted(free_list: Seq<FreeBlock>) -> bool {
         ==> free_list[i as int].offset < free_list[(i + 1) as int].offset
 }
 
-/// Free list blocks are non-overlapping.
+///  Free list blocks are non-overlapping.
 pub open spec fn free_list_non_overlapping(free_list: Seq<FreeBlock>) -> bool {
     forall|i: nat|
         #![trigger free_list[i as int]]
@@ -164,7 +164,7 @@ pub open spec fn free_list_non_overlapping(free_list: Seq<FreeBlock>) -> bool {
         ==> free_block_end(free_list[i as int]) <= free_list[(i + 1) as int].offset
 }
 
-/// All free blocks lie within [0, block_size).
+///  All free blocks lie within [0, block_size).
 pub open spec fn free_list_within_bounds(free_list: Seq<FreeBlock>, block_size: nat) -> bool {
     forall|i: nat|
         #![trigger free_list[i as int]]
@@ -172,14 +172,14 @@ pub open spec fn free_list_within_bounds(free_list: Seq<FreeBlock>, block_size: 
         ==> free_block_end(free_list[i as int]) <= block_size
 }
 
-/// All free blocks have positive size.
+///  All free blocks have positive size.
 pub open spec fn free_list_positive_sizes(free_list: Seq<FreeBlock>) -> bool {
     forall|i: nat|
         #![trigger free_list[i as int]]
         i < free_list.len() ==> free_list[i as int].size > 0
 }
 
-/// The free list is well-formed for the given block size.
+///  The free list is well-formed for the given block size.
 pub open spec fn free_list_well_formed(free_list: Seq<FreeBlock>, block_size: nat) -> bool {
     free_list_sorted(free_list)
     && free_list_non_overlapping(free_list)
@@ -187,7 +187,7 @@ pub open spec fn free_list_well_formed(free_list: Seq<FreeBlock>, block_size: na
     && free_list_positive_sizes(free_list)
 }
 
-/// All allocations lie within [0, block_size) and have positive size.
+///  All allocations lie within [0, block_size) and have positive size.
 pub open spec fn allocations_within_bounds(
     allocs: Map<nat, AllocationRecord>, block_size: nat,
 ) -> bool {
@@ -197,7 +197,7 @@ pub open spec fn allocations_within_bounds(
         ==> alloc_end(allocs[id]) <= block_size && allocs[id].size > 0
 }
 
-/// No two allocations overlap.
+///  No two allocations overlap.
 pub open spec fn allocations_non_overlapping(allocs: Map<nat, AllocationRecord>) -> bool {
     forall|id1: nat, id2: nat|
         #![trigger allocs[id1], allocs[id2]]
@@ -206,7 +206,7 @@ pub open spec fn allocations_non_overlapping(allocs: Map<nat, AllocationRecord>)
             || alloc_end(allocs[id2]) <= allocs[id1].offset
 }
 
-/// Allocations are well-formed for the given block size.
+///  Allocations are well-formed for the given block size.
 pub open spec fn allocations_well_formed(
     allocs: Map<nat, AllocationRecord>, block_size: nat,
 ) -> bool {
@@ -214,7 +214,7 @@ pub open spec fn allocations_well_formed(
     && allocations_non_overlapping(allocs)
 }
 
-/// No allocation overlaps any free block.
+///  No allocation overlaps any free block.
 pub open spec fn no_overlap_alloc_free(
     allocs: Map<nat, AllocationRecord>,
     free_list: Seq<FreeBlock>,
@@ -226,7 +226,7 @@ pub open spec fn no_overlap_alloc_free(
             || free_block_end(free_list[fi as int]) <= allocs[id].offset
 }
 
-/// Total allocated + total free = block size.
+///  Total allocated + total free = block size.
 pub open spec fn total_coverage(
     total_alloc_size: nat,
     free_list: Seq<FreeBlock>,
@@ -235,7 +235,7 @@ pub open spec fn total_coverage(
     total_alloc_size + free_list_total_size(free_list) == block_size
 }
 
-/// All allocation IDs are less than next_id.
+///  All allocation IDs are less than next_id.
 pub open spec fn all_ids_below_next(
     allocs: Map<nat, AllocationRecord>, next_id: nat,
 ) -> bool {
@@ -244,7 +244,7 @@ pub open spec fn all_ids_below_next(
         allocs.contains_key(id) ==> id < next_id
 }
 
-/// A sub-allocator is well-formed.
+///  A sub-allocator is well-formed.
 pub open spec fn sub_allocator_well_formed(sub: SubAllocatorState) -> bool {
     free_list_well_formed(sub.free_list, sub.block_size)
     && allocations_well_formed(sub.allocations, sub.block_size)
@@ -254,7 +254,7 @@ pub open spec fn sub_allocator_well_formed(sub: SubAllocatorState) -> bool {
     && sub.block_size > 0
 }
 
-/// The top-level allocator is well-formed.
+///  The top-level allocator is well-formed.
 pub open spec fn allocator_well_formed(alloc: AllocatorState) -> bool {
     alloc.alive
     && alloc.memory_types.len() == alloc.sub_allocators.len()
@@ -265,16 +265,16 @@ pub open spec fn allocator_well_formed(alloc: AllocatorState) -> bool {
     && within_budget(alloc)
 }
 
-// ── Allocation Specs ────────────────────────────────────────────────
+//  ── Allocation Specs ────────────────────────────────────────────────
 
-/// True iff a free block can accommodate an aligned allocation of `size`.
+///  True iff a free block can accommodate an aligned allocation of `size`.
 pub open spec fn block_can_fit(block: FreeBlock, size: nat, alignment: nat) -> bool {
     alignment > 0
     && size > 0
     && align_up(block.offset, alignment) + size <= free_block_end(block)
 }
 
-/// True iff there exists a free block that can fit the request.
+///  True iff there exists a free block that can fit the request.
 pub open spec fn can_allocate(sub: SubAllocatorState, size: nat, alignment: nat) -> bool {
     exists|i: nat|
         #![trigger sub.free_list[i as int]]
@@ -282,7 +282,7 @@ pub open spec fn can_allocate(sub: SubAllocatorState, size: nat, alignment: nat)
         && block_can_fit(sub.free_list[i as int], size, alignment)
 }
 
-/// Find the first free block that fits (first-fit strategy).
+///  Find the first free block that fits (first-fit strategy).
 pub open spec fn find_best_fit(
     free_list: Seq<FreeBlock>, size: nat, alignment: nat,
 ) -> Option<nat>
@@ -302,7 +302,7 @@ pub open spec fn find_best_fit(
     }
 }
 
-/// Create an allocation at free block `block_idx`, splitting it as needed.
+///  Create an allocation at free block `block_idx`, splitting it as needed.
 pub open spec fn allocate_at(
     sub: SubAllocatorState, block_idx: nat, size: nat, alignment: nat,
 ) -> (SubAllocatorState, AllocationRecord)
@@ -348,7 +348,7 @@ pub open spec fn allocate_at(
     }, alloc)
 }
 
-/// Perform a first-fit allocation.
+///  Perform a first-fit allocation.
 pub open spec fn allocate_from_block(
     sub: SubAllocatorState, size: nat, alignment: nat,
 ) -> Option<(SubAllocatorState, AllocationRecord)> {
@@ -358,7 +358,7 @@ pub open spec fn allocate_from_block(
     }
 }
 
-/// Free an allocation by ID, returning its space to the sorted free list.
+///  Free an allocation by ID, returning its space to the sorted free list.
 pub open spec fn free_allocation(
     sub: SubAllocatorState, alloc_id: nat,
 ) -> SubAllocatorState
@@ -378,7 +378,7 @@ pub open spec fn free_allocation(
     }
 }
 
-/// Merge adjacent free blocks in a sorted free list.
+///  Merge adjacent free blocks in a sorted free list.
 pub open spec fn coalesce_free_list(free_list: Seq<FreeBlock>) -> Seq<FreeBlock>
     decreases free_list.len(),
 {
@@ -398,7 +398,7 @@ pub open spec fn coalesce_free_list(free_list: Seq<FreeBlock>) -> Seq<FreeBlock>
     }
 }
 
-/// Split a buddy block into two equal halves.
+///  Split a buddy block into two equal halves.
 pub open spec fn buddy_split(block: FreeBlock) -> (FreeBlock, FreeBlock)
     recommends block.size >= 2,
 {
@@ -409,7 +409,7 @@ pub open spec fn buddy_split(block: FreeBlock) -> (FreeBlock, FreeBlock)
     )
 }
 
-/// Buddy-system allocation: round up size and allocate.
+///  Buddy-system allocation: round up size and allocate.
 pub open spec fn buddy_allocate(
     sub: SubAllocatorState, size: nat, alignment: nat,
 ) -> Option<(SubAllocatorState, AllocationRecord)>
@@ -418,14 +418,14 @@ pub open spec fn buddy_allocate(
     allocate_from_block(sub, buddy_round_up(size), alignment)
 }
 
-/// Buddy-system free: free and coalesce.
+///  Buddy-system free: free and coalesce.
 pub open spec fn buddy_free(sub: SubAllocatorState, alloc_id: nat) -> SubAllocatorState
     recommends sub.allocations.contains_key(alloc_id),
 {
     defragment_step(free_allocation(sub, alloc_id))
 }
 
-/// Compute external fragmentation: total free - largest free block.
+///  Compute external fragmentation: total free - largest free block.
 pub open spec fn compute_fragmentation(sub: SubAllocatorState) -> nat
     recommends largest_free_block(sub.free_list) <= free_list_total_size(sub.free_list),
 {
@@ -434,12 +434,12 @@ pub open spec fn compute_fragmentation(sub: SubAllocatorState) -> nat
     (total_free - largest) as nat
 }
 
-/// True iff the allocator is within its budget.
+///  True iff the allocator is within its budget.
 pub open spec fn within_budget(alloc: AllocatorState) -> bool {
     alloc.total_allocated <= alloc.budget_limit
 }
 
-/// Defragment by coalescing the free list.
+///  Defragment by coalescing the free list.
 pub open spec fn defragment_step(sub: SubAllocatorState) -> SubAllocatorState {
     SubAllocatorState {
         free_list: coalesce_free_list(sub.free_list),
@@ -447,39 +447,39 @@ pub open spec fn defragment_step(sub: SubAllocatorState) -> SubAllocatorState {
     }
 }
 
-// ── Extended Specs ──────────────────────────────────────────────────
+//  ── Extended Specs ──────────────────────────────────────────────────
 
-/// Free space in a sub-allocator.
+///  Free space in a sub-allocator.
 pub open spec fn sub_allocator_free_space(sub: SubAllocatorState) -> nat {
     free_list_total_size(sub.free_list)
 }
 
-/// Utilization of a sub-allocator (allocated / block_size as ratio numerator).
+///  Utilization of a sub-allocator (allocated / block_size as ratio numerator).
 pub open spec fn sub_allocator_utilization(sub: SubAllocatorState) -> nat {
     sub.total_alloc_size
 }
 
-/// Number of free blocks.
+///  Number of free blocks.
 pub open spec fn free_block_count(sub: SubAllocatorState) -> nat {
     sub.free_list.len()
 }
 
-/// True iff the sub-allocator has no live allocations.
+///  True iff the sub-allocator has no live allocations.
 pub open spec fn is_empty_sub_allocator(sub: SubAllocatorState) -> bool {
     sub.total_alloc_size == 0
 }
 
-/// True iff two free blocks are adjacent (one ends where the other starts).
+///  True iff two free blocks are adjacent (one ends where the other starts).
 pub open spec fn blocks_adjacent(a: FreeBlock, b: FreeBlock) -> bool {
     free_block_end(a) == b.offset
 }
 
-/// True iff two free blocks can be merged.
+///  True iff two free blocks can be merged.
 pub open spec fn can_merge_blocks(a: FreeBlock, b: FreeBlock) -> bool {
     blocks_adjacent(a, b) || blocks_adjacent(b, a)
 }
 
-/// True iff the free list has no gaps (contiguous from first to last block).
+///  True iff the free list has no gaps (contiguous from first to last block).
 pub open spec fn free_list_contiguous(free_list: Seq<FreeBlock>) -> bool {
     forall|i: nat|
         #![trigger free_list[i as int]]
@@ -487,7 +487,7 @@ pub open spec fn free_list_contiguous(free_list: Seq<FreeBlock>) -> bool {
         ==> free_block_end(free_list[i as int]) == free_list[(i + 1) as int].offset
 }
 
-/// True iff a slab sub-allocator can fit an allocation of the given size.
+///  True iff a slab sub-allocator can fit an allocation of the given size.
 pub open spec fn slab_fits(sub: SubAllocatorState, size: nat) -> bool {
     match sub.strategy {
         AllocationStrategy::Slab { slab_size } => size <= slab_size && sub.free_list.len() > 0,
@@ -495,7 +495,7 @@ pub open spec fn slab_fits(sub: SubAllocatorState, size: nat) -> bool {
     }
 }
 
-/// Ghost update: destroy the allocator.
+///  Ghost update: destroy the allocator.
 pub open spec fn destroy_allocator(alloc: AllocatorState) -> AllocatorState {
     AllocatorState {
         alive: false,
@@ -503,7 +503,7 @@ pub open spec fn destroy_allocator(alloc: AllocatorState) -> AllocatorState {
     }
 }
 
-/// Create a fresh sub-allocator with default state.
+///  Create a fresh sub-allocator with default state.
 pub open spec fn create_sub_allocator(id: nat, size: nat, strategy: AllocationStrategy) -> SubAllocatorState {
     SubAllocatorState {
         memory_block_id: id,
@@ -517,40 +517,40 @@ pub open spec fn create_sub_allocator(id: nat, size: nat, strategy: AllocationSt
     }
 }
 
-/// Number of free blocks after coalescing.
+///  Number of free blocks after coalescing.
 pub open spec fn coalesced_block_count(free_list: Seq<FreeBlock>) -> nat {
     coalesce_free_list(free_list).len()
 }
 
-/// Free list total covers the full block when fully free.
+///  Free list total covers the full block when fully free.
 pub open spec fn fully_free(sub: SubAllocatorState) -> bool {
     sub.total_alloc_size == 0
     && free_list_total_size(sub.free_list) == sub.block_size
 }
 
-/// Fragmentation ratio: 0 means no fragmentation, higher means more.
+///  Fragmentation ratio: 0 means no fragmentation, higher means more.
 pub open spec fn fragmentation_ratio(sub: SubAllocatorState) -> nat {
     if sub.free_list.len() == 0 { 0 }
     else { (sub.free_list.len() - 1) as nat }
 }
 
-/// Sub-allocator is fully allocated (no free space).
+///  Sub-allocator is fully allocated (no free space).
 pub open spec fn fully_allocated(sub: SubAllocatorState) -> bool {
     sub.free_list.len() == 0
 }
 
-/// Sum of allocation sizes matches total_alloc_size (spec-level invariant).
+///  Sum of allocation sizes matches total_alloc_size (spec-level invariant).
 pub open spec fn alloc_sizes_sum_correct(sub: SubAllocatorState) -> bool {
     sub.total_alloc_size + free_list_total_size(sub.free_list) == sub.block_size
 }
 
-// ── Safety Lemmas ────────────────────────────────────────────────────
+//  ── Safety Lemmas ────────────────────────────────────────────────────
 
-/// Double-free is prevented: after freeing, the allocation is removed.
+///  Double-free is prevented: after freeing, the allocation is removed.
 pub proof fn lemma_free_removes_allocation(sub: SubAllocatorState, alloc_id: nat)
     requires sub.allocations.contains_key(alloc_id),
     ensures !free_allocation(sub, alloc_id).allocations.contains_key(alloc_id),
 {
 }
 
-} // verus!
+} //  verus!

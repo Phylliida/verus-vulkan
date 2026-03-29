@@ -6,11 +6,11 @@ use super::device::RuntimeDevice;
 
 verus! {
 
-/// Runtime wrapper for a Vulkan event (VkEvent).
+///  Runtime wrapper for a Vulkan event (VkEvent).
 pub struct RuntimeEvent {
-    /// Opaque handle (maps to VkEvent).
+    ///  Opaque handle (maps to VkEvent).
     pub handle: u64,
-    /// Ghost model of the event state.
+    ///  Ghost model of the event state.
     pub state: Ghost<EventState>,
 }
 
@@ -19,12 +19,12 @@ impl View for RuntimeEvent {
     open spec fn view(&self) -> EventState { self.state@ }
 }
 
-/// Well-formedness of the runtime event.
+///  Well-formedness of the runtime event.
 pub open spec fn runtime_event_wf(event: &RuntimeEvent) -> bool {
     event_well_formed(event@)
 }
 
-/// Exec: create an event.
+///  Exec: create an event.
 pub fn create_event_exec(id: Ghost<nat>) -> (out: RuntimeEvent)
     ensures
         out@ == create_event(id@),
@@ -36,7 +36,7 @@ pub fn create_event_exec(id: Ghost<nat>) -> (out: RuntimeEvent)
     }
 }
 
-/// Exec: destroy an event.
+///  Exec: destroy an event.
 pub fn destroy_event_exec(
     event: &mut RuntimeEvent,
     dev: &RuntimeDevice,
@@ -55,7 +55,7 @@ pub fn destroy_event_exec(
     event.state = Ghost(destroy_event(event.state@));
 }
 
-/// Exec: set (signal) an event at specific pipeline stages.
+///  Exec: set (signal) an event at specific pipeline stages.
 pub fn set_event_exec(
     event: &mut RuntimeEvent,
     stages: Ghost<Set<nat>>,
@@ -69,7 +69,7 @@ pub fn set_event_exec(
     event.state = Ghost(set_event(event.state@, stages@));
 }
 
-/// Exec: reset an event.
+///  Exec: reset an event.
 pub fn reset_event_exec(event: &mut RuntimeEvent)
     requires
         runtime_event_wf(&*old(event)),
@@ -80,19 +80,19 @@ pub fn reset_event_exec(event: &mut RuntimeEvent)
     event.state = Ghost(reset_event(event.state@));
 }
 
-// ── Specs & Proofs ──────────────────────────────────────────────────
+//  ── Specs & Proofs ──────────────────────────────────────────────────
 
-/// Event is alive.
+///  Event is alive.
 pub open spec fn event_alive(event: &RuntimeEvent) -> bool {
     event@.alive
 }
 
-/// Event is signaled.
+///  Event is signaled.
 pub open spec fn event_signaled(event: &RuntimeEvent) -> bool {
     event@.signaled
 }
 
-/// Proof: creating an event produces an alive, unsignaled event.
+///  Proof: creating an event produces an alive, unsignaled event.
 pub proof fn lemma_create_event_alive(id: Ghost<nat>)
     ensures
         event_alive(&RuntimeEvent {
@@ -106,11 +106,11 @@ pub proof fn lemma_create_event_alive(id: Ghost<nat>)
 {
 }
 
-/// Proof: destroying an event preserves its id.
+///  Proof: destroying an event preserves its id.
 pub proof fn lemma_destroy_event_preserves_id(event: &RuntimeEvent)
     requires runtime_event_wf(event),
     ensures destroy_event(event@).id == event@.id,
 {
 }
 
-} // verus!
+} //  verus!

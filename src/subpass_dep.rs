@@ -3,51 +3,51 @@ use crate::flags::*;
 
 verus! {
 
-// ── Types ───────────────────────────────────────────────────────────────
+//  ── Types ───────────────────────────────────────────────────────────────
 
-/// Extended subpass dependency that supports self-dependencies.
+///  Extended subpass dependency that supports self-dependencies.
 ///
-/// In Vulkan, a self-dependency (src_subpass == dst_subpass) is valid
-/// when the BY_REGION bit is set. This enables tile-based deferred
-/// rendering (TBDR) optimizations on mobile GPUs where a subpass
-/// reads its own output within the same tile.
+///  In Vulkan, a self-dependency (src_subpass == dst_subpass) is valid
+///  when the BY_REGION bit is set. This enables tile-based deferred
+///  rendering (TBDR) optimizations on mobile GPUs where a subpass
+///  reads its own output within the same tile.
 pub struct ExtendedSubpassDependency {
     pub src_subpass: nat,
     pub dst_subpass: nat,
-    /// Whether the dependency is framebuffer-local (BY_REGION).
+    ///  Whether the dependency is framebuffer-local (BY_REGION).
     pub by_region: bool,
-    /// Source pipeline stages.
+    ///  Source pipeline stages.
     pub src_stage_mask: PipelineStageFlags,
-    /// Destination pipeline stages.
+    ///  Destination pipeline stages.
     pub dst_stage_mask: PipelineStageFlags,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// A self-dependency: source and destination are the same subpass.
+///  A self-dependency: source and destination are the same subpass.
 pub open spec fn is_self_dependency(dep: ExtendedSubpassDependency) -> bool {
     dep.src_subpass == dep.dst_subpass
 }
 
-/// A self-dependency is valid only with BY_REGION flag.
+///  A self-dependency is valid only with BY_REGION flag.
 pub open spec fn self_dependency_valid(dep: ExtendedSubpassDependency) -> bool {
     is_self_dependency(dep) ==> dep.by_region
 }
 
-/// Extended dependency is well-formed within a render pass.
+///  Extended dependency is well-formed within a render pass.
 pub open spec fn extended_dependency_well_formed(
     dep: ExtendedSubpassDependency,
     subpass_count: nat,
 ) -> bool {
     dep.src_subpass < subpass_count
     && dep.dst_subpass < subpass_count
-    // Non-self dependencies must have src before dst
+    //  Non-self dependencies must have src before dst
     && (!is_self_dependency(dep) ==> dep.src_subpass < dep.dst_subpass)
-    // Self-dependencies must have BY_REGION
+    //  Self-dependencies must have BY_REGION
     && self_dependency_valid(dep)
 }
 
-/// All extended dependencies in a render pass are well-formed.
+///  All extended dependencies in a render pass are well-formed.
 pub open spec fn all_extended_deps_well_formed(
     deps: Seq<ExtendedSubpassDependency>,
     subpass_count: nat,
@@ -56,8 +56,8 @@ pub open spec fn all_extended_deps_well_formed(
         extended_dependency_well_formed(#[trigger] deps[i], subpass_count)
 }
 
-/// A self-dependency barrier is needed at a subpass if there is a
-/// self-dependency declared for that subpass.
+///  A self-dependency barrier is needed at a subpass if there is a
+///  self-dependency declared for that subpass.
 pub open spec fn has_self_dependency(
     deps: Seq<ExtendedSubpassDependency>,
     subpass_idx: nat,
@@ -67,9 +67,9 @@ pub open spec fn has_self_dependency(
         && deps[i].dst_subpass == subpass_idx
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// A self-dependency with BY_REGION is valid.
+///  A self-dependency with BY_REGION is valid.
 pub proof fn lemma_self_dep_with_by_region_valid(
     dep: ExtendedSubpassDependency,
 )
@@ -81,7 +81,7 @@ pub proof fn lemma_self_dep_with_by_region_valid(
 {
 }
 
-/// A non-self dependency has src < dst when well-formed.
+///  A non-self dependency has src < dst when well-formed.
 pub proof fn lemma_non_self_dep_ordered(
     dep: ExtendedSubpassDependency,
     subpass_count: nat,
@@ -96,14 +96,14 @@ pub proof fn lemma_non_self_dep_ordered(
 {
 }
 
-/// Empty dependency list is trivially well-formed.
+///  Empty dependency list is trivially well-formed.
 pub proof fn lemma_empty_deps_well_formed(subpass_count: nat)
     ensures all_extended_deps_well_formed(Seq::empty(), subpass_count),
 {
 }
 
-/// If there is no self-dependency for a subpass, the subpass does not
-/// need a mid-subpass barrier.
+///  If there is no self-dependency for a subpass, the subpass does not
+///  need a mid-subpass barrier.
 pub proof fn lemma_no_self_dep_no_barrier(
     deps: Seq<ExtendedSubpassDependency>,
     subpass_idx: nat,
@@ -116,7 +116,7 @@ pub proof fn lemma_no_self_dep_no_barrier(
 {
 }
 
-/// A self-dependency implies BY_REGION when all deps are well-formed.
+///  A self-dependency implies BY_REGION when all deps are well-formed.
 pub proof fn lemma_self_dep_implies_by_region(
     deps: Seq<ExtendedSubpassDependency>,
     subpass_count: nat,
@@ -136,8 +136,8 @@ pub proof fn lemma_self_dep_implies_by_region(
     assert(self_dependency_valid(deps[k]));
 }
 
-/// A well-formed extended dependency with src != dst is a valid
-/// original-style dependency (src < dst).
+///  A well-formed extended dependency with src != dst is a valid
+///  original-style dependency (src < dst).
 pub proof fn lemma_extended_backwards_compatible(
     dep: ExtendedSubpassDependency,
     subpass_count: nat,
@@ -150,7 +150,7 @@ pub proof fn lemma_extended_backwards_compatible(
 {
 }
 
-/// A single-subpass render pass cannot have non-self dependencies.
+///  A single-subpass render pass cannot have non-self dependencies.
 pub proof fn lemma_single_subpass_only_self_deps(
     dep: ExtendedSubpassDependency,
 )
@@ -160,9 +160,9 @@ pub proof fn lemma_single_subpass_only_self_deps(
         is_self_dependency(dep),
         dep.by_region,
 {
-    // src < 1 and dst < 1 means both are 0
+    //  src < 1 and dst < 1 means both are 0
     assert(dep.src_subpass == 0);
     assert(dep.dst_subpass == 0);
 }
 
-} // verus!
+} //  verus!

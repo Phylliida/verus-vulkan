@@ -8,11 +8,11 @@ use super::command_buffer::cb_no_pending_work;
 
 verus! {
 
-/// Runtime wrapper for a Vulkan command pool.
+///  Runtime wrapper for a Vulkan command pool.
 pub struct RuntimeCommandPool {
-    /// Opaque handle (maps to VkCommandPool).
+    ///  Opaque handle (maps to VkCommandPool).
     pub handle: u64,
-    /// Ghost model of the command pool state.
+    ///  Ghost model of the command pool state.
     pub state: Ghost<CommandPoolState>,
 }
 
@@ -21,12 +21,12 @@ impl View for RuntimeCommandPool {
     open spec fn view(&self) -> CommandPoolState { self.state@ }
 }
 
-/// Well-formedness of the runtime command pool.
+///  Well-formedness of the runtime command pool.
 pub open spec fn runtime_command_pool_wf(pool: &RuntimeCommandPool) -> bool {
     command_pool_well_formed(pool@)
 }
 
-/// Exec: create a command pool.
+///  Exec: create a command pool.
 pub fn create_command_pool_exec(
     id: Ghost<nat>,
     queue_family: Ghost<nat>,
@@ -44,8 +44,8 @@ pub fn create_command_pool_exec(
     }
 }
 
-/// Exec: destroy a command pool.
-/// Caller must prove the pool is empty and holds exclusive access.
+///  Exec: destroy a command pool.
+///  Caller must prove the pool is empty and holds exclusive access.
 pub fn destroy_command_pool_exec(
     pool: &mut RuntimeCommandPool,
     dev: &RuntimeDevice,
@@ -55,7 +55,7 @@ pub fn destroy_command_pool_exec(
     requires
         runtime_command_pool_wf(&*old(pool)),
         pool_empty(old(pool)@),
-        // All pending submissions must be completed (CBs from this pool may be in-flight)
+        //  All pending submissions must be completed (CBs from this pool may be in-flight)
         forall|i: int| 0 <= i < dev@.pending_submissions.len()
             ==> (#[trigger] dev@.pending_submissions[i]).completed,
         holds_exclusive(reg@, SyncObjectId::CommandPool(old(pool)@.id), thread@),
@@ -66,8 +66,8 @@ pub fn destroy_command_pool_exec(
     pool.state = Ghost(destroy_command_pool_ghost(pool.state@));
 }
 
-/// Exec: reset a command pool (all allocated CBs go to Initial state).
-/// Returns the set of CBs that were reset.
+///  Exec: reset a command pool (all allocated CBs go to Initial state).
+///  Returns the set of CBs that were reset.
 pub fn reset_command_pool_exec(
     pool: &RuntimeCommandPool,
     dev: &RuntimeDevice,
@@ -76,7 +76,7 @@ pub fn reset_command_pool_exec(
 ) -> (out: Ghost<Set<nat>>)
     requires
         runtime_command_pool_wf(pool),
-        // All pending submissions must be completed (CBs from this pool may be in-flight)
+        //  All pending submissions must be completed (CBs from this pool may be in-flight)
         forall|i: int| 0 <= i < dev@.pending_submissions.len()
             ==> (#[trigger] dev@.pending_submissions[i]).completed,
         holds_exclusive(reg@, SyncObjectId::CommandPool(pool@.id), thread@),
@@ -86,14 +86,14 @@ pub fn reset_command_pool_exec(
     Ghost(reset_pool_cbs(pool.state@, thread@, reg@).unwrap())
 }
 
-// ── Extended Specs & Proofs ──────────────────────────────────────────
+//  ── Extended Specs & Proofs ──────────────────────────────────────────
 
-/// Command pool is alive.
+///  Command pool is alive.
 pub open spec fn command_pool_alive(pool: &RuntimeCommandPool) -> bool {
     pool@.alive
 }
 
-/// Proof: creating a command pool produces an alive pool.
+///  Proof: creating a command pool produces an alive pool.
 pub proof fn lemma_create_command_pool_alive(
     id: Ghost<nat>,
     queue_family: Ghost<nat>,
@@ -107,7 +107,7 @@ pub proof fn lemma_create_command_pool_alive(
     lemma_fresh_pool_well_formed(id@, queue_family@, individual_reset);
 }
 
-/// Proof: fresh pool is empty.
+///  Proof: fresh pool is empty.
 pub proof fn lemma_create_command_pool_empty(
     id: Ghost<nat>,
     queue_family: Ghost<nat>,
@@ -118,16 +118,16 @@ pub proof fn lemma_create_command_pool_empty(
     lemma_fresh_pool_empty(id@, queue_family@, individual_reset);
 }
 
-/// Proof: destroying a pool preserves its id.
+///  Proof: destroying a pool preserves its id.
 pub proof fn lemma_destroy_command_pool_preserves_id_rt(pool: &RuntimeCommandPool)
     requires runtime_command_pool_wf(pool),
     ensures destroy_command_pool_ghost(pool@).id == pool@.id,
 {
 }
 
-// ── Allocate / Free CB ──────────────────────────────────────────────
+//  ── Allocate / Free CB ──────────────────────────────────────────────
 
-/// Exec: allocate a command buffer from the pool.
+///  Exec: allocate a command buffer from the pool.
 pub fn allocate_cb_exec(
     pool: &mut RuntimeCommandPool,
     cb_id: Ghost<nat>,
@@ -148,7 +148,7 @@ pub fn allocate_cb_exec(
     pool.state = Ghost(allocate_cb(pool.state@, cb_id@, thread@, reg@).unwrap());
 }
 
-/// Exec: free a command buffer back to the pool.
+///  Exec: free a command buffer back to the pool.
 pub fn free_cb_exec(
     pool: &mut RuntimeCommandPool,
     cb_id: Ghost<nat>,
@@ -171,7 +171,7 @@ pub fn free_cb_exec(
     pool.state = Ghost(free_cb(pool.state@, cb_id@, thread@, reg@).unwrap());
 }
 
-/// Proof: allocating a CB preserves pool well-formedness.
+///  Proof: allocating a CB preserves pool well-formedness.
 pub proof fn lemma_allocate_preserves_wf(
     pool: CommandPoolState,
     cb_id: nat,
@@ -186,7 +186,7 @@ pub proof fn lemma_allocate_preserves_wf(
 {
 }
 
-/// Proof: freeing a CB preserves pool well-formedness.
+///  Proof: freeing a CB preserves pool well-formedness.
 pub proof fn lemma_free_preserves_wf(
     pool: CommandPoolState,
     cb_id: nat,
@@ -201,4 +201,4 @@ pub proof fn lemma_free_preserves_wf(
 {
 }
 
-} // verus!
+} //  verus!

@@ -3,23 +3,23 @@ use crate::descriptor::*;
 
 verus! {
 
-// ── Types ───────────────────────────────────────────────────────────────
+//  ── Types ───────────────────────────────────────────────────────────────
 
-/// A single descriptor write operation.
+///  A single descriptor write operation.
 pub struct DescriptorWrite {
-    /// Target descriptor set id.
+    ///  Target descriptor set id.
     pub dst_set: nat,
-    /// Target binding index.
+    ///  Target binding index.
     pub dst_binding: nat,
-    /// Target array element within the binding.
+    ///  Target array element within the binding.
     pub dst_array_element: nat,
-    /// Type of descriptor being written.
+    ///  Type of descriptor being written.
     pub descriptor_type: DescriptorType,
-    /// Number of descriptors to update.
+    ///  Number of descriptors to update.
     pub descriptor_count: nat,
 }
 
-/// A single descriptor copy operation.
+///  A single descriptor copy operation.
 pub struct DescriptorCopy {
     pub src_set: nat,
     pub src_binding: nat,
@@ -30,9 +30,9 @@ pub struct DescriptorCopy {
     pub descriptor_count: nat,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// A descriptor write targets a valid binding in the set.
+///  A descriptor write targets a valid binding in the set.
 pub open spec fn write_targets_valid_binding(
     write: DescriptorWrite,
     set: DescriptorSetState,
@@ -40,7 +40,7 @@ pub open spec fn write_targets_valid_binding(
     set.bindings.contains_key(write.dst_binding)
 }
 
-/// A descriptor write type matches the layout binding type.
+///  A descriptor write type matches the layout binding type.
 pub open spec fn write_type_matches_layout(
     write: DescriptorWrite,
     layout: DescriptorSetLayoutState,
@@ -50,7 +50,7 @@ pub open spec fn write_type_matches_layout(
         && layout.bindings[i].descriptor_type == write.descriptor_type
 }
 
-/// Apply a write: mark the binding as non-empty.
+///  Apply a write: mark the binding as non-empty.
 pub open spec fn apply_write(
     set: DescriptorSetState,
     write: DescriptorWrite,
@@ -62,7 +62,7 @@ pub open spec fn apply_write(
     }
 }
 
-/// Apply a copy: copy binding state from source to destination.
+///  Apply a copy: copy binding state from source to destination.
 pub open spec fn apply_copy(
     dst_set: DescriptorSetState,
     src_set: DescriptorSetState,
@@ -81,7 +81,7 @@ pub open spec fn apply_copy(
     }
 }
 
-/// A batch of writes are all valid.
+///  A batch of writes are all valid.
 pub open spec fn all_writes_valid(
     writes: Seq<DescriptorWrite>,
     set: DescriptorSetState,
@@ -90,7 +90,7 @@ pub open spec fn all_writes_valid(
         ==> write_targets_valid_binding(#[trigger] writes[i], set)
 }
 
-/// Apply a sequence of writes.
+///  Apply a sequence of writes.
 pub open spec fn apply_writes(
     set: DescriptorSetState,
     writes: Seq<(DescriptorWrite, DescriptorBinding)>,
@@ -109,9 +109,9 @@ pub open spec fn apply_writes(
     }
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// After a write, the target binding is set.
+///  After a write, the target binding is set.
 pub proof fn lemma_write_sets_binding(
     set: DescriptorSetState,
     write: DescriptorWrite,
@@ -125,7 +125,7 @@ pub proof fn lemma_write_sets_binding(
 {
 }
 
-/// A write preserves other bindings.
+///  A write preserves other bindings.
 pub proof fn lemma_write_preserves_other_bindings(
     set: DescriptorSetState,
     write: DescriptorWrite,
@@ -141,7 +141,7 @@ pub proof fn lemma_write_preserves_other_bindings(
 {
 }
 
-/// A write preserves the set's layout.
+///  A write preserves the set's layout.
 pub proof fn lemma_write_preserves_layout(
     set: DescriptorSetState,
     write: DescriptorWrite,
@@ -152,14 +152,14 @@ pub proof fn lemma_write_preserves_layout(
 {
 }
 
-/// Empty writes don't change the set.
+///  Empty writes don't change the set.
 pub proof fn lemma_empty_writes_identity(set: DescriptorSetState)
     ensures
         apply_writes(set, Seq::empty()) == set,
 {
 }
 
-/// A copy preserves the destination set's layout.
+///  A copy preserves the destination set's layout.
 pub proof fn lemma_copy_preserves_layout(
     dst_set: DescriptorSetState,
     src_set: DescriptorSetState,
@@ -170,4 +170,4 @@ pub proof fn lemma_copy_preserves_layout(
 {
 }
 
-} // verus!
+} //  verus!

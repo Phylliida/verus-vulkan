@@ -6,12 +6,12 @@ use crate::image_layout_fsm::*;
 
 verus! {
 
-// ── Types ───────────────────────────────────────────────────────────────
+//  ── Types ───────────────────────────────────────────────────────────────
 
-/// Format feature bit for host image transfer.
+///  Format feature bit for host image transfer.
 pub open spec fn FEATURE_HOST_IMAGE_TRANSFER() -> nat { 0x4000_0000 }
 
-/// A region for host image copy (VK_EXT_host_image_copy).
+///  A region for host image copy (VK_EXT_host_image_copy).
 pub struct HostImageCopyRegion {
     pub image_subresource: ImageSubresource,
     pub image_offset_x: nat,
@@ -24,36 +24,36 @@ pub struct HostImageCopyRegion {
     pub memory_image_height: nat,
 }
 
-/// Info for a host-to-image copy.
+///  Info for a host-to-image copy.
 pub struct HostCopyToImageInfo {
     pub image: ResourceId,
     pub image_layout: ImageLayout,
     pub regions: Seq<HostImageCopyRegion>,
 }
 
-/// Info for an image-to-host copy.
+///  Info for an image-to-host copy.
 pub struct HostCopyFromImageInfo {
     pub image: ResourceId,
     pub image_layout: ImageLayout,
     pub regions: Seq<HostImageCopyRegion>,
 }
 
-/// Device limits for host image copy.
+///  Device limits for host image copy.
 pub struct HostImageCopyLimits {
     pub host_image_copy_memory_alignment: nat,
     pub identical_memory_layout_supported: bool,
 }
 
-/// A host-side image layout transition.
+///  A host-side image layout transition.
 pub struct HostImageTransition {
     pub image: ResourceId,
     pub old_layout: ImageLayout,
     pub new_layout: ImageLayout,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// A copy region is within the image bounds.
+///  A copy region is within the image bounds.
 pub open spec fn host_copy_region_in_bounds(
     region: HostImageCopyRegion,
     image: ImageState,
@@ -63,17 +63,17 @@ pub open spec fn host_copy_region_in_bounds(
     && region.image_offset_z + region.image_extent_depth <= image.depth
 }
 
-/// Layout is valid for a source (read) operation.
+///  Layout is valid for a source (read) operation.
 pub open spec fn host_copy_layout_valid_for_src(layout: ImageLayout) -> bool {
     matches!(layout, ImageLayout::General | ImageLayout::TransferSrcOptimal)
 }
 
-/// Layout is valid for a destination (write) operation.
+///  Layout is valid for a destination (write) operation.
 pub open spec fn host_copy_layout_valid_for_dst(layout: ImageLayout) -> bool {
     matches!(layout, ImageLayout::General | ImageLayout::TransferDstOptimal)
 }
 
-/// Host copy to image is valid.
+///  Host copy to image is valid.
 pub open spec fn host_copy_to_image_valid(
     info: HostCopyToImageInfo,
     image: ImageState,
@@ -87,7 +87,7 @@ pub open spec fn host_copy_to_image_valid(
         host_copy_region_in_bounds(info.regions[i], image))
 }
 
-/// Host copy from image is valid.
+///  Host copy from image is valid.
 pub open spec fn host_copy_from_image_valid(
     info: HostCopyFromImageInfo,
     image: ImageState,
@@ -101,7 +101,7 @@ pub open spec fn host_copy_from_image_valid(
         host_copy_region_in_bounds(info.regions[i], image))
 }
 
-/// Host image-to-image copy is valid.
+///  Host image-to-image copy is valid.
 pub open spec fn host_image_to_image_valid(
     src_layout: ImageLayout,
     dst_layout: ImageLayout,
@@ -118,12 +118,12 @@ pub open spec fn host_image_to_image_valid(
     && dst_format_supports
 }
 
-/// A host image layout transition is valid.
+///  A host image layout transition is valid.
 pub open spec fn host_transition_valid(transition: HostImageTransition) -> bool {
     layout_transition_valid(transition.old_layout, transition.new_layout)
 }
 
-/// Ghost: apply a host transition to the layout map.
+///  Ghost: apply a host transition to the layout map.
 pub open spec fn host_transition_ghost(
     map: ImageLayoutMap,
     transition: HostImageTransition,
@@ -131,7 +131,7 @@ pub open spec fn host_transition_ghost(
     map.insert(transition.image, transition.new_layout)
 }
 
-/// Effective row length: if 0, use extent width.
+///  Effective row length: if 0, use extent width.
 pub open spec fn effective_row_length(region: HostImageCopyRegion) -> nat {
     if region.memory_row_length == 0 {
         region.image_extent_width
@@ -140,7 +140,7 @@ pub open spec fn effective_row_length(region: HostImageCopyRegion) -> nat {
     }
 }
 
-/// Effective image height: if 0, use extent height.
+///  Effective image height: if 0, use extent height.
 pub open spec fn effective_image_height(region: HostImageCopyRegion) -> nat {
     if region.memory_image_height == 0 {
         region.image_extent_height
@@ -149,7 +149,7 @@ pub open spec fn effective_image_height(region: HostImageCopyRegion) -> nat {
     }
 }
 
-/// Memory requirement for a host copy region.
+///  Memory requirement for a host copy region.
 pub open spec fn host_copy_memory_requirement(
     region: HostImageCopyRegion,
     texel_size: nat,
@@ -158,15 +158,15 @@ pub open spec fn host_copy_memory_requirement(
         * region.image_extent_depth * texel_size
 }
 
-/// Host copy alignment is valid.
+///  Host copy alignment is valid.
 pub open spec fn host_copy_alignment_valid(address: nat, limits: HostImageCopyLimits) -> bool {
     limits.host_image_copy_memory_alignment > 0
     && address % limits.host_image_copy_memory_alignment == 0
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// In-bounds region has positive extent when image has positive dimensions.
+///  In-bounds region has positive extent when image has positive dimensions.
 pub proof fn lemma_region_in_bounds_positive_extent(
     region: HostImageCopyRegion,
     image: ImageState,
@@ -184,19 +184,19 @@ pub proof fn lemma_region_in_bounds_positive_extent(
 {
 }
 
-/// General layout is always valid for source.
+///  General layout is always valid for source.
 pub proof fn lemma_src_layout_allows_general()
     ensures host_copy_layout_valid_for_src(ImageLayout::General),
 {
 }
 
-/// General layout is always valid for destination.
+///  General layout is always valid for destination.
 pub proof fn lemma_dst_layout_allows_general()
     ensures host_copy_layout_valid_for_dst(ImageLayout::General),
 {
 }
 
-/// After transition, the map contains the new layout.
+///  After transition, the map contains the new layout.
 pub proof fn lemma_transition_updates_layout(
     map: ImageLayoutMap,
     transition: HostImageTransition,
@@ -207,7 +207,7 @@ pub proof fn lemma_transition_updates_layout(
 {
 }
 
-/// Transition doesn't affect other images.
+///  Transition doesn't affect other images.
 pub proof fn lemma_transition_preserves_other_images(
     map: ImageLayoutMap,
     transition: HostImageTransition,
@@ -222,7 +222,7 @@ pub proof fn lemma_transition_preserves_other_images(
 {
 }
 
-/// Valid copy requires format support.
+///  Valid copy requires format support.
 pub proof fn lemma_copy_requires_host_transfer_feature(
     info: HostCopyToImageInfo,
     image: ImageState,
@@ -233,14 +233,14 @@ pub proof fn lemma_copy_requires_host_transfer_feature(
 {
 }
 
-/// Zero memory_row_length uses extent width.
+///  Zero memory_row_length uses extent width.
 pub proof fn lemma_zero_row_length_uses_extent(region: HostImageCopyRegion)
     requires region.memory_row_length == 0,
     ensures effective_row_length(region) == region.image_extent_width,
 {
 }
 
-/// Host transition respects layout validity rules.
+///  Host transition respects layout validity rules.
 pub proof fn lemma_host_transition_respects_layout_rules(
     transition: HostImageTransition,
 )
@@ -249,7 +249,7 @@ pub proof fn lemma_host_transition_respects_layout_rules(
 {
 }
 
-/// Non-zero region with non-zero texel size has positive memory requirement.
+///  Non-zero region with non-zero texel size has positive memory requirement.
 pub proof fn lemma_memory_requirement_positive(
     region: HostImageCopyRegion,
     texel_size: nat,
@@ -288,16 +288,16 @@ pub proof fn lemma_memory_requirement_positive(
     );
 }
 
-/// TransferSrcOptimal is valid for source.
+///  TransferSrcOptimal is valid for source.
 pub proof fn lemma_transfer_src_valid_for_src()
     ensures host_copy_layout_valid_for_src(ImageLayout::TransferSrcOptimal),
 {
 }
 
-/// TransferDstOptimal is valid for destination.
+///  TransferDstOptimal is valid for destination.
 pub proof fn lemma_transfer_dst_valid_for_dst()
     ensures host_copy_layout_valid_for_dst(ImageLayout::TransferDstOptimal),
 {
 }
 
-} // verus!
+} //  verus!

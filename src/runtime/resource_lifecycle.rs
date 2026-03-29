@@ -4,11 +4,11 @@ use crate::resource_lifecycle::*;
 
 verus! {
 
-/// Runtime wrapper for a GPU resource lifecycle tracker.
+///  Runtime wrapper for a GPU resource lifecycle tracker.
 pub struct RuntimeResourceLifecycle {
-    /// Opaque handle for the resource.
+    ///  Opaque handle for the resource.
     pub handle: u64,
-    /// Ghost model of the resource lifecycle state.
+    ///  Ghost model of the resource lifecycle state.
     pub state: Ghost<ResourceLifecycleState>,
 }
 
@@ -17,14 +17,14 @@ impl View for RuntimeResourceLifecycle {
     open spec fn view(&self) -> ResourceLifecycleState { self.state@ }
 }
 
-/// Well-formedness: resource is alive.
+///  Well-formedness: resource is alive.
 pub open spec fn runtime_resource_lifecycle_wf(
     rl: &RuntimeResourceLifecycle,
 ) -> bool {
     resource_alive(rl@)
 }
 
-/// Exec: create a resource lifecycle tracker (enters Created state).
+///  Exec: create a resource lifecycle tracker (enters Created state).
 pub fn create_resource_lifecycle_exec(
     resource: Ghost<ResourceId>,
 ) -> (out: RuntimeResourceLifecycle)
@@ -43,7 +43,7 @@ pub fn create_resource_lifecycle_exec(
     }
 }
 
-/// Exec: bind resource to memory (Created → Bound).
+///  Exec: bind resource to memory (Created → Bound).
 pub fn bind_resource_exec(
     rl: &mut RuntimeResourceLifecycle,
 )
@@ -59,7 +59,7 @@ pub fn bind_resource_exec(
     rl.state = Ghost(bind_resource(rl.state@));
 }
 
-/// Exec: submit resource for GPU use (Bound/Idle → InUse).
+///  Exec: submit resource for GPU use (Bound/Idle → InUse).
 pub fn submit_resource_exec(
     rl: &mut RuntimeResourceLifecycle,
 )
@@ -74,7 +74,7 @@ pub fn submit_resource_exec(
     rl.state = Ghost(submit_resource(rl.state@));
 }
 
-/// Exec: a submission referencing this resource completes.
+///  Exec: a submission referencing this resource completes.
 pub fn complete_use_exec(
     rl: &mut RuntimeResourceLifecycle,
 )
@@ -89,7 +89,7 @@ pub fn complete_use_exec(
     rl.state = Ghost(complete_use(rl.state@));
 }
 
-/// Exec: destroy resource (Bound/Idle + pending==0 → Destroyed).
+///  Exec: destroy resource (Bound/Idle + pending==0 → Destroyed).
 pub fn destroy_resource_exec(
     rl: &mut RuntimeResourceLifecycle,
 )
@@ -104,9 +104,9 @@ pub fn destroy_resource_exec(
     rl.state = Ghost(destroy_resource(rl.state@));
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────
 
-/// Full happy-path lifecycle traversal: create → bind → submit → complete → destroy.
+///  Full happy-path lifecycle traversal: create → bind → submit → complete → destroy.
 pub proof fn lemma_lifecycle_create_to_destroy(resource: ResourceId)
     ensures ({
         let s0 = create_resource(resource);
@@ -125,7 +125,7 @@ pub proof fn lemma_lifecycle_create_to_destroy(resource: ResourceId)
     lemma_last_complete_enables_destroy(s2);
 }
 
-/// After destroy, no operations are possible.
+///  After destroy, no operations are possible.
 pub proof fn lemma_use_after_destroy_impossible(state: ResourceLifecycleState)
     requires !resource_alive(state),
     ensures
@@ -137,7 +137,7 @@ pub proof fn lemma_use_after_destroy_impossible(state: ResourceLifecycleState)
     lemma_destroyed_cannot_destroy(state);
 }
 
-/// Submitting preserves alive status.
+///  Submitting preserves alive status.
 pub proof fn lemma_submit_preserves_alive(state: ResourceLifecycleState)
     requires
         resource_alive(state),
@@ -147,4 +147,4 @@ pub proof fn lemma_submit_preserves_alive(state: ResourceLifecycleState)
 {
 }
 
-} // verus!
+} //  verus!

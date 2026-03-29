@@ -33,53 +33,53 @@ use crate::vk_context::VulkanContext;
 
 verus! {
 
-/// Recording state of a command buffer.
+///  Recording state of a command buffer.
 pub enum CommandBufferStatus {
-    /// Initial or reset state.
+    ///  Initial or reset state.
     Initial,
-    /// Between begin and end.
+    ///  Between begin and end.
     Recording,
-    /// Recorded, ready for submission.
+    ///  Recorded, ready for submission.
     Executable,
-    /// Submitted to a queue; pending GPU execution.
+    ///  Submitted to a queue; pending GPU execution.
     Pending,
 }
 
-/// Runtime wrapper for a Vulkan command buffer.
+///  Runtime wrapper for a Vulkan command buffer.
 pub struct RuntimeCommandBuffer {
-    /// Opaque handle (maps to VkCommandBuffer).
+    ///  Opaque handle (maps to VkCommandBuffer).
     pub handle: u64,
-    /// Ghost logical ID for sync token tracking.
+    ///  Ghost logical ID for sync token tracking.
     pub cb_id: Ghost<nat>,
-    /// Current status.
+    ///  Current status.
     pub status: Ghost<CommandBufferStatus>,
-    /// Recorded barrier log (ghost).
+    ///  Recorded barrier log (ghost).
     pub barrier_log: Ghost<BarrierLog>,
-    /// Whether we are inside a render pass.
+    ///  Whether we are inside a render pass.
     pub in_render_pass: Ghost<bool>,
-    /// Ghost recording state: tracks bound pipelines, descriptor sets, and active render pass.
+    ///  Ghost recording state: tracks bound pipelines, descriptor sets, and active render pass.
     pub recording_state: Ghost<RecordingState>,
-    /// Ghost thread that began recording this command buffer.
+    ///  Ghost thread that began recording this command buffer.
     pub recording_thread: Ghost<ThreadId>,
 }
 
-/// Well-formedness of the runtime command buffer.
-/// The in_render_pass field must be consistent with the recording state.
+///  Well-formedness of the runtime command buffer.
+///  The in_render_pass field must be consistent with the recording state.
 pub open spec fn runtime_cb_wf(cb: &RuntimeCommandBuffer) -> bool {
     cb.in_render_pass@ == in_render_pass(cb.recording_state@)
 }
 
-/// Image is in a valid layout for being a transfer source.
+///  Image is in a valid layout for being a transfer source.
 pub open spec fn valid_transfer_src_layout(layout: ImageLayout) -> bool {
     layout == ImageLayout::TransferSrcOptimal || layout == ImageLayout::General
 }
 
-/// Image is in a valid layout for being a transfer destination.
+///  Image is in a valid layout for being a transfer destination.
 pub open spec fn valid_transfer_dst_layout(layout: ImageLayout) -> bool {
     layout == ImageLayout::TransferDstOptimal || layout == ImageLayout::General
 }
 
-/// Command buffer is in recording state.
+///  Command buffer is in recording state.
 pub open spec fn is_recording(cb: &RuntimeCommandBuffer) -> bool {
     match cb.status@ {
         CommandBufferStatus::Recording => true,
@@ -87,7 +87,7 @@ pub open spec fn is_recording(cb: &RuntimeCommandBuffer) -> bool {
     }
 }
 
-/// Command buffer is executable.
+///  Command buffer is executable.
 pub open spec fn is_executable(cb: &RuntimeCommandBuffer) -> bool {
     match cb.status@ {
         CommandBufferStatus::Executable => true,
@@ -95,7 +95,7 @@ pub open spec fn is_executable(cb: &RuntimeCommandBuffer) -> bool {
     }
 }
 
-/// Command buffer is pending (submitted, awaiting GPU completion).
+///  Command buffer is pending (submitted, awaiting GPU completion).
 pub open spec fn is_pending(cb: &RuntimeCommandBuffer) -> bool {
     match cb.status@ {
         CommandBufferStatus::Pending => true,
@@ -103,8 +103,8 @@ pub open spec fn is_pending(cb: &RuntimeCommandBuffer) -> bool {
     }
 }
 
-/// Ghost frame preservation: all fields except recording_state are unchanged.
-/// Used by commands that only affect the recording state (draw, dispatch, bind, etc.)
+///  Ghost frame preservation: all fields except recording_state are unchanged.
+///  Used by commands that only affect the recording state (draw, dispatch, bind, etc.)
 pub open spec fn cb_ghost_frame_preserved(old_cb: RuntimeCommandBuffer, new_cb: RuntimeCommandBuffer) -> bool {
     new_cb.handle == old_cb.handle
     && new_cb.cb_id@ == old_cb.cb_id@
@@ -115,8 +115,8 @@ pub open spec fn cb_ghost_frame_preserved(old_cb: RuntimeCommandBuffer, new_cb: 
     && new_cb.recording_thread@ == old_cb.recording_thread@
 }
 
-/// Exec: begin recording.
-/// Caller must prove exclusive access to the CB via pool ownership or direct token.
+///  Exec: begin recording.
+///  Caller must prove exclusive access to the CB via pool ownership or direct token.
 pub fn begin_recording_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -144,8 +144,8 @@ pub fn begin_recording_exec(
     cb.recording_thread = thread;
 }
 
-/// Exec: end recording.
-/// Must be called by the same thread that began recording, with pool access.
+///  Exec: end recording.
+///  Must be called by the same thread that began recording, with pool access.
 pub fn end_recording_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -171,9 +171,9 @@ pub fn end_recording_exec(
     cb.status = Ghost(CommandBufferStatus::Executable);
 }
 
-/// Exec: begin render pass.
-/// Caller must prove the framebuffer is compatible with the render pass
-/// and that attachment images are in their expected initial layouts.
+///  Exec: begin render pass.
+///  Caller must prove the framebuffer is compatible with the render pass
+///  and that attachment images are in their expected initial layouts.
 pub fn cmd_begin_render_pass_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -219,8 +219,8 @@ pub fn cmd_begin_render_pass_exec(
     cb.recording_state = Ghost(begin_render_pass_recording(cb.recording_state@, rp@.id, fb@.id));
 }
 
-/// Exec: end render pass.
-/// Updates the layout tracker so each attachment is in its final_layout.
+///  Exec: end render pass.
+///  Updates the layout tracker so each attachment is in its final_layout.
 pub fn cmd_end_render_pass_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -258,8 +258,8 @@ pub fn cmd_end_render_pass_exec(
     ));
 }
 
-/// Exec: advance to the next subpass within a render pass.
-/// Caller must prove the next subpass exists in the render pass.
+///  Exec: advance to the next subpass within a render pass.
+///  Caller must prove the next subpass exists in the render pass.
 pub fn cmd_next_subpass_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -287,8 +287,8 @@ pub fn cmd_next_subpass_exec(
     cb.recording_state = Ghost(next_subpass_recording(cb.recording_state@));
 }
 
-/// Exec: record a pipeline barrier.
-/// The runtime stage bitmasks must match the ghost barrier entry's stage sets.
+///  Exec: record a pipeline barrier.
+///  The runtime stage bitmasks must match the ghost barrier entry's stage sets.
 pub fn cmd_pipeline_barrier_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -317,8 +317,8 @@ pub fn cmd_pipeline_barrier_exec(
     cb.barrier_log = Ghost(cb.barrier_log@.push(entry@));
 }
 
-/// Exec: bind a graphics pipeline (updates recording state).
-/// Caller must prove the pipeline is alive and the id matches.
+///  Exec: bind a graphics pipeline (updates recording state).
+///  Caller must prove the pipeline is alive and the id matches.
 pub fn cmd_bind_graphics_pipeline_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -346,8 +346,8 @@ pub fn cmd_bind_graphics_pipeline_exec(
     cb.recording_state = Ghost(bind_graphics_pipeline(cb.recording_state@, pipeline_id@, pipeline@.descriptor_set_layouts));
 }
 
-/// Exec: bind a compute pipeline (updates recording state).
-/// Caller must prove the pipeline is alive and the id matches.
+///  Exec: bind a compute pipeline (updates recording state).
+///  Caller must prove the pipeline is alive and the id matches.
 pub fn cmd_bind_compute_pipeline_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -375,8 +375,8 @@ pub fn cmd_bind_compute_pipeline_exec(
     cb.recording_state = Ghost(bind_compute_pipeline(cb.recording_state@, pipeline_id@, pipeline@.descriptor_set_layouts));
 }
 
-/// Exec: bind a pipeline (backward compat, delegates to graphics variant).
-/// Caller must prove the pipeline is alive and the id matches.
+///  Exec: bind a pipeline (backward compat, delegates to graphics variant).
+///  Caller must prove the pipeline is alive and the id matches.
 pub fn cmd_bind_pipeline_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -404,9 +404,9 @@ pub fn cmd_bind_pipeline_exec(
     cb.recording_state = Ghost(bind_graphics_pipeline(cb.recording_state@, pipeline_id@, pipeline@.descriptor_set_layouts));
 }
 
-/// Exec: bind a descriptor set at a given set index.
-/// The layout_id must match the descriptor set's actual layout for pipeline compatibility.
-/// Dynamic offsets are stored for later validation against buffer bounds.
+///  Exec: bind a descriptor set at a given set index.
+///  The layout_id must match the descriptor set's actual layout for pipeline compatibility.
+///  Dynamic offsets are stored for later validation against buffer bounds.
 pub fn cmd_bind_descriptor_set_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -437,8 +437,8 @@ pub fn cmd_bind_descriptor_set_exec(
     cb.recording_state = Ghost(bind_descriptor_set(cb.recording_state@, set_index@, set_id@, layout_id@, dynamic_offsets@));
 }
 
-/// Exec: bind a vertex buffer at a given slot.
-/// Caller must prove the buffer is alive and the id matches.
+///  Exec: bind a vertex buffer at a given slot.
+///  Caller must prove the buffer is alive and the id matches.
 pub fn cmd_bind_vertex_buffer_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -470,8 +470,8 @@ pub fn cmd_bind_vertex_buffer_exec(
     cb.recording_state = Ghost(bind_vertex_buffer(cb.recording_state@, slot@, buffer_id@));
 }
 
-/// Exec: bind an index buffer.
-/// Caller must prove the buffer is alive and the id matches.
+///  Exec: bind an index buffer.
+///  Caller must prove the buffer is alive and the id matches.
 pub fn cmd_bind_index_buffer_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -503,7 +503,7 @@ pub fn cmd_bind_index_buffer_exec(
     cb.recording_state = Ghost(bind_index_buffer(cb.recording_state@, buffer_id@));
 }
 
-/// Exec: set the dynamic viewport.
+///  Exec: set the dynamic viewport.
 pub fn cmd_set_viewport_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -532,7 +532,7 @@ pub fn cmd_set_viewport_exec(
     cb.recording_state = Ghost(set_viewport_recording(cb.recording_state@));
 }
 
-/// Exec: set the dynamic scissor.
+///  Exec: set the dynamic scissor.
 pub fn cmd_set_scissor_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -559,7 +559,7 @@ pub fn cmd_set_scissor_exec(
     cb.recording_state = Ghost(set_scissor_recording(cb.recording_state@));
 }
 
-/// Exec: set push constants.
+///  Exec: set push constants.
 pub fn cmd_set_push_constants_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -589,9 +589,9 @@ pub fn cmd_set_push_constants_exec(
     cb.recording_state = Ghost(set_push_constants_recording(cb.recording_state@));
 }
 
-/// Exec: record a draw command.
-/// Caller must prove: pipeline bound, descriptors bound, vertex buffer bound,
-/// all required dynamic states set, and vertex draw in bounds.
+///  Exec: record a draw command.
+///  Caller must prove: pipeline bound, descriptors bound, vertex buffer bound,
+///  all required dynamic states set, and vertex draw in bounds.
 pub fn cmd_draw_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -630,8 +630,8 @@ pub fn cmd_draw_exec(
     crate::ffi::ffi_cmd_draw(ctx, cb.handle, vertex_count, instance_count, first_vertex, first_instance);
 }
 
-/// Exec: record an indexed draw command.
-/// Same as cmd_draw_exec but additionally requires index buffer bound + index bounds.
+///  Exec: record an indexed draw command.
+///  Same as cmd_draw_exec but additionally requires index buffer bound + index bounds.
 pub fn cmd_draw_indexed_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -675,8 +675,8 @@ pub fn cmd_draw_indexed_exec(
     crate::ffi::ffi_cmd_draw_indexed(ctx, cb.handle, index_count, instance_count, first_index, vertex_offset, first_instance);
 }
 
-/// Exec: record a dispatch command.
-/// Caller must prove a compatible compute pipeline is bound and all descriptor sets are bound.
+///  Exec: record a dispatch command.
+///  Caller must prove a compatible compute pipeline is bound and all descriptor sets are bound.
 pub fn cmd_dispatch_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -706,9 +706,9 @@ pub fn cmd_dispatch_exec(
     crate::ffi::ffi_cmd_dispatch(ctx, cb.handle, group_count_x, group_count_y, group_count_z);
 }
 
-/// Exec: record a buffer-to-buffer copy.
-/// Transfer commands must be outside a render pass.
-/// Caller must prove source is readable and destination is writable at the transfer stage.
+///  Exec: record a buffer-to-buffer copy.
+///  Transfer commands must be outside a render pass.
+///  Caller must prove source is readable and destination is writable at the transfer stage.
 pub fn cmd_copy_buffer_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -750,10 +750,10 @@ pub fn cmd_copy_buffer_exec(
     crate::ffi::ffi_cmd_copy_buffer(ctx, cb.handle, src_handle, dst_handle, size);
 }
 
-/// Exec: record an image-to-image copy.
-/// Transfer commands must be outside a render pass.
-/// Source must be in TransferSrcOptimal or General; dest must be in TransferDstOptimal or General.
-/// Caller must prove source is readable and destination is writable at the transfer stage.
+///  Exec: record an image-to-image copy.
+///  Transfer commands must be outside a render pass.
+///  Source must be in TransferSrcOptimal or General; dest must be in TransferDstOptimal or General.
+///  Caller must prove source is readable and destination is writable at the transfer stage.
 pub fn cmd_copy_image_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -800,10 +800,10 @@ pub fn cmd_copy_image_exec(
     crate::ffi::ffi_cmd_copy_image(ctx, cb.handle, src_img_handle, dst_img_handle, width, height);
 }
 
-/// Exec: record an image blit (scaled copy).
-/// Transfer commands must be outside a render pass.
-/// Source must be in TransferSrcOptimal or General; dest must be in TransferDstOptimal or General.
-/// Caller must prove source is readable and destination is writable at the transfer stage.
+///  Exec: record an image blit (scaled copy).
+///  Transfer commands must be outside a render pass.
+///  Source must be in TransferSrcOptimal or General; dest must be in TransferDstOptimal or General.
+///  Caller must prove source is readable and destination is writable at the transfer stage.
 pub fn cmd_blit_image_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -850,10 +850,10 @@ pub fn cmd_blit_image_exec(
     crate::ffi::ffi_cmd_blit_image(ctx, cb.handle, src_img_handle, dst_img_handle, width, height);
 }
 
-/// Exec: record a buffer-to-image copy.
-/// Transfer commands must be outside a render pass.
-/// Dest image must be in TransferDstOptimal or General.
-/// Caller must prove source buffer is readable and destination image is writable.
+///  Exec: record a buffer-to-image copy.
+///  Transfer commands must be outside a render pass.
+///  Dest image must be in TransferDstOptimal or General.
+///  Caller must prove source buffer is readable and destination image is writable.
 pub fn cmd_copy_buffer_to_image_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -897,10 +897,10 @@ pub fn cmd_copy_buffer_to_image_exec(
     crate::ffi::ffi_cmd_copy_buffer_to_image(ctx, cb.handle, src_buf_handle, dst_img_handle, width, height);
 }
 
-/// Exec: record an image-to-buffer copy.
-/// Transfer commands must be outside a render pass.
-/// Source image must be in TransferSrcOptimal or General.
-/// Caller must prove source image is readable and destination buffer is writable.
+///  Exec: record an image-to-buffer copy.
+///  Transfer commands must be outside a render pass.
+///  Source image must be in TransferSrcOptimal or General.
+///  Caller must prove source image is readable and destination buffer is writable.
 pub fn cmd_copy_image_to_buffer_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -944,8 +944,8 @@ pub fn cmd_copy_image_to_buffer_exec(
     crate::ffi::ffi_cmd_copy_image_to_buffer(ctx, cb.handle, src_img_handle, dst_buf_handle, width, height);
 }
 
-/// Exec: record an indirect draw command.
-/// Caller must prove: pipeline bound, in render pass, indirect buffer sufficient.
+///  Exec: record an indirect draw command.
+///  Caller must prove: pipeline bound, in render pass, indirect buffer sufficient.
 pub fn cmd_draw_indirect_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -985,8 +985,8 @@ pub fn cmd_draw_indirect_exec(
     crate::ffi::ffi_cmd_draw_indirect(ctx, cb.handle, buffer_handle, offset, draw_count, stride);
 }
 
-/// Exec: record an indirect indexed draw command.
-/// Caller must prove: pipeline bound, in render pass, indirect buffer sufficient.
+///  Exec: record an indirect indexed draw command.
+///  Caller must prove: pipeline bound, in render pass, indirect buffer sufficient.
 pub fn cmd_draw_indexed_indirect_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -1026,8 +1026,8 @@ pub fn cmd_draw_indexed_indirect_exec(
     crate::ffi::ffi_cmd_draw_indexed_indirect(ctx, cb.handle, buffer_handle, offset, draw_count, stride);
 }
 
-/// Exec: record an indirect dispatch command.
-/// Caller must prove: compute pipeline bound, not in render pass, buffer sufficient.
+///  Exec: record an indirect dispatch command.
+///  Caller must prove: compute pipeline bound, not in render pass, buffer sufficient.
 pub fn cmd_dispatch_indirect_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -1063,8 +1063,8 @@ pub fn cmd_dispatch_indirect_exec(
     crate::ffi::ffi_cmd_dispatch_indirect(ctx, cb.handle, buffer_handle, buffer_offset);
 }
 
-/// Exec: begin dynamic rendering (VK_KHR_dynamic_rendering).
-/// Sets the in_render_pass flag. Caller must prove rendering info is well-formed.
+///  Exec: begin dynamic rendering (VK_KHR_dynamic_rendering).
+///  Sets the in_render_pass flag. Caller must prove rendering info is well-formed.
 pub fn cmd_begin_dynamic_rendering_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -1094,8 +1094,8 @@ pub fn cmd_begin_dynamic_rendering_exec(
     cb.in_render_pass = Ghost(true);
 }
 
-/// Exec: end dynamic rendering (VK_KHR_dynamic_rendering).
-/// Clears the in_render_pass flag.
+///  Exec: end dynamic rendering (VK_KHR_dynamic_rendering).
+///  Clears the in_render_pass flag.
 pub fn cmd_end_dynamic_rendering_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -1117,9 +1117,9 @@ pub fn cmd_end_dynamic_rendering_exec(
     cb.in_render_pass = Ghost(false);
 }
 
-// ── Query Pool Commands ──────────────────────────────────────────────
+//  ── Query Pool Commands ──────────────────────────────────────────────
 
-/// Exec: reset a range of queries in a query pool.
+///  Exec: reset a range of queries in a query pool.
 pub fn cmd_reset_query_pool_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -1150,7 +1150,7 @@ pub fn cmd_reset_query_pool_exec(
     pool.state = Ghost(reset_queries(pool.state@, first as nat, count as nat));
 }
 
-/// Exec: begin a query.
+///  Exec: begin a query.
 pub fn cmd_begin_query_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -1178,7 +1178,7 @@ pub fn cmd_begin_query_exec(
     pool.state = Ghost(begin_query(pool.state@, index as nat));
 }
 
-/// Exec: end a query.
+///  Exec: end a query.
 pub fn cmd_end_query_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -1206,9 +1206,9 @@ pub fn cmd_end_query_exec(
     pool.state = Ghost(end_query(pool.state@, index as nat));
 }
 
-// ── Event Commands ───────────────────────────────────────────────────
+//  ── Event Commands ───────────────────────────────────────────────────
 
-/// Exec: set (signal) an event from a command buffer at specific pipeline stages.
+///  Exec: set (signal) an event from a command buffer at specific pipeline stages.
 pub fn cmd_set_event_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -1240,8 +1240,8 @@ pub fn cmd_set_event_exec(
     event.state = Ghost(set_event(event.state@, stages@));
 }
 
-/// Exec: reset an event from a command buffer.
-/// The stages_mask is a synchronization hint only (not tracked in ghost state).
+///  Exec: reset an event from a command buffer.
+///  The stages_mask is a synchronization hint only (not tracked in ghost state).
 pub fn cmd_reset_event_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -1270,10 +1270,10 @@ pub fn cmd_reset_event_exec(
     event.state = Ghost(reset_event(event.state@));
 }
 
-// ── Acceleration Structure Commands ──────────────────────────────────
+//  ── Acceleration Structure Commands ──────────────────────────────────
 
-/// Exec: build an acceleration structure.
-/// Calls well-formedness preservation lemmas and updates ghost state.
+///  Exec: build an acceleration structure.
+///  Calls well-formedness preservation lemmas and updates ghost state.
 pub fn cmd_build_acceleration_structure_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -1304,7 +1304,7 @@ pub fn cmd_build_acceleration_structure_exec(
     as_obj.state = Ghost(build_as_ghost(as_obj.state@, mode@));
 }
 
-/// Exec: compact an acceleration structure.
+///  Exec: compact an acceleration structure.
 pub fn cmd_compact_acceleration_structure_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -1333,9 +1333,9 @@ pub fn cmd_compact_acceleration_structure_exec(
     as_obj.state = Ghost(compact_as_ghost(as_obj.state@));
 }
 
-// ── Phase 1: Dynamic State Commands ──────────────────────────────────
+//  ── Phase 1: Dynamic State Commands ──────────────────────────────────
 
-/// Exec: set the dynamic line width.
+///  Exec: set the dynamic line width.
 pub fn cmd_set_line_width_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -1358,7 +1358,7 @@ pub fn cmd_set_line_width_exec(
     crate::ffi::ffi_cmd_set_line_width(ctx, cb.handle, line_width);
 }
 
-/// Exec: set the dynamic depth bias.
+///  Exec: set the dynamic depth bias.
 pub fn cmd_set_depth_bias_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -1383,7 +1383,7 @@ pub fn cmd_set_depth_bias_exec(
     crate::ffi::ffi_cmd_set_depth_bias(ctx, cb.handle, constant_factor, clamp, slope_factor);
 }
 
-/// Exec: set the dynamic blend constants.
+///  Exec: set the dynamic blend constants.
 pub fn cmd_set_blend_constants_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -1409,7 +1409,7 @@ pub fn cmd_set_blend_constants_exec(
     crate::ffi::ffi_cmd_set_blend_constants(ctx, cb.handle, c0, c1, c2, c3);
 }
 
-/// Exec: set the dynamic depth bounds.
+///  Exec: set the dynamic depth bounds.
 pub fn cmd_set_depth_bounds_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -1433,7 +1433,7 @@ pub fn cmd_set_depth_bounds_exec(
     crate::ffi::ffi_cmd_set_depth_bounds(ctx, cb.handle, min_depth, max_depth);
 }
 
-/// Exec: set the dynamic stencil compare mask.
+///  Exec: set the dynamic stencil compare mask.
 pub fn cmd_set_stencil_compare_mask_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -1458,7 +1458,7 @@ pub fn cmd_set_stencil_compare_mask_exec(
     crate::ffi::ffi_cmd_set_stencil_compare_mask(ctx, cb.handle, face_mask, compare_mask);
 }
 
-/// Exec: set the dynamic stencil write mask.
+///  Exec: set the dynamic stencil write mask.
 pub fn cmd_set_stencil_write_mask_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -1483,7 +1483,7 @@ pub fn cmd_set_stencil_write_mask_exec(
     crate::ffi::ffi_cmd_set_stencil_write_mask(ctx, cb.handle, face_mask, write_mask);
 }
 
-/// Exec: set the dynamic stencil reference.
+///  Exec: set the dynamic stencil reference.
 pub fn cmd_set_stencil_reference_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -1508,9 +1508,9 @@ pub fn cmd_set_stencil_reference_exec(
     crate::ffi::ffi_cmd_set_stencil_reference(ctx, cb.handle, face_mask, reference);
 }
 
-// ── Phase 2: Buffer Operations ──────────────────────────────────────
+//  ── Phase 2: Buffer Operations ──────────────────────────────────────
 
-/// Exec: fill a buffer with a fixed 32-bit value.
+///  Exec: fill a buffer with a fixed 32-bit value.
 pub fn cmd_fill_buffer_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -1546,7 +1546,7 @@ pub fn cmd_fill_buffer_exec(
     crate::ffi::ffi_cmd_fill_buffer(ctx, cb.handle, buffer_handle, offset, size, data);
 }
 
-/// Exec: update a buffer with inline data (max 65536 bytes).
+///  Exec: update a buffer with inline data (max 65536 bytes).
 pub fn cmd_update_buffer_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -1582,9 +1582,9 @@ pub fn cmd_update_buffer_exec(
     crate::ffi::ffi_cmd_update_buffer(ctx, cb.handle, buffer_handle, offset, data);
 }
 
-// ── Phase 3: Image Clear & Resolve ──────────────────────────────────
+//  ── Phase 3: Image Clear & Resolve ──────────────────────────────────
 
-/// Exec: clear a color image.
+///  Exec: clear a color image.
 pub fn cmd_clear_color_image_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -1614,7 +1614,7 @@ pub fn cmd_clear_color_image_exec(
     crate::ffi::ffi_cmd_clear_color_image(ctx, cb.handle, image_handle, layout);
 }
 
-/// Exec: clear a depth/stencil image.
+///  Exec: clear a depth/stencil image.
 pub fn cmd_clear_depth_stencil_image_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -1644,7 +1644,7 @@ pub fn cmd_clear_depth_stencil_image_exec(
     crate::ffi::ffi_cmd_clear_depth_stencil_image(ctx, cb.handle, image_handle, layout);
 }
 
-/// Exec: clear attachments (inside a render pass).
+///  Exec: clear attachments (inside a render pass).
 pub fn cmd_clear_attachments_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -1667,7 +1667,7 @@ pub fn cmd_clear_attachments_exec(
     crate::ffi::ffi_cmd_clear_attachments(ctx, cb.handle);
 }
 
-/// Exec: resolve a multisampled image to a single-sampled image.
+///  Exec: resolve a multisampled image to a single-sampled image.
 pub fn cmd_resolve_image_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -1709,9 +1709,9 @@ pub fn cmd_resolve_image_exec(
     crate::ffi::ffi_cmd_resolve_image(ctx, cb.handle, src_handle, dst_handle, width, height);
 }
 
-// ── Phase 4: Query Commands ─────────────────────────────────────────
+//  ── Phase 4: Query Commands ─────────────────────────────────────────
 
-/// Exec: write a timestamp query.
+///  Exec: write a timestamp query.
 pub fn cmd_write_timestamp_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -1741,7 +1741,7 @@ pub fn cmd_write_timestamp_exec(
     pool.state = Ghost(write_timestamp(pool.state@, query as nat));
 }
 
-/// Exec: copy query pool results to a buffer.
+///  Exec: copy query pool results to a buffer.
 pub fn cmd_copy_query_pool_results_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -1779,9 +1779,9 @@ pub fn cmd_copy_query_pool_results_exec(
     crate::ffi::ffi_cmd_copy_query_pool_results(ctx, cb.handle, pool.handle, first, count, dst_handle, dst_offset, stride, flags);
 }
 
-// ── Phase 5: WaitEvents ─────────────────────────────────────────────
+//  ── Phase 5: WaitEvents ─────────────────────────────────────────────
 
-/// Exec: wait for events (sync command, pushes barrier entry).
+///  Exec: wait for events (sync command, pushes barrier entry).
 pub fn cmd_wait_events_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -1812,9 +1812,9 @@ pub fn cmd_wait_events_exec(
     cb.barrier_log = Ghost(cb.barrier_log@.push(entry@));
 }
 
-// ── Phase 6: Indirect Count Draws ───────────────────────────────────
+//  ── Phase 6: Indirect Count Draws ───────────────────────────────────
 
-/// Exec: draw indirect with count buffer.
+///  Exec: draw indirect with count buffer.
 pub fn cmd_draw_indirect_count_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -1852,7 +1852,7 @@ pub fn cmd_draw_indirect_count_exec(
     crate::ffi::ffi_cmd_draw_indirect_count(ctx, cb.handle, buffer_handle, offset, count_buffer_handle, count_offset, max_draw_count, stride);
 }
 
-/// Exec: draw indexed indirect with count buffer.
+///  Exec: draw indexed indirect with count buffer.
 pub fn cmd_draw_indexed_indirect_count_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -1890,9 +1890,9 @@ pub fn cmd_draw_indexed_indirect_count_exec(
     crate::ffi::ffi_cmd_draw_indexed_indirect_count(ctx, cb.handle, buffer_handle, offset, count_buffer_handle, count_offset, max_draw_count, stride);
 }
 
-// ── Phase 7: Ray Tracing Commands ───────────────────────────────────
+//  ── Phase 7: Ray Tracing Commands ───────────────────────────────────
 
-/// Exec: trace rays.
+///  Exec: trace rays.
 pub fn cmd_trace_rays_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -1919,7 +1919,7 @@ pub fn cmd_trace_rays_exec(
     crate::ffi::ffi_cmd_trace_rays(ctx, cb.handle);
 }
 
-/// Exec: trace rays indirect.
+///  Exec: trace rays indirect.
 pub fn cmd_trace_rays_indirect_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -1950,9 +1950,9 @@ pub fn cmd_trace_rays_indirect_exec(
     crate::ffi::ffi_cmd_trace_rays_indirect(ctx, cb.handle, indirect_buffer_handle);
 }
 
-// ── Phase 8: Debug Labels ───────────────────────────────────────────
+//  ── Phase 8: Debug Labels ───────────────────────────────────────────
 
-/// Exec: begin a debug utils label region. No ghost state change.
+///  Exec: begin a debug utils label region. No ghost state change.
 pub fn cmd_begin_debug_utils_label_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -1974,7 +1974,7 @@ pub fn cmd_begin_debug_utils_label_exec(
     crate::ffi::ffi_cmd_begin_debug_utils_label(ctx, cb.handle);
 }
 
-/// Exec: end a debug utils label region. No ghost state change.
+///  Exec: end a debug utils label region. No ghost state change.
 pub fn cmd_end_debug_utils_label_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -1996,7 +1996,7 @@ pub fn cmd_end_debug_utils_label_exec(
     crate::ffi::ffi_cmd_end_debug_utils_label(ctx, cb.handle);
 }
 
-/// Exec: insert a debug utils label. No ghost state change.
+///  Exec: insert a debug utils label. No ghost state change.
 pub fn cmd_insert_debug_utils_label_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -2018,9 +2018,9 @@ pub fn cmd_insert_debug_utils_label_exec(
     crate::ffi::ffi_cmd_insert_debug_utils_label(ctx, cb.handle);
 }
 
-// ── Phase 9: Extension Commands ─────────────────────────────────────
+//  ── Phase 9: Extension Commands ─────────────────────────────────────
 
-/// Exec: dispatch compute with base group offsets (Vulkan 1.1).
+///  Exec: dispatch compute with base group offsets (Vulkan 1.1).
 pub fn cmd_dispatch_base_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -2051,7 +2051,7 @@ pub fn cmd_dispatch_base_exec(
     crate::ffi::ffi_cmd_dispatch_base(ctx, cb.handle, base_group_x, base_group_y, base_group_z, group_count_x, group_count_y, group_count_z);
 }
 
-/// Exec: draw mesh tasks (VK_EXT_mesh_shader).
+///  Exec: draw mesh tasks (VK_EXT_mesh_shader).
 pub fn cmd_draw_mesh_tasks_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -2077,7 +2077,7 @@ pub fn cmd_draw_mesh_tasks_exec(
     crate::ffi::ffi_cmd_draw_mesh_tasks(ctx, cb.handle, group_count_x, group_count_y, group_count_z);
 }
 
-/// Exec: draw mesh tasks indirect.
+///  Exec: draw mesh tasks indirect.
 pub fn cmd_draw_mesh_tasks_indirect_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -2107,7 +2107,7 @@ pub fn cmd_draw_mesh_tasks_indirect_exec(
     crate::ffi::ffi_cmd_draw_mesh_tasks_indirect(ctx, cb.handle, buffer_handle, offset, draw_count, stride);
 }
 
-/// Exec: draw mesh tasks indirect with count buffer.
+///  Exec: draw mesh tasks indirect with count buffer.
 pub fn cmd_draw_mesh_tasks_indirect_count_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -2142,7 +2142,7 @@ pub fn cmd_draw_mesh_tasks_indirect_count_exec(
     crate::ffi::ffi_cmd_draw_mesh_tasks_indirect_count(ctx, cb.handle, buffer_handle, offset, count_buffer_handle, count_offset, max_draw_count, stride);
 }
 
-/// Exec: begin transform feedback (VK_EXT_transform_feedback).
+///  Exec: begin transform feedback (VK_EXT_transform_feedback).
 pub fn cmd_begin_transform_feedback_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -2165,7 +2165,7 @@ pub fn cmd_begin_transform_feedback_exec(
     crate::ffi::ffi_cmd_begin_transform_feedback(ctx, cb.handle);
 }
 
-/// Exec: end transform feedback.
+///  Exec: end transform feedback.
 pub fn cmd_end_transform_feedback_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -2188,7 +2188,7 @@ pub fn cmd_end_transform_feedback_exec(
     crate::ffi::ffi_cmd_end_transform_feedback(ctx, cb.handle);
 }
 
-/// Exec: pipeline barrier 2 (Vulkan 1.3). Same ghost effect as pipeline_barrier.
+///  Exec: pipeline barrier 2 (Vulkan 1.3). Same ghost effect as pipeline_barrier.
 pub fn cmd_pipeline_barrier2_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -2213,16 +2213,16 @@ pub fn cmd_pipeline_barrier2_exec(
     cb.barrier_log = Ghost(cb.barrier_log@.push(entry@));
 }
 
-// ── Extended Specs & Proofs ──────────────────────────────────────────
+//  ── Extended Specs & Proofs ──────────────────────────────────────────
 
-/// Whether any uncompleted submission references this command buffer.
+///  Whether any uncompleted submission references this command buffer.
 pub open spec fn cb_has_pending_work(pending: Seq<SubmissionRecord>, cb_id: nat) -> bool {
     exists|i: int| 0 <= i < pending.len()
         && !pending[i].completed
         && pending[i].command_buffers.contains(cb_id)
 }
 
-/// Whether no uncompleted submission references this command buffer.
+///  Whether no uncompleted submission references this command buffer.
 pub open spec fn cb_no_pending_work(pending: Seq<SubmissionRecord>, cb_id: nat) -> bool {
     forall|i: int| #![trigger pending[i]]
         0 <= i < pending.len()
@@ -2230,9 +2230,9 @@ pub open spec fn cb_no_pending_work(pending: Seq<SubmissionRecord>, cb_id: nat) 
             || !pending[i].command_buffers.contains(cb_id)
 }
 
-/// Exec: mark a command buffer as Pending after submission.
-/// Called by the user after submit_exec succeeds.
-/// Caller must prove access to the CB (typically via pool ownership after submit).
+///  Exec: mark a command buffer as Pending after submission.
+///  Called by the user after submit_exec succeeds.
+///  Caller must prove access to the CB (typically via pool ownership after submit).
 pub fn mark_pending_exec(
     cb: &mut RuntimeCommandBuffer,
     dev: &RuntimeDevice,
@@ -2255,9 +2255,9 @@ pub fn mark_pending_exec(
     cb.status = Ghost(CommandBufferStatus::Pending);
 }
 
-/// Exec: mark a command buffer as Executable after GPU execution completes.
-/// Called after a fence wait or queue_wait_idle proves the CB is no longer in-flight.
-/// Caller must prove access to the CB (typically re-acquired after GPU completion).
+///  Exec: mark a command buffer as Executable after GPU execution completes.
+///  Called after a fence wait or queue_wait_idle proves the CB is no longer in-flight.
+///  Caller must prove access to the CB (typically re-acquired after GPU completion).
 pub fn complete_execution_exec(
     cb: &mut RuntimeCommandBuffer,
     dev: &RuntimeDevice,
@@ -2280,9 +2280,9 @@ pub fn complete_execution_exec(
     cb.status = Ghost(CommandBufferStatus::Executable);
 }
 
-/// Exec: reset a command buffer back to Initial state.
-/// In Vulkan, reset is allowed from Recording, Executable, or Invalid.
-/// We support resetting from Executable (the most common case).
+///  Exec: reset a command buffer back to Initial state.
+///  In Vulkan, reset is allowed from Recording, Executable, or Invalid.
+///  We support resetting from Executable (the most common case).
 pub fn cmd_reset_exec(
     cb: &mut RuntimeCommandBuffer,
     thread: Ghost<ThreadId>,
@@ -2306,9 +2306,9 @@ pub fn cmd_reset_exec(
     cb.recording_state = Ghost(initial_recording_state());
 }
 
-// ── Extended Specs & Proofs ──────────────────────────────────────────
+//  ── Extended Specs & Proofs ──────────────────────────────────────────
 
-/// Command buffer is in initial state.
+///  Command buffer is in initial state.
 pub open spec fn is_initial(cb: &RuntimeCommandBuffer) -> bool {
     match cb.status@ {
         CommandBufferStatus::Initial => true,
@@ -2316,17 +2316,17 @@ pub open spec fn is_initial(cb: &RuntimeCommandBuffer) -> bool {
     }
 }
 
-/// Number of barriers recorded so far.
+///  Number of barriers recorded so far.
 pub open spec fn barrier_count(cb: &RuntimeCommandBuffer) -> nat {
     cb.barrier_log@.len()
 }
 
-/// Command buffer has no recorded barriers.
+///  Command buffer has no recorded barriers.
 pub open spec fn has_no_barriers(cb: &RuntimeCommandBuffer) -> bool {
     cb.barrier_log@.len() == 0
 }
 
-/// Proof: begin recording from initial produces recording state.
+///  Proof: begin recording from initial produces recording state.
 pub proof fn lemma_begin_produces_recording(cb: &RuntimeCommandBuffer, thread: ThreadId)
     requires is_initial(cb),
     ensures ({
@@ -2346,7 +2346,7 @@ pub proof fn lemma_begin_produces_recording(cb: &RuntimeCommandBuffer, thread: T
 {
 }
 
-/// Proof: end recording from recording produces executable.
+///  Proof: end recording from recording produces executable.
 pub proof fn lemma_end_produces_executable(cb: &RuntimeCommandBuffer)
     requires
         is_recording(cb),
@@ -2369,7 +2369,7 @@ pub proof fn lemma_end_produces_executable(cb: &RuntimeCommandBuffer)
 {
 }
 
-/// Proof: recording a barrier increments the count by 1.
+///  Proof: recording a barrier increments the count by 1.
 pub proof fn lemma_barrier_increments_count(
     cb: &RuntimeCommandBuffer,
     entry: Ghost<BarrierEntry>,
@@ -2379,15 +2379,15 @@ pub proof fn lemma_barrier_increments_count(
 {
 }
 
-/// Proof: a fresh recording has no barriers.
+///  Proof: a fresh recording has no barriers.
 pub proof fn lemma_fresh_recording_no_barriers()
     ensures Seq::<BarrierEntry>::empty().len() == 0,
 {
 }
 
-// ── Extended Dynamic State Exec Wrappers (VK 1.3) ──────────────────
+//  ── Extended Dynamic State Exec Wrappers (VK 1.3) ──────────────────
 
-/// Exec: set dynamic cull mode.
+///  Exec: set dynamic cull mode.
 pub fn cmd_set_cull_mode_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -2410,7 +2410,7 @@ pub fn cmd_set_cull_mode_exec(
     crate::ffi::ffi_cmd_set_cull_mode(ctx, cb.handle, cull_mode);
 }
 
-/// Exec: set dynamic front face.
+///  Exec: set dynamic front face.
 pub fn cmd_set_front_face_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -2433,7 +2433,7 @@ pub fn cmd_set_front_face_exec(
     crate::ffi::ffi_cmd_set_front_face(ctx, cb.handle, front_face);
 }
 
-/// Exec: set dynamic primitive topology.
+///  Exec: set dynamic primitive topology.
 pub fn cmd_set_primitive_topology_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -2456,7 +2456,7 @@ pub fn cmd_set_primitive_topology_exec(
     crate::ffi::ffi_cmd_set_primitive_topology(ctx, cb.handle, topology);
 }
 
-/// Exec: set dynamic depth test enable.
+///  Exec: set dynamic depth test enable.
 pub fn cmd_set_depth_test_enable_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -2479,7 +2479,7 @@ pub fn cmd_set_depth_test_enable_exec(
     crate::ffi::ffi_cmd_set_depth_test_enable(ctx, cb.handle, enable);
 }
 
-/// Exec: set dynamic depth write enable.
+///  Exec: set dynamic depth write enable.
 pub fn cmd_set_depth_write_enable_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -2502,7 +2502,7 @@ pub fn cmd_set_depth_write_enable_exec(
     crate::ffi::ffi_cmd_set_depth_write_enable(ctx, cb.handle, enable);
 }
 
-/// Exec: set dynamic depth compare op.
+///  Exec: set dynamic depth compare op.
 pub fn cmd_set_depth_compare_op_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -2525,7 +2525,7 @@ pub fn cmd_set_depth_compare_op_exec(
     crate::ffi::ffi_cmd_set_depth_compare_op(ctx, cb.handle, compare_op);
 }
 
-/// Exec: set dynamic depth bounds test enable.
+///  Exec: set dynamic depth bounds test enable.
 pub fn cmd_set_depth_bounds_test_enable_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -2548,7 +2548,7 @@ pub fn cmd_set_depth_bounds_test_enable_exec(
     crate::ffi::ffi_cmd_set_depth_bounds_test_enable(ctx, cb.handle, enable);
 }
 
-/// Exec: set dynamic stencil test enable.
+///  Exec: set dynamic stencil test enable.
 pub fn cmd_set_stencil_test_enable_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -2571,7 +2571,7 @@ pub fn cmd_set_stencil_test_enable_exec(
     crate::ffi::ffi_cmd_set_stencil_test_enable(ctx, cb.handle, enable);
 }
 
-/// Exec: set dynamic stencil op.
+///  Exec: set dynamic stencil op.
 pub fn cmd_set_stencil_op_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -2598,7 +2598,7 @@ pub fn cmd_set_stencil_op_exec(
     crate::ffi::ffi_cmd_set_stencil_op(ctx, cb.handle, face_mask, fail_op, pass_op, depth_fail_op, compare_op);
 }
 
-/// Exec: set dynamic rasterizer discard enable.
+///  Exec: set dynamic rasterizer discard enable.
 pub fn cmd_set_rasterizer_discard_enable_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -2621,9 +2621,9 @@ pub fn cmd_set_rasterizer_discard_enable_exec(
     crate::ffi::ffi_cmd_set_rasterizer_discard_enable(ctx, cb.handle, enable);
 }
 
-// ── Push Descriptor Exec Wrapper ────────────────────────────────────
+//  ── Push Descriptor Exec Wrapper ────────────────────────────────────
 
-/// Exec: push descriptor set.
+///  Exec: push descriptor set.
 pub fn cmd_push_descriptor_set_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -2648,9 +2648,9 @@ pub fn cmd_push_descriptor_set_exec(
     crate::ffi::ffi_cmd_push_descriptor_set(ctx, cb.handle, bind_point, layout_handle, set_index);
 }
 
-// ── Fragment Shading Rate Exec Wrapper ──────────────────────────────
+//  ── Fragment Shading Rate Exec Wrapper ──────────────────────────────
 
-/// Exec: set fragment shading rate.
+///  Exec: set fragment shading rate.
 pub fn cmd_set_fragment_shading_rate_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -2676,9 +2676,9 @@ pub fn cmd_set_fragment_shading_rate_exec(
     crate::ffi::ffi_cmd_set_fragment_shading_rate(ctx, cb.handle, width, height, combiner0, combiner1);
 }
 
-// ── Shader Object Exec Wrapper ──────────────────────────────────────
+//  ── Shader Object Exec Wrapper ──────────────────────────────────────
 
-/// Exec: bind shader objects.
+///  Exec: bind shader objects.
 pub fn cmd_bind_shaders_exec(
     ctx: &VulkanContext,
     cb: &mut RuntimeCommandBuffer,
@@ -2701,42 +2701,42 @@ pub fn cmd_bind_shaders_exec(
     crate::ffi::ffi_cmd_bind_shaders(ctx, cb.handle, stage_count);
 }
 
-/// Proof: initial is not recording.
+///  Proof: initial is not recording.
 pub proof fn lemma_initial_not_recording(cb: &RuntimeCommandBuffer)
     requires is_initial(cb),
     ensures !is_recording(cb),
 {
 }
 
-/// Proof: initial is not executable.
+///  Proof: initial is not executable.
 pub proof fn lemma_initial_not_executable(cb: &RuntimeCommandBuffer)
     requires is_initial(cb),
     ensures !is_executable(cb),
 {
 }
 
-/// Proof: recording is not executable.
+///  Proof: recording is not executable.
 pub proof fn lemma_recording_not_executable(cb: &RuntimeCommandBuffer)
     requires is_recording(cb),
     ensures !is_executable(cb),
 {
 }
 
-/// Proof: executable is not recording.
+///  Proof: executable is not recording.
 pub proof fn lemma_executable_not_recording(cb: &RuntimeCommandBuffer)
     requires is_executable(cb),
     ensures !is_recording(cb),
 {
 }
 
-/// Proof: pending is not recording, not executable, and not initial.
+///  Proof: pending is not recording, not executable, and not initial.
 pub proof fn lemma_pending_exclusive(cb: &RuntimeCommandBuffer)
     requires is_pending(cb),
     ensures !is_recording(cb) && !is_executable(cb) && !is_initial(cb),
 {
 }
 
-/// Proof: the full lifecycle cycle: Initial → Recording → Executable → Pending → Executable.
+///  Proof: the full lifecycle cycle: Initial → Recording → Executable → Pending → Executable.
 pub proof fn lemma_full_lifecycle()
     ensures ({
         let cb0 = RuntimeCommandBuffer {
@@ -2753,4 +2753,4 @@ pub proof fn lemma_full_lifecycle()
 {
 }
 
-} // verus!
+} //  verus!

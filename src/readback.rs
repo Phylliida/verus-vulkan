@@ -5,55 +5,55 @@ use crate::lifetime::*;
 
 verus! {
 
-// ── Types ───────────────────────────────────────────────────────────────
+//  ── Types ───────────────────────────────────────────────────────────────
 
-/// Ghost model of buffer contents: a sequence of abstract data units.
+///  Ghost model of buffer contents: a sequence of abstract data units.
 ///
-/// The actual bytes are opaque — we track logical data identity, not
-/// bit patterns. This is sufficient to prove that readback returns
-/// the same data that was written.
+///  The actual bytes are opaque — we track logical data identity, not
+///  bit patterns. This is sufficient to prove that readback returns
+///  the same data that was written.
 pub struct BufferContents {
-    /// Abstract data at each offset.
+    ///  Abstract data at each offset.
     pub data: Seq<nat>,
-    /// Total size in abstract units.
+    ///  Total size in abstract units.
     pub size: nat,
 }
 
-/// Ghost state for a staging buffer used for GPU↔CPU transfers.
+///  Ghost state for a staging buffer used for GPU↔CPU transfers.
 pub struct StagingBufferState {
-    /// Resource identifier.
+    ///  Resource identifier.
     pub resource: ResourceId,
-    /// Whether this buffer is host-visible (mappable).
+    ///  Whether this buffer is host-visible (mappable).
     pub host_visible: bool,
-    /// Whether this buffer is currently mapped.
+    ///  Whether this buffer is currently mapped.
     pub mapped: bool,
-    /// Buffer size.
+    ///  Buffer size.
     pub size: nat,
-    /// Current ghost contents.
+    ///  Current ghost contents.
     pub contents: BufferContents,
-    /// Taint label (for information flow tracking).
+    ///  Taint label (for information flow tracking).
     pub taint: TaintSet,
-    /// Whether the buffer is alive.
+    ///  Whether the buffer is alive.
     pub alive: bool,
 }
 
-/// Ghost state for a GPU-side buffer.
+///  Ghost state for a GPU-side buffer.
 pub struct GpuBufferState {
-    /// Resource identifier.
+    ///  Resource identifier.
     pub resource: ResourceId,
-    /// Buffer size.
+    ///  Buffer size.
     pub size: nat,
-    /// Current ghost contents.
+    ///  Current ghost contents.
     pub contents: BufferContents,
-    /// Taint label.
+    ///  Taint label.
     pub taint: TaintSet,
-    /// Whether the buffer is alive.
+    ///  Whether the buffer is alive.
     pub alive: bool,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// Extract a slice of buffer contents.
+///  Extract a slice of buffer contents.
 pub open spec fn contents_slice(
     contents: BufferContents,
     offset: nat,
@@ -64,7 +64,7 @@ pub open spec fn contents_slice(
     contents.data.subrange(offset as int, (offset + size) as int)
 }
 
-/// A staging buffer is well-formed.
+///  A staging buffer is well-formed.
 pub open spec fn staging_buffer_well_formed(buf: StagingBufferState) -> bool {
     buf.alive
     && buf.host_visible
@@ -72,15 +72,15 @@ pub open spec fn staging_buffer_well_formed(buf: StagingBufferState) -> bool {
     && buf.contents.data.len() == buf.size
 }
 
-/// A GPU buffer is well-formed.
+///  A GPU buffer is well-formed.
 pub open spec fn gpu_buffer_well_formed(buf: GpuBufferState) -> bool {
     buf.alive
     && buf.contents.size == buf.size
     && buf.contents.data.len() == buf.size
 }
 
-/// Ghost update: copy from GPU buffer to staging buffer.
-/// Models vkCmdCopyBuffer from a device-local buffer to a host-visible buffer.
+///  Ghost update: copy from GPU buffer to staging buffer.
+///  Models vkCmdCopyBuffer from a device-local buffer to a host-visible buffer.
 pub open spec fn copy_to_staging_ghost(
     staging: StagingBufferState,
     gpu: GpuBufferState,
@@ -114,8 +114,8 @@ pub open spec fn copy_to_staging_ghost(
     }
 }
 
-/// Ghost update: copy from host to GPU buffer.
-/// Models the upload path (vkCmdCopyBuffer from staging to device-local).
+///  Ghost update: copy from host to GPU buffer.
+///  Models the upload path (vkCmdCopyBuffer from staging to device-local).
 pub open spec fn copy_from_staging_ghost(
     gpu: GpuBufferState,
     staging: StagingBufferState,
@@ -149,8 +149,8 @@ pub open spec fn copy_from_staging_ghost(
     }
 }
 
-/// No pending writes to a staging buffer: all submissions that reference
-/// it have completed.
+///  No pending writes to a staging buffer: all submissions that reference
+///  it have completed.
 pub open spec fn no_pending_writes(
     submissions: Seq<SubmissionRecord>,
     resource: ResourceId,
@@ -158,7 +158,7 @@ pub open spec fn no_pending_writes(
     no_pending_references(submissions, resource)
 }
 
-/// After a fence wait, the host can read the staging buffer.
+///  After a fence wait, the host can read the staging buffer.
 pub open spec fn host_readable(
     submissions: Seq<SubmissionRecord>,
     staging: StagingBufferState,
@@ -168,7 +168,7 @@ pub open spec fn host_readable(
     && no_pending_writes(submissions, staging.resource)
 }
 
-/// The staging buffer contents at a given region match the GPU buffer.
+///  The staging buffer contents at a given region match the GPU buffer.
 pub open spec fn staging_matches_gpu(
     staging: StagingBufferState,
     gpu: GpuBufferState,
@@ -185,7 +185,7 @@ pub open spec fn staging_matches_gpu(
             == gpu.contents.data[(src_offset as int) + (i - dst_offset as int)]
 }
 
-/// A full readback is valid: copy, fence wait, then map.
+///  A full readback is valid: copy, fence wait, then map.
 pub open spec fn readback_valid(
     submissions: Seq<SubmissionRecord>,
     staging: StagingBufferState,
@@ -198,9 +198,9 @@ pub open spec fn readback_valid(
     && host_readable(submissions, staging)
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// After copy_to_staging_ghost, the staging buffer contents match the GPU source.
+///  After copy_to_staging_ghost, the staging buffer contents match the GPU source.
 pub proof fn lemma_copy_preserves_contents(
     staging: StagingBufferState,
     gpu: GpuBufferState,
@@ -226,11 +226,11 @@ pub proof fn lemma_copy_preserves_contents(
     assert forall|i: int| dst_offset as int <= i < (dst_offset + copy_size) as int
     implies result.contents.data[i]
         == gpu.contents.data[(src_offset as int) + (i - dst_offset as int)] by {
-        // Direct from Seq::new definition
+        //  Direct from Seq::new definition
     }
 }
 
-/// Copy does not affect regions outside the copy range.
+///  Copy does not affect regions outside the copy range.
 pub proof fn lemma_copy_preserves_outside(
     staging: StagingBufferState,
     gpu: GpuBufferState,
@@ -252,7 +252,7 @@ pub proof fn lemma_copy_preserves_outside(
 {
 }
 
-/// Copy preserves the staging buffer's host_visible and alive flags.
+///  Copy preserves the staging buffer's host_visible and alive flags.
 pub proof fn lemma_copy_preserves_staging_metadata(
     staging: StagingBufferState,
     gpu: GpuBufferState,
@@ -273,7 +273,7 @@ pub proof fn lemma_copy_preserves_staging_metadata(
 {
 }
 
-/// Taint flows through copy: the result taint is the union of both buffers.
+///  Taint flows through copy: the result taint is the union of both buffers.
 pub proof fn lemma_copy_propagates_taint(
     staging: StagingBufferState,
     gpu: GpuBufferState,
@@ -290,8 +290,8 @@ pub proof fn lemma_copy_propagates_taint(
 {
 }
 
-/// A round-trip upload then readback recovers the original data.
-/// write to staging → copy to GPU → copy back to staging → data matches.
+///  A round-trip upload then readback recovers the original data.
+///  write to staging → copy to GPU → copy back to staging → data matches.
 pub proof fn lemma_roundtrip_preserves_data(
     staging: StagingBufferState,
     gpu: GpuBufferState,
@@ -304,11 +304,11 @@ pub proof fn lemma_roundtrip_preserves_data(
         offset + copy_size <= staging.size,
         offset + copy_size <= gpu.size,
     ensures ({
-        // Upload: staging → gpu
+        //  Upload: staging → gpu
         let gpu_after_upload = copy_from_staging_ghost(gpu, staging, offset, offset, copy_size);
-        // Readback: gpu → staging (into same location)
+        //  Readback: gpu → staging (into same location)
         let staging_after_readback = copy_to_staging_ghost(staging, gpu_after_upload, offset, offset, copy_size);
-        // Data matches the original staging contents
+        //  Data matches the original staging contents
         forall|i: int| offset as int <= i < (offset + copy_size) as int
             ==> staging_after_readback.contents.data[i] == staging.contents.data[i]
     }),
@@ -318,11 +318,11 @@ pub proof fn lemma_roundtrip_preserves_data(
 
     assert forall|i: int| offset as int <= i < (offset + copy_size) as int
     implies staging_after_readback.contents.data[i] == staging.contents.data[i] by {
-        // staging_after_readback.contents.data[i]
-        //   = gpu_after_upload.contents.data[offset + (i - offset)]    (from copy_to_staging)
-        //   = gpu_after_upload.contents.data[i]
-        //   = staging.contents.data[offset + (i - offset)]             (from copy_from_staging)
-        //   = staging.contents.data[i]
+        //  staging_after_readback.contents.data[i]
+        //    = gpu_after_upload.contents.data[offset + (i - offset)]    (from copy_to_staging)
+        //    = gpu_after_upload.contents.data[i]
+        //    = staging.contents.data[offset + (i - offset)]             (from copy_from_staging)
+        //    = staging.contents.data[i]
         assert(staging_after_readback.contents.data[i]
             == gpu_after_upload.contents.data[(offset as int) + (i - offset as int)]);
         assert(gpu_after_upload.contents.data[(offset as int) + (i - offset as int)]
@@ -330,7 +330,7 @@ pub proof fn lemma_roundtrip_preserves_data(
     }
 }
 
-/// An empty submission log means the staging buffer is host-readable.
+///  An empty submission log means the staging buffer is host-readable.
 pub proof fn lemma_empty_submissions_host_readable(
     staging: StagingBufferState,
 )
@@ -342,7 +342,7 @@ pub proof fn lemma_empty_submissions_host_readable(
 {
 }
 
-/// Copy to staging preserves well-formedness.
+///  Copy to staging preserves well-formedness.
 pub proof fn lemma_copy_preserves_staging_well_formed(
     staging: StagingBufferState,
     gpu: GpuBufferState,
@@ -364,4 +364,4 @@ pub proof fn lemma_copy_preserves_staging_well_formed(
     assert(result.contents.data.len() == staging.size);
 }
 
-} // verus!
+} //  verus!

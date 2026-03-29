@@ -2,79 +2,79 @@ use vstd::prelude::*;
 
 verus! {
 
-// ── Types ──────────────────────────────────────────────────────────────
+//  ── Types ──────────────────────────────────────────────────────────────
 
-/// Geometry type in a bottom-level acceleration structure.
+///  Geometry type in a bottom-level acceleration structure.
 pub enum ASGeometryType {
     Triangles,
     AABBs,
 }
 
-/// Description of a single geometry in a BLAS.
+///  Description of a single geometry in a BLAS.
 pub struct ASGeometryDesc {
-    /// Type of geometry (triangles or AABBs).
+    ///  Type of geometry (triangles or AABBs).
     pub geometry_type: ASGeometryType,
-    /// Number of primitives.
+    ///  Number of primitives.
     pub primitive_count: nat,
-    /// Buffer holding vertex data.
+    ///  Buffer holding vertex data.
     pub vertex_buffer: nat,
-    /// Optional index buffer.
+    ///  Optional index buffer.
     pub index_buffer: Option<nat>,
-    /// Optional transform buffer.
+    ///  Optional transform buffer.
     pub transform_buffer: Option<nat>,
 }
 
-/// Acceleration structure level.
+///  Acceleration structure level.
 pub enum ASLevel {
     Bottom,
     Top,
 }
 
-/// Build mode for an acceleration structure.
+///  Build mode for an acceleration structure.
 pub enum ASBuildMode {
-    /// Full build from scratch.
+    ///  Full build from scratch.
     Build,
-    /// In-place update (same geometry count, may change positions).
+    ///  In-place update (same geometry count, may change positions).
     Update,
 }
 
-/// An instance in a top-level acceleration structure referencing a BLAS.
+///  An instance in a top-level acceleration structure referencing a BLAS.
 pub struct ASInstanceDesc {
-    /// ID of the BLAS this instance references.
+    ///  ID of the BLAS this instance references.
     pub blas_id: nat,
-    /// Transform identifier.
+    ///  Transform identifier.
     pub transform: nat,
-    /// Custom index for shader access.
+    ///  Custom index for shader access.
     pub custom_index: nat,
-    /// Visibility mask.
+    ///  Visibility mask.
     pub mask: nat,
 }
 
-/// Ghost state for a VkAccelerationStructureKHR.
+///  Ghost state for a VkAccelerationStructureKHR.
 pub struct AccelerationStructureState {
-    /// Unique identifier.
+    ///  Unique identifier.
     pub id: nat,
-    /// Whether this is a BLAS or TLAS.
+    ///  Whether this is a BLAS or TLAS.
     pub level: ASLevel,
-    /// Geometries (only for BLAS).
+    ///  Geometries (only for BLAS).
     pub geometries: Seq<ASGeometryDesc>,
-    /// Instances (only for TLAS).
+    ///  Instances (only for TLAS).
     pub instances: Seq<ASInstanceDesc>,
-    /// Whether the AS has been built at least once.
+    ///  Whether the AS has been built at least once.
     pub built: bool,
-    /// Buffer holding the AS data.
+    ///  Buffer holding the AS data.
     pub buffer_id: nat,
-    /// Scratch buffer used during build.
+    ///  Scratch buffer used during build.
     pub scratch_buffer_id: nat,
-    /// False after destruction.
+    ///  False after destruction.
     pub alive: bool,
-    /// Build generation counter.
+    ///  Build generation counter.
     pub generation: nat,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────
 
-/// A bottom-level AS is well-formed: alive, correct level, has geometries.
+///  A bottom-level AS is well-formed: alive, correct level, has geometries.
 pub open spec fn blas_well_formed(as_state: AccelerationStructureState) -> bool {
     as_state.alive
     && matches!(as_state.level, ASLevel::Bottom)
@@ -82,7 +82,7 @@ pub open spec fn blas_well_formed(as_state: AccelerationStructureState) -> bool 
     && as_state.instances.len() == 0
 }
 
-/// A top-level AS is well-formed: alive, correct level, has instances.
+///  A top-level AS is well-formed: alive, correct level, has instances.
 pub open spec fn tlas_well_formed(as_state: AccelerationStructureState) -> bool {
     as_state.alive
     && matches!(as_state.level, ASLevel::Top)
@@ -90,13 +90,13 @@ pub open spec fn tlas_well_formed(as_state: AccelerationStructureState) -> bool 
     && as_state.geometries.len() == 0
 }
 
-/// An AS is well-formed (BLAS or TLAS).
+///  An AS is well-formed (BLAS or TLAS).
 pub open spec fn as_well_formed(as_state: AccelerationStructureState) -> bool {
     as_state.alive
     && (blas_well_formed(as_state) || tlas_well_formed(as_state))
 }
 
-/// All BLAS references in a TLAS are valid (exist in map and are built).
+///  All BLAS references in a TLAS are valid (exist in map and are built).
 pub open spec fn all_blas_references_valid(
     tlas: AccelerationStructureState,
     blas_map: Map<nat, AccelerationStructureState>,
@@ -111,7 +111,7 @@ pub open spec fn all_blas_references_valid(
         )
 }
 
-/// Ghost update: build an acceleration structure.
+///  Ghost update: build an acceleration structure.
 pub open spec fn build_as_ghost(
     as_state: AccelerationStructureState,
     mode: ASBuildMode,
@@ -125,7 +125,7 @@ pub open spec fn build_as_ghost(
     }
 }
 
-/// Ghost update: destroy an acceleration structure.
+///  Ghost update: destroy an acceleration structure.
 pub open spec fn destroy_as_ghost(
     as_state: AccelerationStructureState,
 ) -> AccelerationStructureState
@@ -137,7 +137,7 @@ pub open spec fn destroy_as_ghost(
     }
 }
 
-/// The AS's storage buffer and scratch buffer must be alive.
+///  The AS's storage buffer and scratch buffer must be alive.
 pub open spec fn as_buffers_valid(
     as_state: AccelerationStructureState,
     live_buffers: Set<nat>,
@@ -146,7 +146,7 @@ pub open spec fn as_buffers_valid(
     && live_buffers.contains(as_state.scratch_buffer_id)
 }
 
-/// Collect all buffer IDs referenced by geometry descriptions.
+///  Collect all buffer IDs referenced by geometry descriptions.
 pub open spec fn as_geometry_buffer_refs(
     as_state: AccelerationStructureState,
 ) -> Set<nat> {
@@ -160,7 +160,7 @@ pub open spec fn as_geometry_buffer_refs(
     )
 }
 
-/// All geometry primitives have non-zero count.
+///  All geometry primitives have non-zero count.
 pub open spec fn all_geometries_non_empty(
     as_state: AccelerationStructureState,
 ) -> bool {
@@ -170,7 +170,7 @@ pub open spec fn all_geometries_non_empty(
         ==> as_state.geometries[i as int].primitive_count > 0
 }
 
-/// Update mode preserves geometry count.
+///  Update mode preserves geometry count.
 pub open spec fn update_preserves_structure(
     old: AccelerationStructureState,
     new: AccelerationStructureState,
@@ -180,7 +180,7 @@ pub open spec fn update_preserves_structure(
     && old.level == new.level
 }
 
-/// All BLAS IDs referenced by instances are distinct from the TLAS ID.
+///  All BLAS IDs referenced by instances are distinct from the TLAS ID.
 pub open spec fn tlas_blas_ids_distinct(
     tlas: AccelerationStructureState,
 ) -> bool {
@@ -190,9 +190,9 @@ pub open spec fn tlas_blas_ids_distinct(
         ==> tlas.instances[i as int].blas_id != tlas.id
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────
 
-/// Building an AS sets the built flag to true.
+///  Building an AS sets the built flag to true.
 pub proof fn lemma_build_makes_built(
     as_state: AccelerationStructureState,
     mode: ASBuildMode,
@@ -201,8 +201,8 @@ pub proof fn lemma_build_makes_built(
 {
 }
 
-/// Destroying an AS sets alive to false.
-/// Caller must prove the AS is alive before destroying.
+///  Destroying an AS sets alive to false.
+///  Caller must prove the AS is alive before destroying.
 pub proof fn lemma_destroy_invalidates(
     as_state: AccelerationStructureState,
 )
@@ -211,20 +211,20 @@ pub proof fn lemma_destroy_invalidates(
 {
 }
 
-/// An AS cannot be both BLAS and TLAS.
+///  An AS cannot be both BLAS and TLAS.
 pub proof fn lemma_blas_tlas_exclusive(as_state: AccelerationStructureState)
     requires as_well_formed(as_state),
     ensures
         !(blas_well_formed(as_state) && tlas_well_formed(as_state)),
 {
     if blas_well_formed(as_state) && tlas_well_formed(as_state) {
-        // BLAS requires instances.len() == 0, TLAS requires instances.len() > 0
+        //  BLAS requires instances.len() == 0, TLAS requires instances.len() > 0
         assert(as_state.instances.len() == 0);
         assert(as_state.instances.len() > 0);
     }
 }
 
-/// If a TLAS is well-formed with valid BLAS refs, all referenced BLASes are built.
+///  If a TLAS is well-formed with valid BLAS refs, all referenced BLASes are built.
 pub proof fn lemma_tlas_requires_built_blas(
     tlas: AccelerationStructureState,
     blas_map: Map<nat, AccelerationStructureState>,
@@ -240,7 +240,7 @@ pub proof fn lemma_tlas_requires_built_blas(
 {
 }
 
-/// Update mode preserves geometry count.
+///  Update mode preserves geometry count.
 pub proof fn lemma_update_preserves_geometry_count(
     as_state: AccelerationStructureState,
 )
@@ -252,7 +252,7 @@ pub proof fn lemma_update_preserves_geometry_count(
 {
 }
 
-/// Building requires scratch buffer (must be in live set).
+///  Building requires scratch buffer (must be in live set).
 pub proof fn lemma_build_requires_scratch(
     as_state: AccelerationStructureState,
     live_buffers: Set<nat>,
@@ -262,8 +262,8 @@ pub proof fn lemma_build_requires_scratch(
 {
 }
 
-/// Well-formed AS implies all geometry buffer refs are a subset of
-/// the geometry_buffer_refs set.
+///  Well-formed AS implies all geometry buffer refs are a subset of
+///  the geometry_buffer_refs set.
 pub proof fn lemma_geometry_refs_subset(
     as_state: AccelerationStructureState,
     geom_idx: nat,
@@ -280,7 +280,7 @@ pub proof fn lemma_geometry_refs_subset(
     assert(as_state.geometries[geom_idx as int].vertex_buffer == buf_id);
 }
 
-/// Building increments the generation counter.
+///  Building increments the generation counter.
 pub proof fn lemma_build_increments_generation(
     as_state: AccelerationStructureState,
     mode: ASBuildMode,
@@ -290,7 +290,7 @@ pub proof fn lemma_build_increments_generation(
 {
 }
 
-/// Building preserves the level.
+///  Building preserves the level.
 pub proof fn lemma_build_preserves_level(
     as_state: AccelerationStructureState,
     mode: ASBuildMode,
@@ -300,7 +300,7 @@ pub proof fn lemma_build_preserves_level(
 {
 }
 
-/// Building preserves alive status.
+///  Building preserves alive status.
 pub proof fn lemma_build_preserves_alive(
     as_state: AccelerationStructureState,
     mode: ASBuildMode,
@@ -310,7 +310,7 @@ pub proof fn lemma_build_preserves_alive(
 {
 }
 
-/// Destroying preserves the built flag.
+///  Destroying preserves the built flag.
 pub proof fn lemma_destroy_preserves_built(
     as_state: AccelerationStructureState,
 )
@@ -319,7 +319,7 @@ pub proof fn lemma_destroy_preserves_built(
 {
 }
 
-/// A BLAS with all non-empty geometries and valid buffers is ready to build.
+///  A BLAS with all non-empty geometries and valid buffers is ready to build.
 pub proof fn lemma_blas_ready_to_build(
     as_state: AccelerationStructureState,
     live_buffers: Set<nat>,
@@ -334,7 +334,7 @@ pub proof fn lemma_blas_ready_to_build(
 {
 }
 
-/// Building a well-formed BLAS preserves BLAS well-formedness.
+///  Building a well-formed BLAS preserves BLAS well-formedness.
 pub proof fn lemma_build_preserves_blas_well_formed(
     as_state: AccelerationStructureState,
     mode: ASBuildMode,
@@ -344,7 +344,7 @@ pub proof fn lemma_build_preserves_blas_well_formed(
 {
 }
 
-/// Building a well-formed TLAS preserves TLAS well-formedness.
+///  Building a well-formed TLAS preserves TLAS well-formedness.
 pub proof fn lemma_build_preserves_tlas_well_formed(
     as_state: AccelerationStructureState,
     mode: ASBuildMode,
@@ -354,7 +354,7 @@ pub proof fn lemma_build_preserves_tlas_well_formed(
 {
 }
 
-/// An empty instance list means no BLAS references to validate.
+///  An empty instance list means no BLAS references to validate.
 pub proof fn lemma_empty_instances_trivially_valid(
     blas_map: Map<nat, AccelerationStructureState>,
 )
@@ -369,9 +369,9 @@ pub proof fn lemma_empty_instances_trivially_valid(
 {
 }
 
-// ── Extended Specs ──────────────────────────────────────────────────
+//  ── Extended Specs ──────────────────────────────────────────────────
 
-/// Total primitive count across all geometries.
+///  Total primitive count across all geometries.
 pub open spec fn as_total_primitive_count(
     as_state: AccelerationStructureState,
 ) -> nat
@@ -388,7 +388,7 @@ pub open spec fn as_total_primitive_count(
     }
 }
 
-/// Maximum primitive count among all geometries.
+///  Maximum primitive count among all geometries.
 pub open spec fn as_max_primitive_count(
     as_state: AccelerationStructureState,
 ) -> nat
@@ -409,17 +409,17 @@ pub open spec fn as_max_primitive_count(
     }
 }
 
-/// Number of geometries in a BLAS.
+///  Number of geometries in a BLAS.
 pub open spec fn as_geometry_count(as_state: AccelerationStructureState) -> nat {
     as_state.geometries.len()
 }
 
-/// Number of instances in a TLAS.
+///  Number of instances in a TLAS.
 pub open spec fn as_instance_count(as_state: AccelerationStructureState) -> nat {
     as_state.instances.len()
 }
 
-/// Ghost update: compact an AS (keeps all state, just marks as compact).
+///  Ghost update: compact an AS (keeps all state, just marks as compact).
 pub open spec fn compact_as_ghost(
     as_state: AccelerationStructureState,
 ) -> AccelerationStructureState
@@ -431,7 +431,7 @@ pub open spec fn compact_as_ghost(
     }
 }
 
-/// Scratch buffer size is sufficient for the build.
+///  Scratch buffer size is sufficient for the build.
 pub open spec fn as_scratch_size_sufficient(
     as_state: AccelerationStructureState,
     scratch_size: nat,
@@ -439,7 +439,7 @@ pub open spec fn as_scratch_size_sufficient(
     scratch_size >= as_total_primitive_count(as_state)
 }
 
-/// AS is compatible with a pipeline that supports at most `max_geoms` geometries.
+///  AS is compatible with a pipeline that supports at most `max_geoms` geometries.
 pub open spec fn as_compatible_with_pipeline(
     as_state: AccelerationStructureState,
     max_geoms: nat,
@@ -447,7 +447,7 @@ pub open spec fn as_compatible_with_pipeline(
     as_state.geometries.len() <= max_geoms
 }
 
-/// All instance custom indices are distinct.
+///  All instance custom indices are distinct.
 pub open spec fn instance_custom_indices_distinct(
     tlas: AccelerationStructureState,
 ) -> bool {
@@ -457,7 +457,7 @@ pub open spec fn instance_custom_indices_distinct(
         ==> tlas.instances[i as int].custom_index != tlas.instances[j as int].custom_index
 }
 
-/// All instance masks are non-zero (visible).
+///  All instance masks are non-zero (visible).
 pub open spec fn all_instances_visible(tlas: AccelerationStructureState) -> bool {
     forall|i: nat|
         #![trigger tlas.instances[i as int]]
@@ -465,7 +465,7 @@ pub open spec fn all_instances_visible(tlas: AccelerationStructureState) -> bool
         ==> tlas.instances[i as int].mask > 0
 }
 
-/// Two ASes have the same geometry structure.
+///  Two ASes have the same geometry structure.
 pub open spec fn as_structurally_compatible(
     a: AccelerationStructureState,
     b: AccelerationStructureState,
@@ -475,58 +475,58 @@ pub open spec fn as_structurally_compatible(
     && a.instances.len() == b.instances.len()
 }
 
-/// An AS that has never been built.
+///  An AS that has never been built.
 pub open spec fn as_unbuilt(as_state: AccelerationStructureState) -> bool {
     !as_state.built && as_state.generation == 0
 }
 
-// ── Extended Proofs ────────────────────────────────────────────────
+//  ── Extended Proofs ────────────────────────────────────────────────
 
-/// A well-formed BLAS has positive geometry count.
+///  A well-formed BLAS has positive geometry count.
 pub proof fn lemma_blas_geometry_count_positive(as_state: AccelerationStructureState)
     requires blas_well_formed(as_state),
     ensures as_geometry_count(as_state) > 0,
 {
 }
 
-/// A well-formed TLAS has positive instance count.
+///  A well-formed TLAS has positive instance count.
 pub proof fn lemma_tlas_instance_count_positive(as_state: AccelerationStructureState)
     requires tlas_well_formed(as_state),
     ensures as_instance_count(as_state) > 0,
 {
 }
 
-/// Compacting preserves the built flag.
+///  Compacting preserves the built flag.
 pub proof fn lemma_compact_preserves_built(as_state: AccelerationStructureState)
     ensures compact_as_ghost(as_state).built == as_state.built,
 {
 }
 
-/// Compacting preserves the level.
+///  Compacting preserves the level.
 pub proof fn lemma_compact_preserves_level(as_state: AccelerationStructureState)
     ensures compact_as_ghost(as_state).level == as_state.level,
 {
 }
 
-/// Compacting preserves alive status.
+///  Compacting preserves alive status.
 pub proof fn lemma_compact_preserves_alive(as_state: AccelerationStructureState)
     ensures compact_as_ghost(as_state).alive == as_state.alive,
 {
 }
 
-/// Compacting increments generation.
+///  Compacting increments generation.
 pub proof fn lemma_compact_increments_generation(as_state: AccelerationStructureState)
     ensures compact_as_ghost(as_state).generation == as_state.generation + 1,
 {
 }
 
-/// Destroying preserves the ID.
+///  Destroying preserves the ID.
 pub proof fn lemma_destroy_preserves_id(as_state: AccelerationStructureState)
     ensures destroy_as_ghost(as_state).id == as_state.id,
 {
 }
 
-/// Building preserves the ID.
+///  Building preserves the ID.
 pub proof fn lemma_build_preserves_id(
     as_state: AccelerationStructureState,
     mode: ASBuildMode,
@@ -535,7 +535,7 @@ pub proof fn lemma_build_preserves_id(
 {
 }
 
-/// Building preserves buffer IDs.
+///  Building preserves buffer IDs.
 pub proof fn lemma_build_preserves_buffer_ids(
     as_state: AccelerationStructureState,
     mode: ASBuildMode,
@@ -546,7 +546,7 @@ pub proof fn lemma_build_preserves_buffer_ids(
 {
 }
 
-/// Destroying preserves the geometry list.
+///  Destroying preserves the geometry list.
 pub proof fn lemma_destroy_preserves_geometries(as_state: AccelerationStructureState)
     ensures
         destroy_as_ghost(as_state).geometries == as_state.geometries,
@@ -554,19 +554,19 @@ pub proof fn lemma_destroy_preserves_geometries(as_state: AccelerationStructureS
 {
 }
 
-/// A destroyed AS is not well-formed.
+///  A destroyed AS is not well-formed.
 pub proof fn lemma_destroyed_not_well_formed(as_state: AccelerationStructureState)
     ensures !as_well_formed(destroy_as_ghost(as_state)),
 {
 }
 
-/// Structural compatibility is reflexive.
+///  Structural compatibility is reflexive.
 pub proof fn lemma_structural_compatible_reflexive(as_state: AccelerationStructureState)
     ensures as_structurally_compatible(as_state, as_state),
 {
 }
 
-/// Structural compatibility is symmetric.
+///  Structural compatibility is symmetric.
 pub proof fn lemma_structural_compatible_symmetric(
     a: AccelerationStructureState,
     b: AccelerationStructureState,
@@ -576,7 +576,7 @@ pub proof fn lemma_structural_compatible_symmetric(
 {
 }
 
-/// Building preserves structural compatibility with the original.
+///  Building preserves structural compatibility with the original.
 pub proof fn lemma_build_preserves_structure(
     as_state: AccelerationStructureState,
     mode: ASBuildMode,
@@ -585,7 +585,7 @@ pub proof fn lemma_build_preserves_structure(
 {
 }
 
-/// Max primitive count is <= total primitive count.
+///  Max primitive count is <= total primitive count.
 pub proof fn lemma_max_primitive_leq_total(as_state: AccelerationStructureState)
     ensures as_max_primitive_count(as_state) <= as_total_primitive_count(as_state),
     decreases as_state.geometries.len(),
@@ -599,14 +599,14 @@ pub proof fn lemma_max_primitive_leq_total(as_state: AccelerationStructureState)
     }
 }
 
-/// An unbuilt AS has generation 0.
+///  An unbuilt AS has generation 0.
 pub proof fn lemma_unbuilt_generation_zero(as_state: AccelerationStructureState)
     requires as_unbuilt(as_state),
     ensures as_state.generation == 0,
 {
 }
 
-/// After building, an AS is no longer unbuilt.
+///  After building, an AS is no longer unbuilt.
 pub proof fn lemma_built_not_unbuilt(
     as_state: AccelerationStructureState,
     mode: ASBuildMode,
@@ -615,7 +615,7 @@ pub proof fn lemma_built_not_unbuilt(
 {
 }
 
-/// Compacting a well-formed BLAS preserves BLAS well-formedness.
+///  Compacting a well-formed BLAS preserves BLAS well-formedness.
 pub proof fn lemma_compact_preserves_blas_well_formed(
     as_state: AccelerationStructureState,
 )
@@ -624,7 +624,7 @@ pub proof fn lemma_compact_preserves_blas_well_formed(
 {
 }
 
-/// Compacting a well-formed TLAS preserves TLAS well-formedness.
+///  Compacting a well-formed TLAS preserves TLAS well-formedness.
 pub proof fn lemma_compact_preserves_tlas_well_formed(
     as_state: AccelerationStructureState,
 )
@@ -633,4 +633,4 @@ pub proof fn lemma_compact_preserves_tlas_well_formed(
 {
 }
 
-} // verus!
+} //  verus!

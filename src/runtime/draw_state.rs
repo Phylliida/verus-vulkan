@@ -4,18 +4,18 @@ use crate::pipeline::DynamicStateKind;
 
 verus! {
 
-/// Runtime draw-state tracker: pure ghost tracking of vertex/index buffer bindings,
-/// dynamic state, and push constant ranges during command recording.
+///  Runtime draw-state tracker: pure ghost tracking of vertex/index buffer bindings,
+///  dynamic state, and push constant ranges during command recording.
 pub struct RuntimeDrawState {
     pub state: Ghost<DrawCallState>,
 }
 
-/// Well-formedness: trivially true (pure ghost tracking).
+///  Well-formedness: trivially true (pure ghost tracking).
 pub open spec fn runtime_draw_state_wf(ds: &RuntimeDrawState) -> bool {
     true
 }
 
-/// Create an initial (empty) draw state.
+///  Create an initial (empty) draw state.
 pub fn create_draw_state_exec() -> (out: RuntimeDrawState)
     ensures out.state@ == initial_draw_state(),
 {
@@ -24,7 +24,7 @@ pub fn create_draw_state_exec() -> (out: RuntimeDrawState)
     }
 }
 
-/// Bind a vertex buffer to a slot.
+///  Bind a vertex buffer to a slot.
 pub fn bind_vertex_buffer_exec(
     ds: &mut RuntimeDrawState,
     slot: Ghost<nat>,
@@ -35,7 +35,7 @@ pub fn bind_vertex_buffer_exec(
     ds.state = Ghost(bind_vertex_buffer(ds.state@, slot@, binding@));
 }
 
-/// Bind an index buffer.
+///  Bind an index buffer.
 pub fn bind_index_buffer_exec(
     ds: &mut RuntimeDrawState,
     binding: Ghost<IndexBufferBinding>,
@@ -45,7 +45,7 @@ pub fn bind_index_buffer_exec(
     ds.state = Ghost(bind_index_buffer(ds.state@, binding@));
 }
 
-/// Set a dynamic state.
+///  Set a dynamic state.
 pub fn set_dynamic_state_exec(
     ds: &mut RuntimeDrawState,
     kind: Ghost<DynamicStateKind>,
@@ -55,7 +55,7 @@ pub fn set_dynamic_state_exec(
     ds.state = Ghost(set_dynamic_state(ds.state@, kind@));
 }
 
-/// Set push constants for a range.
+///  Set push constants for a range.
 pub fn set_push_constants_exec(
     ds: &mut RuntimeDrawState,
     offset: Ghost<nat>,
@@ -66,9 +66,9 @@ pub fn set_push_constants_exec(
     ds.state = Ghost(set_push_constants(ds.state@, offset@, size@));
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────
 
-/// Creating a draw state produces an empty (initial) state.
+///  Creating a draw state produces an empty (initial) state.
 pub proof fn lemma_create_draw_state_initial()
     ensures ({
         let ds = initial_draw_state();
@@ -80,7 +80,7 @@ pub proof fn lemma_create_draw_state_initial()
 {
 }
 
-/// After binding a vertex buffer, that slot is satisfied.
+///  After binding a vertex buffer, that slot is satisfied.
 pub proof fn lemma_bind_vertex_exec_satisfies(
     ds: RuntimeDrawState,
     slot: nat,
@@ -92,7 +92,7 @@ pub proof fn lemma_bind_vertex_exec_satisfies(
 {
 }
 
-/// After binding an index buffer, the index buffer is bound.
+///  After binding an index buffer, the index buffer is bound.
 pub proof fn lemma_bind_index_exec_bound(
     ds: RuntimeDrawState,
     binding: IndexBufferBinding,
@@ -102,7 +102,7 @@ pub proof fn lemma_bind_index_exec_bound(
 {
 }
 
-/// After setting a dynamic state, it is in the set.
+///  After setting a dynamic state, it is in the set.
 pub proof fn lemma_set_dynamic_exec_contains(
     ds: RuntimeDrawState,
     kind: DynamicStateKind,
@@ -113,4 +113,4 @@ pub proof fn lemma_set_dynamic_exec_contains(
 {
 }
 
-} // verus!
+} //  verus!

@@ -3,49 +3,49 @@ use crate::render_pass::*;
 
 verus! {
 
-// ── Image View ───────────────────────────────────────────────────────
+//  ── Image View ───────────────────────────────────────────────────────
 
-/// The state of a created image view object.
+///  The state of a created image view object.
 pub struct ImageViewState {
-    /// Unique identifier for this image view.
+    ///  Unique identifier for this image view.
     pub id: nat,
-    /// The image this view references.
+    ///  The image this view references.
     pub image_id: nat,
-    /// Numeric format identifier.
+    ///  Numeric format identifier.
     pub format: nat,
-    /// Whether this image view is alive (not destroyed).
+    ///  Whether this image view is alive (not destroyed).
     pub alive: bool,
-    /// Width of the viewed image (in pixels).
+    ///  Width of the viewed image (in pixels).
     pub width: nat,
-    /// Height of the viewed image (in pixels).
+    ///  Height of the viewed image (in pixels).
     pub height: nat,
-    /// Number of samples (1 = no MSAA, 2/4/8/16/32/64 for MSAA).
+    ///  Number of samples (1 = no MSAA, 2/4/8/16/32/64 for MSAA).
     pub samples: nat,
 }
 
-// ── Framebuffer ──────────────────────────────────────────────────────
+//  ── Framebuffer ──────────────────────────────────────────────────────
 
-/// The state of a created framebuffer object.
+///  The state of a created framebuffer object.
 pub struct FramebufferState {
-    /// Unique identifier for this framebuffer.
+    ///  Unique identifier for this framebuffer.
     pub id: nat,
-    /// The render pass this framebuffer is compatible with.
+    ///  The render pass this framebuffer is compatible with.
     pub render_pass_id: nat,
-    /// Image view IDs for each attachment (ordered to match render pass attachments).
+    ///  Image view IDs for each attachment (ordered to match render pass attachments).
     pub attachments: Seq<nat>,
-    /// Framebuffer width in pixels.
+    ///  Framebuffer width in pixels.
     pub width: nat,
-    /// Framebuffer height in pixels.
+    ///  Framebuffer height in pixels.
     pub height: nat,
-    /// Number of layers.
+    ///  Number of layers.
     pub layers: nat,
-    /// Whether this framebuffer is alive (not destroyed).
+    ///  Whether this framebuffer is alive (not destroyed).
     pub alive: bool,
 }
 
-// ── Ghost Destroy ───────────────────────────────────────────────────
+//  ── Ghost Destroy ───────────────────────────────────────────────────
 
-/// Ghost update: destroy a framebuffer.
+///  Ghost update: destroy a framebuffer.
 pub open spec fn destroy_framebuffer_ghost(
     fb: FramebufferState,
 ) -> FramebufferState
@@ -57,7 +57,7 @@ pub open spec fn destroy_framebuffer_ghost(
     }
 }
 
-/// Ghost update: destroy an image view.
+///  Ghost update: destroy an image view.
 pub open spec fn destroy_image_view_ghost(
     view: ImageViewState,
 ) -> ImageViewState
@@ -69,9 +69,9 @@ pub open spec fn destroy_image_view_ghost(
     }
 }
 
-// ── Spec Functions ───────────────────────────────────────────────────
+//  ── Spec Functions ───────────────────────────────────────────────────
 
-/// The framebuffer's attachment count matches the render pass's attachment count.
+///  The framebuffer's attachment count matches the render pass's attachment count.
 pub open spec fn framebuffer_attachment_count_matches(
     fb: FramebufferState,
     rp: RenderPassState,
@@ -79,8 +79,8 @@ pub open spec fn framebuffer_attachment_count_matches(
     fb.attachments.len() == rp.attachments.len()
 }
 
-/// A framebuffer is well-formed with respect to a render pass:
-/// matching render pass id, attachment count, positive dimensions, and alive.
+///  A framebuffer is well-formed with respect to a render pass:
+///  matching render pass id, attachment count, positive dimensions, and alive.
 pub open spec fn framebuffer_well_formed(
     fb: FramebufferState,
     rp: RenderPassState,
@@ -93,18 +93,18 @@ pub open spec fn framebuffer_well_formed(
     && fb.layers > 0
 }
 
-/// A framebuffer has valid (positive) dimensions.
+///  A framebuffer has valid (positive) dimensions.
 pub open spec fn framebuffer_dimensions_valid(fb: FramebufferState) -> bool {
     fb.width > 0 && fb.height > 0 && fb.layers > 0
 }
 
-/// An image view is well-formed: it is alive.
+///  An image view is well-formed: it is alive.
 pub open spec fn image_view_well_formed(view: ImageViewState) -> bool {
     view.alive
 }
 
-/// A framebuffer is compatible with a render pass:
-/// matching render pass id and attachment count.
+///  A framebuffer is compatible with a render pass:
+///  matching render pass id and attachment count.
 pub open spec fn framebuffer_compatible_with_render_pass(
     fb: FramebufferState,
     rp: RenderPassState,
@@ -113,9 +113,9 @@ pub open spec fn framebuffer_compatible_with_render_pass(
     && framebuffer_attachment_count_matches(fb, rp)
 }
 
-// ── Lemmas ───────────────────────────────────────────────────────────
+//  ── Lemmas ───────────────────────────────────────────────────────────
 
-/// A well-formed framebuffer has an attachment count matching the render pass.
+///  A well-formed framebuffer has an attachment count matching the render pass.
 pub proof fn lemma_well_formed_attachment_count(
     fb: FramebufferState,
     rp: RenderPassState,
@@ -125,7 +125,7 @@ pub proof fn lemma_well_formed_attachment_count(
 {
 }
 
-/// A well-formed framebuffer has positive dimensions.
+///  A well-formed framebuffer has positive dimensions.
 pub proof fn lemma_well_formed_dimensions(
     fb: FramebufferState,
     rp: RenderPassState,
@@ -135,7 +135,7 @@ pub proof fn lemma_well_formed_dimensions(
 {
 }
 
-/// A well-formed framebuffer is compatible with its render pass.
+///  A well-formed framebuffer is compatible with its render pass.
 pub proof fn lemma_well_formed_implies_compatible(
     fb: FramebufferState,
     rp: RenderPassState,
@@ -145,7 +145,7 @@ pub proof fn lemma_well_formed_implies_compatible(
 {
 }
 
-/// A well-formed framebuffer is alive.
+///  A well-formed framebuffer is alive.
 pub proof fn lemma_well_formed_is_alive(
     fb: FramebufferState, rp: RenderPassState,
 )
@@ -154,7 +154,7 @@ pub proof fn lemma_well_formed_is_alive(
 {
 }
 
-/// Compatible framebuffer matches the render pass ID.
+///  Compatible framebuffer matches the render pass ID.
 pub proof fn lemma_compatible_matches_rp_id(
     fb: FramebufferState, rp: RenderPassState,
 )
@@ -163,38 +163,38 @@ pub proof fn lemma_compatible_matches_rp_id(
 {
 }
 
-/// After destroying, a framebuffer is not alive.
-/// Caller must prove the framebuffer is alive before destroying.
+///  After destroying, a framebuffer is not alive.
+///  Caller must prove the framebuffer is alive before destroying.
 pub proof fn lemma_destroy_framebuffer_not_alive(fb: FramebufferState)
     requires fb.alive,
     ensures !destroy_framebuffer_ghost(fb).alive,
 {
 }
 
-/// After destroying, an image view is not alive.
-/// Caller must prove the image view is alive before destroying.
+///  After destroying, an image view is not alive.
+///  Caller must prove the image view is alive before destroying.
 pub proof fn lemma_destroy_image_view_not_alive(view: ImageViewState)
     requires view.alive,
     ensures !destroy_image_view_ghost(view).alive,
 {
 }
 
-/// Destroying a framebuffer preserves its id.
+///  Destroying a framebuffer preserves its id.
 pub proof fn lemma_destroy_framebuffer_preserves_id(fb: FramebufferState)
     ensures destroy_framebuffer_ghost(fb).id == fb.id,
 {
 }
 
-/// Destroying an image view preserves its id.
+///  Destroying an image view preserves its id.
 pub proof fn lemma_destroy_image_view_preserves_id(view: ImageViewState)
     ensures destroy_image_view_ghost(view).id == view.id,
 {
 }
 
-// ── Attachment Dimension/Sample Validation ───────────────────────────
+//  ── Attachment Dimension/Sample Validation ───────────────────────────
 
-/// Every framebuffer attachment's image view dimensions are at least as large
-/// as the framebuffer dimensions.
+///  Every framebuffer attachment's image view dimensions are at least as large
+///  as the framebuffer dimensions.
 pub open spec fn framebuffer_attachments_dimensions_match(
     fb: FramebufferState,
     views: Map<nat, ImageViewState>,
@@ -206,8 +206,8 @@ pub open spec fn framebuffer_attachments_dimensions_match(
         && views[fb.attachments[i]].height >= fb.height
 }
 
-/// Every framebuffer attachment's image view sample count matches
-/// the render pass attachment description's sample count.
+///  Every framebuffer attachment's image view sample count matches
+///  the render pass attachment description's sample count.
 pub open spec fn framebuffer_attachments_samples_consistent(
     fb: FramebufferState,
     views: Map<nat, ImageViewState>,
@@ -220,8 +220,8 @@ pub open spec fn framebuffer_attachments_samples_consistent(
         && views[fb.attachments[i]].samples == rp.attachments[i].samples
 }
 
-/// Every framebuffer attachment's image view format matches the render pass
-/// attachment description's format.
+///  Every framebuffer attachment's image view format matches the render pass
+///  attachment description's format.
 pub open spec fn framebuffer_attachment_formats_match(
     fb: FramebufferState,
     views: Map<nat, ImageViewState>,
@@ -234,7 +234,7 @@ pub open spec fn framebuffer_attachment_formats_match(
         && views[fb.attachments[i]].format == rp.attachments[i].format
 }
 
-/// A framebuffer is fully validated: well-formed + dimensions match + samples consistent + formats match.
+///  A framebuffer is fully validated: well-formed + dimensions match + samples consistent + formats match.
 pub open spec fn framebuffer_fully_validated(
     fb: FramebufferState,
     rp: RenderPassState,
@@ -246,7 +246,7 @@ pub open spec fn framebuffer_fully_validated(
     && framebuffer_attachment_formats_match(fb, views, rp)
 }
 
-/// A fully validated framebuffer is well-formed.
+///  A fully validated framebuffer is well-formed.
 pub proof fn lemma_fully_validated_implies_well_formed(
     fb: FramebufferState,
     rp: RenderPassState,
@@ -257,7 +257,7 @@ pub proof fn lemma_fully_validated_implies_well_formed(
 {
 }
 
-/// A fully validated framebuffer has matching dimensions.
+///  A fully validated framebuffer has matching dimensions.
 pub proof fn lemma_fully_validated_dimensions_match(
     fb: FramebufferState,
     rp: RenderPassState,
@@ -268,7 +268,7 @@ pub proof fn lemma_fully_validated_dimensions_match(
 {
 }
 
-/// A fully validated framebuffer has consistent sample counts.
+///  A fully validated framebuffer has consistent sample counts.
 pub proof fn lemma_fully_validated_samples_consistent(
     fb: FramebufferState,
     rp: RenderPassState,
@@ -279,7 +279,7 @@ pub proof fn lemma_fully_validated_samples_consistent(
 {
 }
 
-/// A fully validated framebuffer has matching attachment formats.
+///  A fully validated framebuffer has matching attachment formats.
 pub proof fn lemma_fully_validated_formats_match(
     fb: FramebufferState,
     rp: RenderPassState,
@@ -290,7 +290,7 @@ pub proof fn lemma_fully_validated_formats_match(
 {
 }
 
-/// If all views have the same format as all render pass attachments, formats match.
+///  If all views have the same format as all render pass attachments, formats match.
 pub proof fn lemma_same_format_trivial(
     fb: FramebufferState,
     rp: RenderPassState,
@@ -315,12 +315,12 @@ pub proof fn lemma_same_format_trivial(
         && i < rp.attachments.len()
         && views[fb.attachments[i]].format == rp.attachments[i].format
     by {
-        // fb.attachments.len() == rp.attachments.len() from framebuffer_well_formed
+        //  fb.attachments.len() == rp.attachments.len() from framebuffer_well_formed
     }
 }
 
-/// If all views have samples==1 and all render pass attachments have samples==1,
-/// then samples are trivially consistent.
+///  If all views have samples==1 and all render pass attachments have samples==1,
+///  then samples are trivially consistent.
 pub proof fn lemma_single_sample_trivial(
     fb: FramebufferState,
     rp: RenderPassState,
@@ -344,8 +344,8 @@ pub proof fn lemma_single_sample_trivial(
         && i < rp.attachments.len()
         && views[fb.attachments[i]].samples == rp.attachments[i].samples
     by {
-        // fb.attachments.len() == rp.attachments.len() from framebuffer_well_formed
+        //  fb.attachments.len() == rp.attachments.len() from framebuffer_well_formed
     }
 }
 
-} // verus!
+} //  verus!

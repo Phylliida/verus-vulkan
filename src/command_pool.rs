@@ -4,27 +4,27 @@ use crate::sync_token::*;
 
 verus! {
 
-// ── Types ───────────────────────────────────────────────────────────────
+//  ── Types ───────────────────────────────────────────────────────────────
 
-/// Ghost state for a Vulkan command pool (VkCommandPool).
+///  Ghost state for a Vulkan command pool (VkCommandPool).
 ///
-/// A command pool manages the memory for command buffers. Resetting
-/// the pool resets all allocated command buffers to Initial state.
+///  A command pool manages the memory for command buffers. Resetting
+///  the pool resets all allocated command buffers to Initial state.
 pub struct CommandPoolState {
     pub id: nat,
-    /// Queue family this pool is associated with.
+    ///  Queue family this pool is associated with.
     pub queue_family: nat,
-    /// Set of command buffer IDs allocated from this pool.
+    ///  Set of command buffer IDs allocated from this pool.
     pub allocated_cbs: Set<nat>,
-    /// Whether the pool allows individual CB reset.
+    ///  Whether the pool allows individual CB reset.
     pub individual_reset: bool,
-    /// Whether the pool is alive.
+    ///  Whether the pool is alive.
     pub alive: bool,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// Create a fresh command pool.
+///  Create a fresh command pool.
 pub open spec fn create_command_pool(
     id: nat,
     queue_family: nat,
@@ -39,10 +39,10 @@ pub open spec fn create_command_pool(
     }
 }
 
-/// Allocate a command buffer from the pool.
+///  Allocate a command buffer from the pool.
 ///
-/// Per Vulkan spec: "commandPool is an externally synchronized parameter"
-/// for vkAllocateCommandBuffers.
+///  Per Vulkan spec: "commandPool is an externally synchronized parameter"
+///  for vkAllocateCommandBuffers.
 pub open spec fn allocate_cb(
     pool: CommandPoolState,
     cb_id: nat,
@@ -59,10 +59,10 @@ pub open spec fn allocate_cb(
     }
 }
 
-/// Free a command buffer back to the pool.
+///  Free a command buffer back to the pool.
 ///
-/// Per Vulkan spec: "commandPool is an externally synchronized parameter"
-/// for vkFreeCommandBuffers.
+///  Per Vulkan spec: "commandPool is an externally synchronized parameter"
+///  for vkFreeCommandBuffers.
 pub open spec fn free_cb(
     pool: CommandPoolState,
     cb_id: nat,
@@ -79,11 +79,11 @@ pub open spec fn free_cb(
     }
 }
 
-/// Reset pool: all allocated CBs go to Initial state.
-/// Returns the set of CBs that need to be reset.
+///  Reset pool: all allocated CBs go to Initial state.
+///  Returns the set of CBs that need to be reset.
 ///
-/// Per Vulkan spec: "commandPool is an externally synchronized parameter"
-/// for vkResetCommandPool.
+///  Per Vulkan spec: "commandPool is an externally synchronized parameter"
+///  for vkResetCommandPool.
 pub open spec fn reset_pool_cbs(
     pool: CommandPoolState,
     thread: ThreadId,
@@ -96,7 +96,7 @@ pub open spec fn reset_pool_cbs(
     }
 }
 
-/// After pool reset, all CBs are in Initial state.
+///  After pool reset, all CBs are in Initial state.
 pub open spec fn all_cbs_initial_after_reset(
     pool: CommandPoolState,
     cb_states: Map<nat, CommandBufferState>,
@@ -106,7 +106,7 @@ pub open spec fn all_cbs_initial_after_reset(
         ==> cb_states[cb] == CommandBufferState::Initial
 }
 
-/// Individual reset is allowed for a CB from this pool.
+///  Individual reset is allowed for a CB from this pool.
 pub open spec fn individual_reset_allowed(
     pool: CommandPoolState,
     cb_id: nat,
@@ -114,7 +114,7 @@ pub open spec fn individual_reset_allowed(
     pool.individual_reset && pool.allocated_cbs.contains(cb_id)
 }
 
-/// A CB belongs to this pool.
+///  A CB belongs to this pool.
 pub open spec fn cb_from_pool(
     pool: CommandPoolState,
     cb_id: nat,
@@ -122,18 +122,18 @@ pub open spec fn cb_from_pool(
     pool.allocated_cbs.contains(cb_id)
 }
 
-/// Pool is well-formed.
+///  Pool is well-formed.
 pub open spec fn command_pool_well_formed(pool: CommandPoolState) -> bool {
     pool.alive
 }
 
-/// No CBs are allocated from this pool (safe to destroy).
+///  No CBs are allocated from this pool (safe to destroy).
 pub open spec fn pool_empty(pool: CommandPoolState) -> bool {
     pool.allocated_cbs == Set::<nat>::empty()
 }
 
-/// Ghost update: destroy a command pool.
-/// Per Vulkan spec: pool must have no allocated CBs outstanding.
+///  Ghost update: destroy a command pool.
+///  Per Vulkan spec: pool must have no allocated CBs outstanding.
 pub open spec fn destroy_command_pool_ghost(
     pool: CommandPoolState,
 ) -> CommandPoolState
@@ -145,9 +145,9 @@ pub open spec fn destroy_command_pool_ghost(
     }
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// A fresh pool has no allocated CBs.
+///  A fresh pool has no allocated CBs.
 pub proof fn lemma_fresh_pool_empty(
     id: nat,
     queue_family: nat,
@@ -157,7 +157,7 @@ pub proof fn lemma_fresh_pool_empty(
 {
 }
 
-/// After allocating, the CB is in the pool.
+///  After allocating, the CB is in the pool.
 pub proof fn lemma_allocate_adds_cb(
     pool: CommandPoolState,
     cb_id: nat,
@@ -169,7 +169,7 @@ pub proof fn lemma_allocate_adds_cb(
 {
 }
 
-/// After freeing, the CB is not in the pool.
+///  After freeing, the CB is not in the pool.
 pub proof fn lemma_free_removes_cb(
     pool: CommandPoolState,
     cb_id: nat,
@@ -181,7 +181,7 @@ pub proof fn lemma_free_removes_cb(
 {
 }
 
-/// Allocating preserves existing CBs.
+///  Allocating preserves existing CBs.
 pub proof fn lemma_allocate_preserves_existing(
     pool: CommandPoolState,
     cb_id: nat,
@@ -196,7 +196,7 @@ pub proof fn lemma_allocate_preserves_existing(
 {
 }
 
-/// Freeing preserves other CBs.
+///  Freeing preserves other CBs.
 pub proof fn lemma_free_preserves_others(
     pool: CommandPoolState,
     cb_id: nat,
@@ -212,7 +212,7 @@ pub proof fn lemma_free_preserves_others(
 {
 }
 
-/// Pool reset returns all allocated CBs.
+///  Pool reset returns all allocated CBs.
 pub proof fn lemma_reset_returns_all(
     pool: CommandPoolState,
     cb_id: nat,
@@ -226,7 +226,7 @@ pub proof fn lemma_reset_returns_all(
 {
 }
 
-/// A fresh pool is well-formed.
+///  A fresh pool is well-formed.
 pub proof fn lemma_fresh_pool_well_formed(
     id: nat,
     queue_family: nat,
@@ -238,7 +238,7 @@ pub proof fn lemma_fresh_pool_well_formed(
 {
 }
 
-/// Without exclusive pool access, allocate fails.
+///  Without exclusive pool access, allocate fails.
 pub proof fn lemma_no_access_no_allocate(
     pool: CommandPoolState,
     cb_id: nat,
@@ -250,7 +250,7 @@ pub proof fn lemma_no_access_no_allocate(
 {
 }
 
-/// Without exclusive pool access, reset fails.
+///  Without exclusive pool access, reset fails.
 pub proof fn lemma_no_access_no_reset(
     pool: CommandPoolState,
     thread: ThreadId,
@@ -261,18 +261,18 @@ pub proof fn lemma_no_access_no_reset(
 {
 }
 
-/// After destroying, a command pool is not alive.
-/// Caller must prove the pool is alive before destroying.
+///  After destroying, a command pool is not alive.
+///  Caller must prove the pool is alive before destroying.
 pub proof fn lemma_destroy_command_pool_not_alive(pool: CommandPoolState)
     requires pool.alive,
     ensures !destroy_command_pool_ghost(pool).alive,
 {
 }
 
-/// Destroying a command pool preserves its id.
+///  Destroying a command pool preserves its id.
 pub proof fn lemma_destroy_command_pool_preserves_id(pool: CommandPoolState)
     ensures destroy_command_pool_ghost(pool).id == pool.id,
 {
 }
 
-} // verus!
+} //  verus!

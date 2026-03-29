@@ -3,84 +3,84 @@ use crate::shader_interface::*;
 
 verus! {
 
-// ── Types ────────────────────────────────────────────────────────────
+//  ── Types ────────────────────────────────────────────────────────────
 
-/// Shader stage kind — matches VkShaderStageFlagBits for vertex/fragment/compute.
+///  Shader stage kind — matches VkShaderStageFlagBits for vertex/fragment/compute.
 pub enum ShaderStageKind {
     Vertex,
     Fragment,
     Compute,
 }
 
-/// Ghost model for a VkShaderModule object.
-/// Wraps a compiled SPIR-V module with lifecycle tracking and interface.
+///  Ghost model for a VkShaderModule object.
+///  Wraps a compiled SPIR-V module with lifecycle tracking and interface.
 pub struct ShaderModuleState {
-    /// Unique identifier.
+    ///  Unique identifier.
     pub id: nat,
-    /// Whether this shader module is alive (not destroyed).
+    ///  Whether this shader module is alive (not destroyed).
     pub alive: bool,
-    /// Which pipeline stage this shader is for.
+    ///  Which pipeline stage this shader is for.
     pub stage: ShaderStageKind,
-    /// The shader's interface (inputs, outputs, descriptor bindings, push constants).
-    /// Established at create_shader_module time from SPIR-V reflection.
+    ///  The shader's interface (inputs, outputs, descriptor bindings, push constants).
+    ///  Established at create_shader_module time from SPIR-V reflection.
     pub interface: ShaderInterface,
 }
 
-// ── Spec Functions ───────────────────────────────────────────────────
+//  ── Spec Functions ───────────────────────────────────────────────────
 
-/// A shader module is well-formed iff it is alive.
+///  A shader module is well-formed iff it is alive.
 pub open spec fn shader_module_well_formed(sm: ShaderModuleState) -> bool {
     sm.alive
 }
 
-/// Ghost update: destroy a shader module.
+///  Ghost update: destroy a shader module.
 pub open spec fn destroy_shader_module_ghost(sm: ShaderModuleState) -> ShaderModuleState
     recommends sm.alive,
 {
     ShaderModuleState { alive: false, ..sm }
 }
 
-/// The shader module is a vertex shader.
+///  The shader module is a vertex shader.
 pub open spec fn shader_module_is_vertex(sm: ShaderModuleState) -> bool {
     sm.stage == ShaderStageKind::Vertex
 }
 
-/// The shader module is a fragment shader.
+///  The shader module is a fragment shader.
 pub open spec fn shader_module_is_fragment(sm: ShaderModuleState) -> bool {
     sm.stage == ShaderStageKind::Fragment
 }
 
-// ── Proofs ───────────────────────────────────────────────────────────
+//  ── Proofs ───────────────────────────────────────────────────────────
 
-/// A freshly created shader module is alive.
+///  A freshly created shader module is alive.
 pub proof fn lemma_create_shader_module_alive(id: nat, stage: ShaderStageKind, interface: ShaderInterface)
     ensures shader_module_well_formed(ShaderModuleState { id, alive: true, stage, interface }),
 {
 }
 
-/// After destroying, a shader module is not alive.
+///  After destroying, a shader module is not alive.
 pub proof fn lemma_destroy_shader_module_not_alive(sm: ShaderModuleState)
     requires sm.alive,
     ensures !destroy_shader_module_ghost(sm).alive,
 {
 }
 
-/// Destroying a shader module preserves its id.
+///  Destroying a shader module preserves its id.
 pub proof fn lemma_destroy_shader_module_preserves_id(sm: ShaderModuleState)
     ensures destroy_shader_module_ghost(sm).id == sm.id,
 {
 }
 
-/// Destroying a shader module preserves its stage.
+///  Destroying a shader module preserves its stage.
 pub proof fn lemma_destroy_shader_module_preserves_stage(sm: ShaderModuleState)
     ensures destroy_shader_module_ghost(sm).stage == sm.stage,
 {
 }
 
-/// Destroying a shader module preserves its interface.
+///  Destroying a shader module preserves its interface.
 pub proof fn lemma_destroy_shader_module_preserves_interface(sm: ShaderModuleState)
     ensures destroy_shader_module_ghost(sm).interface == sm.interface,
 {
 }
 
-} // verus!
+} //  verus!

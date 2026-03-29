@@ -7,11 +7,11 @@ use super::device::RuntimeDevice;
 
 verus! {
 
-/// Runtime wrapper for a graphics pipeline.
+///  Runtime wrapper for a graphics pipeline.
 pub struct RuntimeGraphicsPipeline {
-    /// Opaque handle (maps to VkPipeline).
+    ///  Opaque handle (maps to VkPipeline).
     pub handle: u64,
-    /// Ghost model of the pipeline state.
+    ///  Ghost model of the pipeline state.
     pub state: Ghost<GraphicsPipelineState>,
 }
 
@@ -20,11 +20,11 @@ impl View for RuntimeGraphicsPipeline {
     open spec fn view(&self) -> GraphicsPipelineState { self.state@ }
 }
 
-/// Runtime wrapper for a compute pipeline.
+///  Runtime wrapper for a compute pipeline.
 pub struct RuntimeComputePipeline {
-    /// Opaque handle (maps to VkPipeline).
+    ///  Opaque handle (maps to VkPipeline).
     pub handle: u64,
-    /// Ghost model of the pipeline state.
+    ///  Ghost model of the pipeline state.
     pub state: Ghost<ComputePipelineState>,
 }
 
@@ -33,21 +33,21 @@ impl View for RuntimeComputePipeline {
     open spec fn view(&self) -> ComputePipelineState { self.state@ }
 }
 
-/// Well-formedness of the runtime graphics pipeline (alive).
+///  Well-formedness of the runtime graphics pipeline (alive).
 pub open spec fn runtime_gfx_pipeline_wf(
     pipe: &RuntimeGraphicsPipeline,
 ) -> bool {
     pipe@.alive
 }
 
-/// Well-formedness of the runtime compute pipeline.
+///  Well-formedness of the runtime compute pipeline.
 pub open spec fn runtime_compute_pipeline_wf(
     pipe: &RuntimeComputePipeline,
 ) -> bool {
     compute_pipeline_well_formed(pipe@)
 }
 
-/// Exec: create a graphics pipeline.
+///  Exec: create a graphics pipeline.
 pub fn create_graphics_pipeline_exec(
     gps: Ghost<GraphicsPipelineState>,
 ) -> (out: RuntimeGraphicsPipeline)
@@ -62,7 +62,7 @@ pub fn create_graphics_pipeline_exec(
     }
 }
 
-/// Exec: create a compute pipeline.
+///  Exec: create a compute pipeline.
 pub fn create_compute_pipeline_exec(
     cps: Ghost<ComputePipelineState>,
 ) -> (out: RuntimeComputePipeline)
@@ -77,9 +77,9 @@ pub fn create_compute_pipeline_exec(
     }
 }
 
-/// Exec: destroy a graphics pipeline (sets alive to false in ghost state).
-/// Caller must prove the pipeline is not currently bound in any active recording
-/// and holds exclusive access.
+///  Exec: destroy a graphics pipeline (sets alive to false in ghost state).
+///  Caller must prove the pipeline is not currently bound in any active recording
+///  and holds exclusive access.
 pub fn destroy_graphics_pipeline_exec(
     pipe: &mut RuntimeGraphicsPipeline,
     dev: &RuntimeDevice,
@@ -88,7 +88,7 @@ pub fn destroy_graphics_pipeline_exec(
 )
     requires
         runtime_gfx_pipeline_wf(&*old(pipe)),
-        // All pending submissions must be completed (pipeline may be referenced by any CB)
+        //  All pending submissions must be completed (pipeline may be referenced by any CB)
         forall|i: int| 0 <= i < dev@.pending_submissions.len()
             ==> (#[trigger] dev@.pending_submissions[i]).completed,
         holds_exclusive(reg@, SyncObjectId::Handle(old(pipe)@.id), thread@),
@@ -102,9 +102,9 @@ pub fn destroy_graphics_pipeline_exec(
     });
 }
 
-/// Exec: destroy a compute pipeline.
-/// Caller must prove the pipeline is not currently bound in any active recording
-/// and holds exclusive access.
+///  Exec: destroy a compute pipeline.
+///  Caller must prove the pipeline is not currently bound in any active recording
+///  and holds exclusive access.
 pub fn destroy_compute_pipeline_exec(
     pipe: &mut RuntimeComputePipeline,
     dev: &RuntimeDevice,
@@ -113,7 +113,7 @@ pub fn destroy_compute_pipeline_exec(
 )
     requires
         runtime_compute_pipeline_wf(&*old(pipe)),
-        // All pending submissions must be completed (pipeline may be referenced by any CB)
+        //  All pending submissions must be completed (pipeline may be referenced by any CB)
         forall|i: int| 0 <= i < dev@.pending_submissions.len()
             ==> (#[trigger] dev@.pending_submissions[i]).completed,
         holds_exclusive(reg@, SyncObjectId::Handle(old(pipe)@.id), thread@),
@@ -127,29 +127,29 @@ pub fn destroy_compute_pipeline_exec(
     });
 }
 
-// ── Extended Specs & Proofs ──────────────────────────────────────────
+//  ── Extended Specs & Proofs ──────────────────────────────────────────
 
-/// Graphics pipeline is alive.
+///  Graphics pipeline is alive.
 pub open spec fn gfx_pipeline_alive(pipe: &RuntimeGraphicsPipeline) -> bool {
     pipe@.alive
 }
 
-/// Compute pipeline is alive.
+///  Compute pipeline is alive.
 pub open spec fn compute_pipeline_alive(pipe: &RuntimeComputePipeline) -> bool {
     pipe@.alive
 }
 
-/// Graphics pipeline ID.
+///  Graphics pipeline ID.
 pub open spec fn gfx_pipeline_id(pipe: &RuntimeGraphicsPipeline) -> nat {
     pipe@.id
 }
 
-/// Compute pipeline ID.
+///  Compute pipeline ID.
 pub open spec fn compute_pipeline_id(pipe: &RuntimeComputePipeline) -> nat {
     pipe@.id
 }
 
-/// Proof: creating a graphics pipeline produces an alive pipeline.
+///  Proof: creating a graphics pipeline produces an alive pipeline.
 pub proof fn lemma_create_gfx_alive(gps: Ghost<GraphicsPipelineState>)
     requires gps@.alive,
     ensures gfx_pipeline_alive(&RuntimeGraphicsPipeline {
@@ -159,7 +159,7 @@ pub proof fn lemma_create_gfx_alive(gps: Ghost<GraphicsPipelineState>)
 {
 }
 
-/// Proof: creating a compute pipeline produces an alive pipeline.
+///  Proof: creating a compute pipeline produces an alive pipeline.
 pub proof fn lemma_create_compute_alive(cps: Ghost<ComputePipelineState>)
     requires compute_pipeline_well_formed(cps@),
     ensures compute_pipeline_alive(&RuntimeComputePipeline {
@@ -169,7 +169,7 @@ pub proof fn lemma_create_compute_alive(cps: Ghost<ComputePipelineState>)
 {
 }
 
-/// Proof: destroying a graphics pipeline preserves its ID.
+///  Proof: destroying a graphics pipeline preserves its ID.
 pub proof fn lemma_destroy_gfx_preserves_id(pipe: &RuntimeGraphicsPipeline)
     requires runtime_gfx_pipeline_wf(pipe),
     ensures ({
@@ -179,7 +179,7 @@ pub proof fn lemma_destroy_gfx_preserves_id(pipe: &RuntimeGraphicsPipeline)
 {
 }
 
-/// Proof: destroying a compute pipeline preserves its ID.
+///  Proof: destroying a compute pipeline preserves its ID.
 pub proof fn lemma_destroy_compute_preserves_id(pipe: &RuntimeComputePipeline)
     requires runtime_compute_pipeline_wf(pipe),
     ensures ({
@@ -189,13 +189,13 @@ pub proof fn lemma_destroy_compute_preserves_id(pipe: &RuntimeComputePipeline)
 {
 }
 
-// ── Pipeline Layout Runtime ─────────────────────────────────────────
+//  ── Pipeline Layout Runtime ─────────────────────────────────────────
 
-/// Runtime wrapper for a Vulkan pipeline layout.
+///  Runtime wrapper for a Vulkan pipeline layout.
 pub struct RuntimePipelineLayout {
-    /// Opaque handle (maps to VkPipelineLayout).
+    ///  Opaque handle (maps to VkPipelineLayout).
     pub handle: u64,
-    /// Ghost model of the pipeline layout state.
+    ///  Ghost model of the pipeline layout state.
     pub state: Ghost<PipelineLayoutState>,
 }
 
@@ -204,14 +204,14 @@ impl View for RuntimePipelineLayout {
     open spec fn view(&self) -> PipelineLayoutState { self.state@ }
 }
 
-/// Well-formedness of the runtime pipeline layout.
+///  Well-formedness of the runtime pipeline layout.
 pub open spec fn runtime_pipeline_layout_wf(
     layout: &RuntimePipelineLayout,
 ) -> bool {
     pipeline_layout_well_formed(layout@)
 }
 
-/// Exec: create a pipeline layout.
+///  Exec: create a pipeline layout.
 pub fn create_pipeline_layout_exec(
     pls: Ghost<PipelineLayoutState>,
 ) -> (out: RuntimePipelineLayout)
@@ -226,7 +226,7 @@ pub fn create_pipeline_layout_exec(
     }
 }
 
-/// Exec: destroy a pipeline layout.
+///  Exec: destroy a pipeline layout.
 pub fn destroy_pipeline_layout_exec(
     layout: &mut RuntimePipelineLayout,
     dev: &RuntimeDevice,
@@ -248,7 +248,7 @@ pub fn destroy_pipeline_layout_exec(
     });
 }
 
-/// Exec: check if two pipeline layouts are fully compatible.
+///  Exec: check if two pipeline layouts are fully compatible.
 pub fn check_layout_compatible_exec(
     layout_a: &RuntimePipelineLayout,
     layout_b: &RuntimePipelineLayout,
@@ -258,14 +258,14 @@ pub fn check_layout_compatible_exec(
     Ghost(layouts_fully_compatible(layout_a.state@, layout_b.state@))
 }
 
-/// Proof: a well-formed pipeline layout is alive.
+///  Proof: a well-formed pipeline layout is alive.
 pub proof fn lemma_create_pipeline_layout_alive(pls: PipelineLayoutState)
     requires pipeline_layout_well_formed(pls),
     ensures pls.alive,
 {
 }
 
-/// Proof: destroying a pipeline layout preserves its ID.
+///  Proof: destroying a pipeline layout preserves its ID.
 pub proof fn lemma_destroy_pipeline_layout_preserves_id(layout: PipelineLayoutState)
     requires pipeline_layout_well_formed(layout),
     ensures ({
@@ -275,4 +275,4 @@ pub proof fn lemma_destroy_pipeline_layout_preserves_id(layout: PipelineLayoutSt
 {
 }
 
-} // verus!
+} //  verus!

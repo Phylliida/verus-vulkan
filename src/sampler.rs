@@ -2,15 +2,15 @@ use vstd::prelude::*;
 
 verus! {
 
-// ── Types ───────────────────────────────────────────────────────────────
+//  ── Types ───────────────────────────────────────────────────────────────
 
-/// Texture filter mode.
+///  Texture filter mode.
 pub enum Filter {
     Nearest,
     Linear,
 }
 
-/// Texture address mode (wrap behavior).
+///  Texture address mode (wrap behavior).
 pub enum AddressMode {
     Repeat,
     MirroredRepeat,
@@ -18,13 +18,13 @@ pub enum AddressMode {
     ClampToBorder,
 }
 
-/// Mipmap filtering mode.
+///  Mipmap filtering mode.
 pub enum MipmapMode {
     Nearest,
     Linear,
 }
 
-/// Ghost state for a Vulkan sampler (VkSampler).
+///  Ghost state for a Vulkan sampler (VkSampler).
 pub struct SamplerState {
     pub id: nat,
     pub mag_filter: Filter,
@@ -36,14 +36,14 @@ pub struct SamplerState {
     pub anisotropy_enable: bool,
     pub max_anisotropy: nat,
     pub compare_enable: bool,
-    /// Whether the sampler uses unnormalized coordinates [0, width) instead of [0, 1).
+    ///  Whether the sampler uses unnormalized coordinates [0, width) instead of [0, 1).
     pub unnormalized_coordinates: bool,
     pub alive: bool,
 }
 
-// ── Ghost Destroy ──────────────────────────────────────────────────────
+//  ── Ghost Destroy ──────────────────────────────────────────────────────
 
-/// Ghost update: destroy a sampler.
+///  Ghost update: destroy a sampler.
 pub open spec fn destroy_sampler_ghost(sampler: SamplerState) -> SamplerState
     recommends sampler.alive,
 {
@@ -53,49 +53,49 @@ pub open spec fn destroy_sampler_ghost(sampler: SamplerState) -> SamplerState
     }
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// A sampler is well-formed per Vulkan spec constraints.
-/// Unnormalized coordinates impose several restrictions.
+///  A sampler is well-formed per Vulkan spec constraints.
+///  Unnormalized coordinates impose several restrictions.
 pub open spec fn sampler_well_formed(sampler: SamplerState) -> bool {
     sampler.alive
     && (sampler.unnormalized_coordinates ==> (
-        // Must use Nearest filter
+        //  Must use Nearest filter
         sampler.mag_filter == Filter::Nearest
         && sampler.min_filter == Filter::Nearest
-        // Must use Nearest mipmap mode
+        //  Must use Nearest mipmap mode
         && sampler.mipmap_mode == MipmapMode::Nearest
-        // Must use ClampToEdge or ClampToBorder
+        //  Must use ClampToEdge or ClampToBorder
         && address_mode_is_clamp(sampler.address_mode_u)
         && address_mode_is_clamp(sampler.address_mode_v)
-        // No anisotropy
+        //  No anisotropy
         && !sampler.anisotropy_enable
-        // No comparison
+        //  No comparison
         && !sampler.compare_enable
     ))
-    // Anisotropy max must be >= 1 if enabled
+    //  Anisotropy max must be >= 1 if enabled
     && (sampler.anisotropy_enable ==> sampler.max_anisotropy >= 1)
 }
 
-/// Whether an address mode is a clamping mode.
+///  Whether an address mode is a clamping mode.
 pub open spec fn address_mode_is_clamp(mode: AddressMode) -> bool {
     mode == AddressMode::ClampToEdge || mode == AddressMode::ClampToBorder
 }
 
-/// A sampler is compatible with a 1D image (unnormalized coordinates
-/// allowed only for 1D/2D non-array images).
+///  A sampler is compatible with a 1D image (unnormalized coordinates
+///  allowed only for 1D/2D non-array images).
 pub open spec fn sampler_dimension_compatible(
     sampler: SamplerState,
-    image_dimensions: nat,  // 1, 2, or 3
+    image_dimensions: nat,  //  1, 2, or 3
     is_array: bool,
 ) -> bool {
-    // Unnormalized coordinates: only 1D or 2D, no arrays
+    //  Unnormalized coordinates: only 1D or 2D, no arrays
     sampler.unnormalized_coordinates ==> (
         (image_dimensions == 1 || image_dimensions == 2) && !is_array
     )
 }
 
-/// A comparison sampler requires a depth format image.
+///  A comparison sampler requires a depth format image.
 pub open spec fn compare_sampler_format_valid(
     sampler: SamplerState,
     is_depth_format: bool,
@@ -103,7 +103,7 @@ pub open spec fn compare_sampler_format_valid(
     sampler.compare_enable ==> is_depth_format
 }
 
-/// Full sampler-image compatibility.
+///  Full sampler-image compatibility.
 pub open spec fn sampler_image_compatible(
     sampler: SamplerState,
     image_dimensions: nat,
@@ -115,7 +115,7 @@ pub open spec fn sampler_image_compatible(
     && compare_sampler_format_valid(sampler, is_depth_format)
 }
 
-/// A default normalized sampler with no special features.
+///  A default normalized sampler with no special features.
 pub open spec fn default_sampler(id: nat) -> SamplerState {
     SamplerState {
         id,
@@ -133,15 +133,15 @@ pub open spec fn default_sampler(id: nat) -> SamplerState {
     }
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// The default sampler is well-formed.
+///  The default sampler is well-formed.
 pub proof fn lemma_default_sampler_well_formed(id: nat)
     ensures sampler_well_formed(default_sampler(id)),
 {
 }
 
-/// The default sampler is compatible with any non-depth image.
+///  The default sampler is compatible with any non-depth image.
 pub proof fn lemma_default_sampler_compatible(
     id: nat,
     image_dimensions: nat,
@@ -152,7 +152,7 @@ pub proof fn lemma_default_sampler_compatible(
 {
 }
 
-/// A nearest sampler with ClampToEdge is well-formed for unnormalized coordinates.
+///  A nearest sampler with ClampToEdge is well-formed for unnormalized coordinates.
 pub proof fn lemma_nearest_clamp_unnormalized_valid(id: nat)
     ensures sampler_well_formed(SamplerState {
         id,
@@ -171,37 +171,37 @@ pub proof fn lemma_nearest_clamp_unnormalized_valid(id: nat)
 {
 }
 
-/// ClampToEdge is a clamping mode.
+///  ClampToEdge is a clamping mode.
 pub proof fn lemma_clamp_to_edge_is_clamp()
     ensures address_mode_is_clamp(AddressMode::ClampToEdge),
 {
 }
 
-/// Repeat is NOT a clamping mode.
+///  Repeat is NOT a clamping mode.
 pub proof fn lemma_repeat_not_clamp()
     ensures !address_mode_is_clamp(AddressMode::Repeat),
 {
 }
 
-/// Well-formedness implies alive.
+///  Well-formedness implies alive.
 pub proof fn lemma_well_formed_implies_alive(sampler: SamplerState)
     requires sampler_well_formed(sampler),
     ensures sampler.alive,
 {
 }
 
-/// After destroying, a sampler is not alive.
-/// Caller must prove the sampler is alive before destroying.
+///  After destroying, a sampler is not alive.
+///  Caller must prove the sampler is alive before destroying.
 pub proof fn lemma_destroy_sampler_not_alive(sampler: SamplerState)
     requires sampler.alive,
     ensures !destroy_sampler_ghost(sampler).alive,
 {
 }
 
-/// Destroying a sampler preserves its id.
+///  Destroying a sampler preserves its id.
 pub proof fn lemma_destroy_sampler_preserves_id(sampler: SamplerState)
     ensures destroy_sampler_ghost(sampler).id == sampler.id,
 {
 }
 
-} // verus!
+} //  verus!

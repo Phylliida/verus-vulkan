@@ -6,13 +6,13 @@ use crate::sync_token::*;
 
 verus! {
 
-/// Runtime wrapper for a VkDeviceMemory allocation.
+///  Runtime wrapper for a VkDeviceMemory allocation.
 pub struct RuntimeAllocation {
-    /// Opaque handle (maps to VkDeviceMemory).
+    ///  Opaque handle (maps to VkDeviceMemory).
     pub handle: u64,
-    /// Ghost model of the allocation.
+    ///  Ghost model of the allocation.
     pub state: Ghost<MemoryAllocation>,
-    /// Whether this allocation is currently mapped.
+    ///  Whether this allocation is currently mapped.
     pub mapped: Ghost<bool>,
 }
 
@@ -21,12 +21,12 @@ impl View for RuntimeAllocation {
     open spec fn view(&self) -> MemoryAllocation { self.state@ }
 }
 
-/// Well-formedness of the runtime allocation.
+///  Well-formedness of the runtime allocation.
 pub open spec fn runtime_alloc_wf(alloc: &RuntimeAllocation) -> bool {
     alloc@.alive
 }
 
-/// Exec: allocate memory.
+///  Exec: allocate memory.
 pub fn allocate_exec(
     id: Ghost<nat>,
     heap_index: Ghost<nat>,
@@ -51,8 +51,8 @@ pub fn allocate_exec(
     }
 }
 
-/// Exec: free memory.
-/// Caller must prove no resource is still bound to this allocation and exclusive access.
+///  Exec: free memory.
+///  Caller must prove no resource is still bound to this allocation and exclusive access.
 pub fn free_exec(
     alloc: &mut RuntimeAllocation,
     resource_bindings: Ghost<Map<ResourceId, MemoryRange>>,
@@ -74,8 +74,8 @@ pub fn free_exec(
     });
 }
 
-/// Exec: map memory (marks as mapped).
-/// Caller must prove exclusive access to the memory object.
+///  Exec: map memory (marks as mapped).
+///  Caller must prove exclusive access to the memory object.
 pub fn map_memory_exec(
     alloc: &mut RuntimeAllocation,
     thread: Ghost<ThreadId>,
@@ -92,8 +92,8 @@ pub fn map_memory_exec(
     alloc.mapped = Ghost(true);
 }
 
-/// Exec: unmap memory.
-/// Caller must prove exclusive access to the memory object.
+///  Exec: unmap memory.
+///  Caller must prove exclusive access to the memory object.
 pub fn unmap_memory_exec(
     alloc: &mut RuntimeAllocation,
     thread: Ghost<ThreadId>,
@@ -110,29 +110,29 @@ pub fn unmap_memory_exec(
     alloc.mapped = Ghost(false);
 }
 
-// ── Extended Specs & Proofs ──────────────────────────────────────────
+//  ── Extended Specs & Proofs ──────────────────────────────────────────
 
-/// Allocation is alive.
+///  Allocation is alive.
 pub open spec fn alloc_alive(alloc: &RuntimeAllocation) -> bool {
     alloc@.alive
 }
 
-/// Allocation is mapped.
+///  Allocation is mapped.
 pub open spec fn alloc_is_mapped(alloc: &RuntimeAllocation) -> bool {
     alloc.mapped@
 }
 
-/// Allocation ID.
+///  Allocation ID.
 pub open spec fn alloc_id(alloc: &RuntimeAllocation) -> nat {
     alloc@.id
 }
 
-/// Allocation size.
+///  Allocation size.
 pub open spec fn alloc_size(alloc: &RuntimeAllocation) -> nat {
     alloc@.size
 }
 
-/// Proof: a new allocation is alive and unmapped.
+///  Proof: a new allocation is alive and unmapped.
 pub proof fn lemma_new_alloc_alive_unmapped(
     id: Ghost<nat>,
     heap_index: Ghost<nat>,
@@ -151,7 +151,7 @@ pub proof fn lemma_new_alloc_alive_unmapped(
 {
 }
 
-/// Proof: freed allocation is not alive.
+///  Proof: freed allocation is not alive.
 pub proof fn lemma_freed_not_alive(alloc: &RuntimeAllocation)
     requires
         runtime_alloc_wf(alloc),
@@ -163,18 +163,18 @@ pub proof fn lemma_freed_not_alive(alloc: &RuntimeAllocation)
 {
 }
 
-/// Proof: mapping preserves alive status.
+///  Proof: mapping preserves alive status.
 pub proof fn lemma_map_preserves_alive(alloc: &RuntimeAllocation)
     requires runtime_alloc_wf(alloc),
     ensures alloc@.alive,
 {
 }
 
-/// Proof: unmapping preserves alive status.
+///  Proof: unmapping preserves alive status.
 pub proof fn lemma_unmap_preserves_alive(alloc: &RuntimeAllocation)
     requires runtime_alloc_wf(alloc),
     ensures alloc@.alive,
 {
 }
 
-} // verus!
+} //  verus!

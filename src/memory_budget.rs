@@ -5,10 +5,10 @@ use crate::lifetime::*;
 
 verus! {
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// A full allocation+binding cycle: allocate on the correct heap and
-/// increment the live buffer count.
+///  A full allocation+binding cycle: allocate on the correct heap and
+///  increment the live buffer count.
 pub open spec fn allocate_and_create_buffer(
     dev: DeviceState,
     heap_idx: nat,
@@ -17,8 +17,8 @@ pub open spec fn allocate_and_create_buffer(
     create_buffer_ghost(allocate_memory_ghost(dev, heap_idx, size))
 }
 
-/// A full destroy+free cycle: decrement the live buffer count and
-/// free the memory.
+///  A full destroy+free cycle: decrement the live buffer count and
+///  free the memory.
 pub open spec fn destroy_and_free_buffer(
     dev: DeviceState,
     heap_idx: nat,
@@ -27,7 +27,7 @@ pub open spec fn destroy_and_free_buffer(
     free_memory_ghost(destroy_buffer_ghost(dev), heap_idx, size)
 }
 
-/// A full allocation+creation cycle for images.
+///  A full allocation+creation cycle for images.
 pub open spec fn allocate_and_create_image(
     dev: DeviceState,
     heap_idx: nat,
@@ -36,7 +36,7 @@ pub open spec fn allocate_and_create_image(
     create_image_ghost(allocate_memory_ghost(dev, heap_idx, size))
 }
 
-/// A full destroy+free cycle for images.
+///  A full destroy+free cycle for images.
 pub open spec fn destroy_and_free_image(
     dev: DeviceState,
     heap_idx: nat,
@@ -45,7 +45,7 @@ pub open spec fn destroy_and_free_image(
     free_memory_ghost(destroy_image_ghost(dev), heap_idx, size)
 }
 
-/// After N identical allocations, the heap usage increases by N*size.
+///  After N identical allocations, the heap usage increases by N*size.
 pub open spec fn n_allocations(
     dev: DeviceState,
     heap_idx: nat,
@@ -68,9 +68,9 @@ pub open spec fn n_allocations(
     }
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// Allocating then freeing the same amount restores the original heap usage.
+///  Allocating then freeing the same amount restores the original heap usage.
 pub proof fn lemma_alloc_free_roundtrip(
     dev: DeviceState,
     heap_idx: nat,
@@ -87,7 +87,7 @@ pub proof fn lemma_alloc_free_roundtrip(
     assert(after_alloc.heap_usage[heap_idx] == dev.heap_usage[heap_idx] + size);
 }
 
-/// Creating and destroying a buffer returns live_buffers to its original value.
+///  Creating and destroying a buffer returns live_buffers to its original value.
 pub proof fn lemma_create_destroy_buffer_roundtrip(dev: DeviceState)
     ensures
         destroy_buffer_ghost(create_buffer_ghost(dev)).live_buffers == dev.live_buffers,
@@ -97,7 +97,7 @@ pub proof fn lemma_create_destroy_buffer_roundtrip(dev: DeviceState)
     assert(after_create.live_buffers > 0);
 }
 
-/// Creating and destroying an image returns live_images to its original value.
+///  Creating and destroying an image returns live_images to its original value.
 pub proof fn lemma_create_destroy_image_roundtrip(dev: DeviceState)
     ensures
         destroy_image_ghost(create_image_ghost(dev)).live_images == dev.live_images,
@@ -106,7 +106,7 @@ pub proof fn lemma_create_destroy_image_roundtrip(dev: DeviceState)
     assert(after_create.live_images == dev.live_images + 1);
 }
 
-/// The full allocate+create then destroy+free buffer roundtrip preserves well-formedness.
+///  The full allocate+create then destroy+free buffer roundtrip preserves well-formedness.
 pub proof fn lemma_buffer_lifecycle_preserves_well_formed(
     dev: DeviceState,
     heap_idx: nat,
@@ -125,10 +125,10 @@ pub proof fn lemma_buffer_lifecycle_preserves_well_formed(
         ),
 {
     let after_alloc_create = allocate_and_create_buffer(dev, heap_idx, size);
-    // alloc preserves well-formed
+    //  alloc preserves well-formed
     lemma_allocate_preserves_well_formed(dev, heap_idx, size);
     let after_alloc = allocate_memory_ghost(dev, heap_idx, size);
-    // create_buffer_ghost doesn't touch heaps
+    //  create_buffer_ghost doesn't touch heaps
     assert(after_alloc_create.heap_usage =~= after_alloc.heap_usage);
     assert(after_alloc_create.heap_capacity =~= after_alloc.heap_capacity);
     assert(after_alloc_create.num_heaps == after_alloc.num_heaps);
@@ -136,16 +136,16 @@ pub proof fn lemma_buffer_lifecycle_preserves_well_formed(
     assert(after_alloc_create.num_memory_types == after_alloc.num_memory_types);
     assert(device_well_formed(after_alloc_create));
 
-    // destroy_buffer_ghost doesn't touch heaps either
+    //  destroy_buffer_ghost doesn't touch heaps either
     let after_destroy = destroy_buffer_ghost(after_alloc_create);
     assert(after_destroy.heap_usage =~= after_alloc_create.heap_usage);
     assert(device_well_formed(after_destroy));
 
-    // free restores budget
+    //  free restores budget
     lemma_free_restores_budget(after_destroy, heap_idx, size);
 }
 
-/// Allocating within budget leaves room for future allocations of the remainder.
+///  Allocating within budget leaves room for future allocations of the remainder.
 pub proof fn lemma_partial_allocation_leaves_room(
     dev: DeviceState,
     heap_idx: nat,
@@ -162,7 +162,7 @@ pub proof fn lemma_partial_allocation_leaves_room(
     assert(after_first.heap_usage[heap_idx] == dev.heap_usage[heap_idx] + first_size);
 }
 
-/// Two sequential allocations on the same heap sum their usage.
+///  Two sequential allocations on the same heap sum their usage.
 pub proof fn lemma_sequential_allocations_sum(
     dev: DeviceState,
     heap_idx: nat,
@@ -184,7 +184,7 @@ pub proof fn lemma_sequential_allocations_sum(
     assert(dev2.heap_usage[heap_idx] == dev1.heap_usage[heap_idx] + size2);
 }
 
-/// Allocating on one heap does not affect another heap's usage.
+///  Allocating on one heap does not affect another heap's usage.
 pub proof fn lemma_allocation_independent_heaps(
     dev: DeviceState,
     heap_a: nat,
@@ -202,7 +202,7 @@ pub proof fn lemma_allocation_independent_heaps(
 {
 }
 
-/// Freeing on one heap does not affect another heap's usage.
+///  Freeing on one heap does not affect another heap's usage.
 pub proof fn lemma_free_independent_heaps(
     dev: DeviceState,
     heap_a: nat,
@@ -221,7 +221,7 @@ pub proof fn lemma_free_independent_heaps(
 {
 }
 
-/// Creating/destroying buffers does not affect heap usage at all.
+///  Creating/destroying buffers does not affect heap usage at all.
 pub proof fn lemma_buffer_lifecycle_no_heap_effect(
     dev: DeviceState,
     heap_idx: nat,
@@ -235,7 +235,7 @@ pub proof fn lemma_buffer_lifecycle_no_heap_effect(
 {
 }
 
-/// A device with zero live resources after freeing all memory is ready for shutdown.
+///  A device with zero live resources after freeing all memory is ready for shutdown.
 pub proof fn lemma_clean_shutdown_after_full_free(
     dev: DeviceState,
 )
@@ -250,7 +250,7 @@ pub proof fn lemma_clean_shutdown_after_full_free(
 {
 }
 
-/// N allocations of `size` bytes increase heap usage by exactly N*size.
+///  N allocations of `size` bytes increase heap usage by exactly N*size.
 pub proof fn lemma_n_allocations_sum(
     dev: DeviceState,
     heap_idx: nat,
@@ -272,23 +272,23 @@ pub proof fn lemma_n_allocations_sum(
     } else {
         let pc: nat = (count - 1) as nat;
 
-        // Arithmetic: count * size == pc * size + size
+        //  Arithmetic: count * size == pc * size + size
         assert(count * size == pc * size + size) by(nonlinear_arith)
             requires count == pc + 1;
 
-        // pc * size fits in the heap
+        //  pc * size fits in the heap
         assert(pc * size <= count * size);
         assert(heap_fits(dev, heap_idx, pc * size));
 
-        // Inductive hypothesis: after pc allocations, usage == base + pc*size
+        //  Inductive hypothesis: after pc allocations, usage == base + pc*size
         lemma_n_allocations_sum(dev, heap_idx, size, pc);
 
-        // The pc-th result's heap usage
+        //  The pc-th result's heap usage
         let base = dev.heap_usage[heap_idx];
         let pc_usage = n_allocations(dev, heap_idx, size, pc).heap_usage[heap_idx];
         assert(pc_usage == base + pc * size);
 
-        // Explicitly unfold: n_allocations(_, _, _, count) == allocate_memory_ghost(n_allocations(_, _, _, pc), _, _)
+        //  Explicitly unfold: n_allocations(_, _, _, count) == allocate_memory_ghost(n_allocations(_, _, _, pc), _, _)
         let prev_dev = n_allocations(dev, heap_idx, size, pc);
         let full_dev = n_allocations(dev, heap_idx, size, count);
         assert(full_dev == allocate_memory_ghost(prev_dev, heap_idx, size));
@@ -297,14 +297,14 @@ pub proof fn lemma_n_allocations_sum(
         assert(full_dev.heap_usage[heap_idx] == prev_dev.heap_usage[heap_idx] + size);
         assert(full_dev.heap_usage[heap_idx] == base + pc * size + size);
 
-        // Chain to count * size
+        //  Chain to count * size
         assert(base + pc * size + size == base + count * size) by(nonlinear_arith)
             requires count == pc + 1;
-        // Explicitly match postcondition
+        //  Explicitly match postcondition
         assert(full_dev.heap_usage[heap_idx] == dev.heap_usage[heap_idx] + count * size);
         assert(n_allocations(dev, heap_idx, size, count).heap_usage[heap_idx]
             == dev.heap_usage[heap_idx] + count * size);
     }
 }
 
-} // verus!
+} //  verus!

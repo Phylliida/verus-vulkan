@@ -6,9 +6,9 @@ layout(push_constant) uniform Quad {
 } quad;
 
 void main() {
-    // 6 vertices = 2 triangles forming a quad
-    // Triangle 1: (0,0), (1,0), (0,1)
-    // Triangle 2: (1,0), (1,1), (0,1)
+    //  6 vertices = 2 triangles forming a quad
+    //  Triangle 1: (0,0), (1,0), (0,1)
+    //  Triangle 2: (1,0), (1,1), (0,1)
     vec2 offsets[6] = vec2[](
         vec2(0.0, 0.0), vec2(1.0, 0.0), vec2(0.0, 1.0),
         vec2(1.0, 0.0), vec2(1.0, 1.0), vec2(0.0, 1.0)

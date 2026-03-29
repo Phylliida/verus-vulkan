@@ -3,61 +3,61 @@ use crate::acceleration_structure::*;
 
 verus! {
 
-// ── Types ──────────────────────────────────────────────────────────────
+//  ── Types ──────────────────────────────────────────────────────────────
 
-/// A ray generation shader entry.
+///  A ray generation shader entry.
 pub struct RayGenShader {
     pub id: nat,
 }
 
-/// A miss shader entry.
+///  A miss shader entry.
 pub struct MissShader {
     pub id: nat,
 }
 
-/// A hit group combining closest-hit, any-hit, and intersection shaders.
+///  A hit group combining closest-hit, any-hit, and intersection shaders.
 pub struct HitGroup {
     pub closest_hit: Option<nat>,
     pub any_hit: Option<nat>,
     pub intersection: Option<nat>,
 }
 
-/// Shader binding table: maps shader indices to shader groups.
+///  Shader binding table: maps shader indices to shader groups.
 pub struct ShaderBindingTable {
-    /// Ray generation shaders.
+    ///  Ray generation shaders.
     pub ray_gen: Seq<RayGenShader>,
-    /// Miss shaders.
+    ///  Miss shaders.
     pub miss: Seq<MissShader>,
-    /// Hit groups.
+    ///  Hit groups.
     pub hit: Seq<HitGroup>,
-    /// Callable shader IDs.
+    ///  Callable shader IDs.
     pub callable: Seq<nat>,
-    /// Buffer holding the SBT data.
+    ///  Buffer holding the SBT data.
     pub buffer_id: nat,
 }
 
-/// Ghost state for a ray tracing pipeline.
+///  Ghost state for a ray tracing pipeline.
 pub struct RayTracingPipelineState {
-    /// Unique pipeline identifier.
+    ///  Unique pipeline identifier.
     pub id: nat,
-    /// Maximum ray recursion depth.
+    ///  Maximum ray recursion depth.
     pub max_recursion_depth: nat,
-    /// Shader group identifiers.
+    ///  Shader group identifiers.
     pub shader_groups: Seq<nat>,
-    /// Shader binding table.
+    ///  Shader binding table.
     pub sbt: ShaderBindingTable,
-    /// False after destruction.
+    ///  False after destruction.
     pub alive: bool,
 }
 
-/// Parameters for a vkCmdTraceRaysKHR dispatch.
+///  Parameters for a vkCmdTraceRaysKHR dispatch.
 pub struct TraceRaysParams {
     pub width: nat,
     pub height: nat,
     pub depth: nat,
 }
 
-/// Result of a trace rays dispatch (ghost state update).
+///  Result of a trace rays dispatch (ghost state update).
 pub struct TraceRaysRecord {
     pub pipeline_id: nat,
     pub tlas_id: nat,
@@ -65,15 +65,15 @@ pub struct TraceRaysRecord {
     pub generation: nat,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────
 
-/// The shader binding table is well-formed.
+///  The shader binding table is well-formed.
 pub open spec fn sbt_well_formed(sbt: ShaderBindingTable) -> bool {
-    // Must have at least one ray gen shader
+    //  Must have at least one ray gen shader
     sbt.ray_gen.len() > 0
 }
 
-/// The SBT covers the pipeline's shader groups.
+///  The SBT covers the pipeline's shader groups.
 pub open spec fn sbt_covers_pipeline(
     sbt: ShaderBindingTable,
     pipeline: RayTracingPipelineState,
@@ -82,7 +82,7 @@ pub open spec fn sbt_covers_pipeline(
         >= pipeline.shader_groups.len()
 }
 
-/// A ray tracing pipeline is well-formed.
+///  A ray tracing pipeline is well-formed.
 pub open spec fn rt_pipeline_well_formed(
     pipeline: RayTracingPipelineState,
 ) -> bool {
@@ -92,7 +92,7 @@ pub open spec fn rt_pipeline_well_formed(
     && sbt_well_formed(pipeline.sbt)
 }
 
-/// All preconditions for vkCmdTraceRaysKHR.
+///  All preconditions for vkCmdTraceRaysKHR.
 pub open spec fn trace_rays_valid(
     pipeline: RayTracingPipelineState,
     tlas: AccelerationStructureState,
@@ -107,7 +107,7 @@ pub open spec fn trace_rays_valid(
     && sbt_covers_pipeline(pipeline.sbt, pipeline)
 }
 
-/// Ghost update: record a trace rays dispatch.
+///  Ghost update: record a trace rays dispatch.
 pub open spec fn trace_rays_ghost(
     pipeline: RayTracingPipelineState,
     tlas: AccelerationStructureState,
@@ -122,12 +122,12 @@ pub open spec fn trace_rays_ghost(
     }
 }
 
-/// Hit group has at least one shader.
+///  Hit group has at least one shader.
 pub open spec fn hit_group_non_empty(hg: HitGroup) -> bool {
     matches!(hg.closest_hit, Some(_)) || matches!(hg.any_hit, Some(_)) || matches!(hg.intersection, Some(_))
 }
 
-/// All hit groups in the SBT are non-empty.
+///  All hit groups in the SBT are non-empty.
 pub open spec fn all_hit_groups_non_empty(sbt: ShaderBindingTable) -> bool {
     forall|i: nat|
         #![trigger sbt.hit[i as int]]
@@ -135,12 +135,12 @@ pub open spec fn all_hit_groups_non_empty(sbt: ShaderBindingTable) -> bool {
         ==> hit_group_non_empty(sbt.hit[i as int])
 }
 
-/// Total dispatch size (product of dimensions).
+///  Total dispatch size (product of dimensions).
 pub open spec fn trace_rays_dispatch_size(params: TraceRaysParams) -> nat {
     params.width * params.height * params.depth
 }
 
-/// Max recursion depth is within device limits.
+///  Max recursion depth is within device limits.
 pub open spec fn recursion_within_limits(
     pipeline: RayTracingPipelineState,
     device_max: nat,
@@ -148,7 +148,7 @@ pub open spec fn recursion_within_limits(
     pipeline.max_recursion_depth <= device_max
 }
 
-/// The SBT buffer must be alive.
+///  The SBT buffer must be alive.
 pub open spec fn sbt_buffer_live(
     sbt: ShaderBindingTable,
     live_buffers: Set<nat>,
@@ -156,7 +156,7 @@ pub open spec fn sbt_buffer_live(
     live_buffers.contains(sbt.buffer_id)
 }
 
-/// Pipeline and TLAS have distinct IDs (sanity check).
+///  Pipeline and TLAS have distinct IDs (sanity check).
 pub open spec fn pipeline_tlas_distinct(
     pipeline: RayTracingPipelineState,
     tlas: AccelerationStructureState,
@@ -164,7 +164,7 @@ pub open spec fn pipeline_tlas_distinct(
     pipeline.id != tlas.id
 }
 
-/// All ray gen shaders have distinct IDs.
+///  All ray gen shaders have distinct IDs.
 pub open spec fn ray_gen_ids_distinct(sbt: ShaderBindingTable) -> bool {
     forall|i: nat, j: nat|
         #![trigger sbt.ray_gen[i as int], sbt.ray_gen[j as int]]
@@ -172,7 +172,7 @@ pub open spec fn ray_gen_ids_distinct(sbt: ShaderBindingTable) -> bool {
         ==> sbt.ray_gen[i as int].id != sbt.ray_gen[j as int].id
 }
 
-/// All miss shaders have distinct IDs.
+///  All miss shaders have distinct IDs.
 pub open spec fn miss_ids_distinct(sbt: ShaderBindingTable) -> bool {
     forall|i: nat, j: nat|
         #![trigger sbt.miss[i as int], sbt.miss[j as int]]
@@ -180,9 +180,9 @@ pub open spec fn miss_ids_distinct(sbt: ShaderBindingTable) -> bool {
         ==> sbt.miss[i as int].id != sbt.miss[j as int].id
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────
 
-/// Trace rays requires a built TLAS.
+///  Trace rays requires a built TLAS.
 pub proof fn lemma_trace_rays_requires_built_tlas(
     pipeline: RayTracingPipelineState,
     tlas: AccelerationStructureState,
@@ -193,7 +193,7 @@ pub proof fn lemma_trace_rays_requires_built_tlas(
 {
 }
 
-/// SBT buffer must be live for trace rays.
+///  SBT buffer must be live for trace rays.
 pub proof fn lemma_sbt_buffer_must_be_live(
     pipeline: RayTracingPipelineState,
     live_buffers: Set<nat>,
@@ -205,7 +205,7 @@ pub proof fn lemma_sbt_buffer_must_be_live(
 {
 }
 
-/// Max recursion depth is bounded.
+///  Max recursion depth is bounded.
 pub proof fn lemma_max_recursion_bounded(
     pipeline: RayTracingPipelineState,
     device_max: nat,
@@ -217,7 +217,7 @@ pub proof fn lemma_max_recursion_bounded(
 {
 }
 
-/// Trace rays dispatch is non-zero in all dimensions.
+///  Trace rays dispatch is non-zero in all dimensions.
 pub proof fn lemma_trace_rays_nonzero_dispatch(
     pipeline: RayTracingPipelineState,
     tlas: AccelerationStructureState,
@@ -231,7 +231,7 @@ pub proof fn lemma_trace_rays_nonzero_dispatch(
 {
 }
 
-/// Trace rays ghost record captures correct pipeline and tlas IDs.
+///  Trace rays ghost record captures correct pipeline and tlas IDs.
 pub proof fn lemma_trace_rays_ghost_ids(
     pipeline: RayTracingPipelineState,
     tlas: AccelerationStructureState,
@@ -244,7 +244,7 @@ pub proof fn lemma_trace_rays_ghost_ids(
 {
 }
 
-/// A well-formed pipeline has at least one shader group.
+///  A well-formed pipeline has at least one shader group.
 pub proof fn lemma_pipeline_has_shaders(
     pipeline: RayTracingPipelineState,
 )
@@ -253,7 +253,7 @@ pub proof fn lemma_pipeline_has_shaders(
 {
 }
 
-/// A well-formed pipeline has a well-formed SBT.
+///  A well-formed pipeline has a well-formed SBT.
 pub proof fn lemma_pipeline_has_valid_sbt(
     pipeline: RayTracingPipelineState,
 )
@@ -262,7 +262,7 @@ pub proof fn lemma_pipeline_has_valid_sbt(
 {
 }
 
-/// An SBT with one ray gen shader and zero others is well-formed.
+///  An SBT with one ray gen shader and zero others is well-formed.
 pub proof fn lemma_minimal_sbt_well_formed(rg: RayGenShader)
     ensures sbt_well_formed(ShaderBindingTable {
         ray_gen: seq![rg],
@@ -274,7 +274,7 @@ pub proof fn lemma_minimal_sbt_well_formed(rg: RayGenShader)
 {
 }
 
-/// Building a BLAS then checking validity: built flag is set.
+///  Building a BLAS then checking validity: built flag is set.
 pub proof fn lemma_build_then_trace_ready(
     blas: AccelerationStructureState,
     tlas: AccelerationStructureState,
@@ -288,7 +288,7 @@ pub proof fn lemma_build_then_trace_ready(
 {
 }
 
-/// Dispatch size is positive when all dimensions are positive.
+///  Dispatch size is positive when all dimensions are positive.
 pub proof fn lemma_dispatch_size_positive(params: TraceRaysParams)
     requires
         params.width > 0,
@@ -302,7 +302,7 @@ pub proof fn lemma_dispatch_size_positive(params: TraceRaysParams)
         requires params.width * params.height > 0nat, params.depth > 0nat;
 }
 
-/// Trace rays ghost preserves the params.
+///  Trace rays ghost preserves the params.
 pub proof fn lemma_trace_rays_ghost_params(
     pipeline: RayTracingPipelineState,
     tlas: AccelerationStructureState,
@@ -313,7 +313,7 @@ pub proof fn lemma_trace_rays_ghost_params(
 {
 }
 
-/// Empty SBT (no ray gen) is NOT well-formed.
+///  Empty SBT (no ray gen) is NOT well-formed.
 pub proof fn lemma_empty_sbt_not_well_formed()
     ensures !sbt_well_formed(ShaderBindingTable {
         ray_gen: Seq::empty(),
@@ -325,7 +325,7 @@ pub proof fn lemma_empty_sbt_not_well_formed()
 {
 }
 
-/// Trace rays validity implies pipeline is alive.
+///  Trace rays validity implies pipeline is alive.
 pub proof fn lemma_trace_rays_pipeline_alive(
     pipeline: RayTracingPipelineState,
     tlas: AccelerationStructureState,
@@ -336,7 +336,7 @@ pub proof fn lemma_trace_rays_pipeline_alive(
 {
 }
 
-/// SBT coverage is reflexive when sizes match.
+///  SBT coverage is reflexive when sizes match.
 pub proof fn lemma_sbt_covers_when_sizes_match(
     pipeline: RayTracingPipelineState,
 )
@@ -348,34 +348,34 @@ pub proof fn lemma_sbt_covers_when_sizes_match(
 {
 }
 
-// ── Extended Specs ──────────────────────────────────────────────────
+//  ── Extended Specs ──────────────────────────────────────────────────
 
-/// Total shader entries in the SBT.
+///  Total shader entries in the SBT.
 pub open spec fn sbt_total_entries(sbt: ShaderBindingTable) -> nat {
     sbt.ray_gen.len() + sbt.miss.len() + sbt.hit.len() + sbt.callable.len()
 }
 
-/// Number of hit groups in the SBT.
+///  Number of hit groups in the SBT.
 pub open spec fn sbt_hit_group_count(sbt: ShaderBindingTable) -> nat {
     sbt.hit.len()
 }
 
-/// Number of miss shaders in the SBT.
+///  Number of miss shaders in the SBT.
 pub open spec fn sbt_miss_count(sbt: ShaderBindingTable) -> nat {
     sbt.miss.len()
 }
 
-/// Number of ray gen shaders in the SBT.
+///  Number of ray gen shaders in the SBT.
 pub open spec fn sbt_ray_gen_count(sbt: ShaderBindingTable) -> nat {
     sbt.ray_gen.len()
 }
 
-/// Total shader groups in the pipeline.
+///  Total shader groups in the pipeline.
 pub open spec fn rt_pipeline_total_shaders(pipeline: RayTracingPipelineState) -> nat {
     pipeline.shader_groups.len()
 }
 
-/// Ghost update: destroy a ray tracing pipeline.
+///  Ghost update: destroy a ray tracing pipeline.
 pub open spec fn destroy_rt_pipeline_ghost(
     pipeline: RayTracingPipelineState,
 ) -> RayTracingPipelineState
@@ -387,7 +387,7 @@ pub open spec fn destroy_rt_pipeline_ghost(
     }
 }
 
-/// Pipeline uses any-hit shaders (at least one hit group has any_hit).
+///  Pipeline uses any-hit shaders (at least one hit group has any_hit).
 pub open spec fn rt_pipeline_uses_any_hit(sbt: ShaderBindingTable) -> bool {
     exists|i: nat|
         #![trigger sbt.hit[i as int]]
@@ -395,7 +395,7 @@ pub open spec fn rt_pipeline_uses_any_hit(sbt: ShaderBindingTable) -> bool {
         && sbt.hit[i as int].any_hit.is_some()
 }
 
-/// Pipeline uses intersection shaders.
+///  Pipeline uses intersection shaders.
 pub open spec fn rt_pipeline_uses_intersection(sbt: ShaderBindingTable) -> bool {
     exists|i: nat|
         #![trigger sbt.hit[i as int]]
@@ -403,35 +403,35 @@ pub open spec fn rt_pipeline_uses_intersection(sbt: ShaderBindingTable) -> bool 
         && sbt.hit[i as int].intersection.is_some()
 }
 
-/// Trace rays parameters have valid (non-zero) dimensions.
+///  Trace rays parameters have valid (non-zero) dimensions.
 pub open spec fn trace_rays_params_valid(params: TraceRaysParams) -> bool {
     params.width > 0 && params.height > 0 && params.depth > 0
 }
 
-/// Trace rays is 2D (depth == 1).
+///  Trace rays is 2D (depth == 1).
 pub open spec fn trace_rays_is_2d(params: TraceRaysParams) -> bool {
     params.depth == 1 && params.width > 0 && params.height > 0
 }
 
-/// Two trace ray records target the same pipeline.
+///  Two trace ray records target the same pipeline.
 pub open spec fn same_pipeline(r1: TraceRaysRecord, r2: TraceRaysRecord) -> bool {
     r1.pipeline_id == r2.pipeline_id
 }
 
-/// Two trace ray records target the same TLAS.
+///  Two trace ray records target the same TLAS.
 pub open spec fn same_tlas(r1: TraceRaysRecord, r2: TraceRaysRecord) -> bool {
     r1.tlas_id == r2.tlas_id
 }
 
-/// A destroyed pipeline is not well-formed.
+///  A destroyed pipeline is not well-formed.
 pub open spec fn rt_pipeline_destroyed(pipeline: RayTracingPipelineState) -> bool {
     !pipeline.alive
 }
 
-// ── Extended Proofs ────────────────────────────────────────────────
+//  ── Extended Proofs ────────────────────────────────────────────────
 
-/// Destroying a RT pipeline sets alive to false.
-/// Caller must prove the pipeline is alive before destroying.
+///  Destroying a RT pipeline sets alive to false.
+///  Caller must prove the pipeline is alive before destroying.
 pub proof fn lemma_destroy_rt_pipeline_not_alive(
     pipeline: RayTracingPipelineState,
 )
@@ -440,7 +440,7 @@ pub proof fn lemma_destroy_rt_pipeline_not_alive(
 {
 }
 
-/// Destroying a RT pipeline preserves the ID.
+///  Destroying a RT pipeline preserves the ID.
 pub proof fn lemma_destroy_rt_pipeline_preserves_id(
     pipeline: RayTracingPipelineState,
 )
@@ -448,7 +448,7 @@ pub proof fn lemma_destroy_rt_pipeline_preserves_id(
 {
 }
 
-/// Destroying a RT pipeline preserves the SBT.
+///  Destroying a RT pipeline preserves the SBT.
 pub proof fn lemma_destroy_rt_pipeline_preserves_sbt(
     pipeline: RayTracingPipelineState,
 )
@@ -456,20 +456,20 @@ pub proof fn lemma_destroy_rt_pipeline_preserves_sbt(
 {
 }
 
-/// SBT total entries >= ray gen count.
+///  SBT total entries >= ray gen count.
 pub proof fn lemma_sbt_total_entries_geq_ray_gen(sbt: ShaderBindingTable)
     ensures sbt_total_entries(sbt) >= sbt_ray_gen_count(sbt),
 {
 }
 
-/// A well-formed SBT has positive total entries.
+///  A well-formed SBT has positive total entries.
 pub proof fn lemma_sbt_well_formed_positive_entries(sbt: ShaderBindingTable)
     requires sbt_well_formed(sbt),
     ensures sbt_total_entries(sbt) > 0,
 {
 }
 
-/// A well-formed pipeline has positive total shaders.
+///  A well-formed pipeline has positive total shaders.
 pub proof fn lemma_pipeline_total_shaders_positive(
     pipeline: RayTracingPipelineState,
 )
@@ -478,7 +478,7 @@ pub proof fn lemma_pipeline_total_shaders_positive(
 {
 }
 
-/// Trace rays ghost captures the generation.
+///  Trace rays ghost captures the generation.
 pub proof fn lemma_trace_rays_ghost_generation(
     pipeline: RayTracingPipelineState,
     tlas: AccelerationStructureState,
@@ -489,7 +489,7 @@ pub proof fn lemma_trace_rays_ghost_generation(
 {
 }
 
-/// A destroyed pipeline is not well-formed.
+///  A destroyed pipeline is not well-formed.
 pub proof fn lemma_dead_pipeline_not_well_formed(
     pipeline: RayTracingPipelineState,
 )
@@ -498,7 +498,7 @@ pub proof fn lemma_dead_pipeline_not_well_formed(
 {
 }
 
-/// A destroyed pipeline is flagged as destroyed.
+///  A destroyed pipeline is flagged as destroyed.
 pub proof fn lemma_destroyed_pipeline_is_destroyed(
     pipeline: RayTracingPipelineState,
 )
@@ -506,33 +506,33 @@ pub proof fn lemma_destroyed_pipeline_is_destroyed(
 {
 }
 
-/// Same pipeline is reflexive.
+///  Same pipeline is reflexive.
 pub proof fn lemma_same_pipeline_reflexive(r: TraceRaysRecord)
     ensures same_pipeline(r, r),
 {
 }
 
-/// Same TLAS is reflexive.
+///  Same TLAS is reflexive.
 pub proof fn lemma_same_tlas_reflexive(r: TraceRaysRecord)
     ensures same_tlas(r, r),
 {
 }
 
-/// Same pipeline is symmetric.
+///  Same pipeline is symmetric.
 pub proof fn lemma_same_pipeline_symmetric(r1: TraceRaysRecord, r2: TraceRaysRecord)
     requires same_pipeline(r1, r2),
     ensures same_pipeline(r2, r1),
 {
 }
 
-/// Same TLAS is symmetric.
+///  Same TLAS is symmetric.
 pub proof fn lemma_same_tlas_symmetric(r1: TraceRaysRecord, r2: TraceRaysRecord)
     requires same_tlas(r1, r2),
     ensures same_tlas(r2, r1),
 {
 }
 
-/// Trace rays valid implies params are valid.
+///  Trace rays valid implies params are valid.
 pub proof fn lemma_trace_rays_valid_params(
     pipeline: RayTracingPipelineState,
     tlas: AccelerationStructureState,
@@ -543,14 +543,14 @@ pub proof fn lemma_trace_rays_valid_params(
 {
 }
 
-/// A 2D trace rays has depth == 1.
+///  A 2D trace rays has depth == 1.
 pub proof fn lemma_2d_trace_depth_one(params: TraceRaysParams)
     requires trace_rays_is_2d(params),
     ensures params.depth == 1,
 {
 }
 
-/// 2D trace rays has a positive dispatch size.
+///  2D trace rays has a positive dispatch size.
 pub proof fn lemma_2d_trace_positive_dispatch(params: TraceRaysParams)
     requires trace_rays_is_2d(params),
     ensures trace_rays_dispatch_size(params) == params.width * params.height,
@@ -560,7 +560,7 @@ pub proof fn lemma_2d_trace_positive_dispatch(params: TraceRaysParams)
         requires params.width > 0nat, params.height > 0nat;
 }
 
-/// Destroying preserves max recursion depth.
+///  Destroying preserves max recursion depth.
 pub proof fn lemma_destroy_preserves_recursion(
     pipeline: RayTracingPipelineState,
 )
@@ -570,7 +570,7 @@ pub proof fn lemma_destroy_preserves_recursion(
 {
 }
 
-/// Destroying preserves shader groups.
+///  Destroying preserves shader groups.
 pub proof fn lemma_destroy_preserves_shader_groups(
     pipeline: RayTracingPipelineState,
 )
@@ -580,4 +580,4 @@ pub proof fn lemma_destroy_preserves_shader_groups(
 {
 }
 
-} // verus!
+} //  verus!

@@ -2,29 +2,29 @@ use vstd::prelude::*;
 
 verus! {
 
-// ── Types ───────────────────────────────────────────────────────────────
+//  ── Types ───────────────────────────────────────────────────────────────
 
-/// Ghost state for a Vulkan timeline semaphore.
+///  Ghost state for a Vulkan timeline semaphore.
 ///
-/// Timeline semaphores have a monotonically increasing u64 counter.
-/// Signal operations set the counter to a specified value (must be
-/// strictly greater than current). Wait operations block until the
-/// counter is >= the specified value.
+///  Timeline semaphores have a monotonically increasing u64 counter.
+///  Signal operations set the counter to a specified value (must be
+///  strictly greater than current). Wait operations block until the
+///  counter is >= the specified value.
 pub struct TimelineSemaphoreState {
     pub id: nat,
-    /// Current counter value.
+    ///  Current counter value.
     pub counter: nat,
-    /// Pending signal values (from submitted but not yet completed work).
+    ///  Pending signal values (from submitted but not yet completed work).
     pub pending_signals: Set<nat>,
-    /// Pending wait values (from submitted but not yet started work).
+    ///  Pending wait values (from submitted but not yet started work).
     pub pending_waits: Set<nat>,
-    /// Whether this semaphore is alive.
+    ///  Whether this semaphore is alive.
     pub alive: bool,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// Create a fresh timeline semaphore with initial value.
+///  Create a fresh timeline semaphore with initial value.
 pub open spec fn initial_timeline(id: nat, initial_value: nat) -> TimelineSemaphoreState {
     TimelineSemaphoreState {
         id,
@@ -35,7 +35,7 @@ pub open spec fn initial_timeline(id: nat, initial_value: nat) -> TimelineSemaph
     }
 }
 
-/// Whether a signal value is valid: must be strictly greater than current counter.
+///  Whether a signal value is valid: must be strictly greater than current counter.
 pub open spec fn signal_value_valid(
     sem: TimelineSemaphoreState,
     value: nat,
@@ -43,7 +43,7 @@ pub open spec fn signal_value_valid(
     value > sem.counter
 }
 
-/// Whether a wait is already satisfied by the current counter.
+///  Whether a wait is already satisfied by the current counter.
 pub open spec fn wait_satisfied(
     sem: TimelineSemaphoreState,
     value: nat,
@@ -51,7 +51,7 @@ pub open spec fn wait_satisfied(
     sem.counter >= value
 }
 
-/// Submit a signal operation (goes pending until GPU completes it).
+///  Submit a signal operation (goes pending until GPU completes it).
 pub open spec fn submit_signal(
     sem: TimelineSemaphoreState,
     value: nat,
@@ -62,7 +62,7 @@ pub open spec fn submit_signal(
     }
 }
 
-/// Submit a wait operation (goes pending until GPU starts it).
+///  Submit a wait operation (goes pending until GPU starts it).
 pub open spec fn submit_wait(
     sem: TimelineSemaphoreState,
     value: nat,
@@ -73,7 +73,7 @@ pub open spec fn submit_wait(
     }
 }
 
-/// Complete a signal: advances the counter to the signaled value.
+///  Complete a signal: advances the counter to the signaled value.
 pub open spec fn complete_signal(
     sem: TimelineSemaphoreState,
     value: nat,
@@ -81,7 +81,7 @@ pub open spec fn complete_signal(
     TimelineSemaphoreState {
         counter: value,
         pending_signals: sem.pending_signals.remove(value),
-        // Remove all waits satisfied by this signal
+        //  Remove all waits satisfied by this signal
         pending_waits: Set::new(
             |w: nat| sem.pending_waits.contains(w) && w > value,
         ),
@@ -89,41 +89,41 @@ pub open spec fn complete_signal(
     }
 }
 
-/// Host-side wait: blocks until counter >= value.
+///  Host-side wait: blocks until counter >= value.
 pub open spec fn host_wait(
     sem: TimelineSemaphoreState,
     value: nat,
 ) -> TimelineSemaphoreState {
-    // Host wait doesn't change state — it just blocks until the condition is met.
-    // After the wait returns, we know counter >= value.
+    //  Host wait doesn't change state — it just blocks until the condition is met.
+    //  After the wait returns, we know counter >= value.
     sem
 }
 
-/// Ghost update: destroy the timeline semaphore.
+///  Ghost update: destroy the timeline semaphore.
 pub open spec fn destroy_timeline_ghost(sem: TimelineSemaphoreState) -> TimelineSemaphoreState
     recommends sem.alive,
 {
     TimelineSemaphoreState { alive: false, ..sem }
 }
 
-/// No deadlock: every pending wait has a pending or completed signal >= its value.
+///  No deadlock: every pending wait has a pending or completed signal >= its value.
 pub open spec fn no_deadlock(sem: TimelineSemaphoreState) -> bool {
     forall|w: nat| sem.pending_waits.contains(w) ==>
         sem.counter >= w
         || exists|s: nat| #[trigger] sem.pending_signals.contains(s) && s >= w
 }
 
-/// The semaphore is well-formed: counter is consistent with signals.
+///  The semaphore is well-formed: counter is consistent with signals.
 pub open spec fn timeline_well_formed(sem: TimelineSemaphoreState) -> bool {
     sem.alive
-    // All pending signals must be strictly greater than current counter
+    //  All pending signals must be strictly greater than current counter
     && (forall|s: nat| sem.pending_signals.contains(s) ==> s > sem.counter)
-    // No deadlock
+    //  No deadlock
     && no_deadlock(sem)
 }
 
-/// Monotonicity: a signal value must be greater than all previous pending signals' values
-/// that have already completed.
+///  Monotonicity: a signal value must be greater than all previous pending signals' values
+///  that have already completed.
 pub open spec fn signal_monotonic(
     sem: TimelineSemaphoreState,
     value: nat,
@@ -131,9 +131,9 @@ pub open spec fn signal_monotonic(
     value > sem.counter
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// A fresh timeline semaphore is well-formed.
+///  A fresh timeline semaphore is well-formed.
 pub proof fn lemma_initial_well_formed(id: nat, initial_value: nat)
     ensures
         timeline_well_formed(initial_timeline(id, initial_value)),
@@ -144,7 +144,7 @@ pub proof fn lemma_initial_well_formed(id: nat, initial_value: nat)
     assert(sem.pending_waits == Set::<nat>::empty());
 }
 
-/// After completing a signal, the counter has advanced.
+///  After completing a signal, the counter has advanced.
 pub proof fn lemma_signal_advances_counter(
     sem: TimelineSemaphoreState,
     value: nat,
@@ -157,7 +157,7 @@ pub proof fn lemma_signal_advances_counter(
 {
 }
 
-/// A completed signal satisfies all waits <= the signaled value.
+///  A completed signal satisfies all waits <= the signaled value.
 pub proof fn lemma_signal_satisfies_earlier_waits(
     sem: TimelineSemaphoreState,
     signal_value: nat,
@@ -171,7 +171,7 @@ pub proof fn lemma_signal_satisfies_earlier_waits(
 {
 }
 
-/// Host wait returns only when the counter is sufficient.
+///  Host wait returns only when the counter is sufficient.
 pub proof fn lemma_host_wait_ensures_counter(
     sem: TimelineSemaphoreState,
     value: nat,
@@ -182,7 +182,7 @@ pub proof fn lemma_host_wait_ensures_counter(
 {
 }
 
-/// Submitting a signal preserves existing pending waits.
+///  Submitting a signal preserves existing pending waits.
 pub proof fn lemma_submit_signal_preserves_waits(
     sem: TimelineSemaphoreState,
     signal_value: nat,
@@ -194,7 +194,7 @@ pub proof fn lemma_submit_signal_preserves_waits(
 {
 }
 
-/// Submitting a wait preserves the counter.
+///  Submitting a wait preserves the counter.
 pub proof fn lemma_submit_wait_preserves_counter(
     sem: TimelineSemaphoreState,
     value: nat,
@@ -204,7 +204,7 @@ pub proof fn lemma_submit_wait_preserves_counter(
 {
 }
 
-/// If the counter already satisfies a wait, the wait is immediately satisfied.
+///  If the counter already satisfies a wait, the wait is immediately satisfied.
 pub proof fn lemma_counter_ge_wait_satisfied(
     sem: TimelineSemaphoreState,
     value: nat,
@@ -214,7 +214,7 @@ pub proof fn lemma_counter_ge_wait_satisfied(
 {
 }
 
-/// A signal followed by another signal must maintain strict ordering.
+///  A signal followed by another signal must maintain strict ordering.
 pub proof fn lemma_double_signal_ordering(
     sem: TimelineSemaphoreState,
     v1: nat,
@@ -228,4 +228,4 @@ pub proof fn lemma_double_signal_ordering(
 {
 }
 
-} // verus!
+} //  verus!

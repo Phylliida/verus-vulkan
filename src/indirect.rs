@@ -8,34 +8,34 @@ use crate::flags::*;
 
 verus! {
 
-// ── Types ───────────────────────────────────────────────────────────────
+//  ── Types ───────────────────────────────────────────────────────────────
 
-/// Parameters for an indirect draw call read from a GPU buffer.
+///  Parameters for an indirect draw call read from a GPU buffer.
 pub struct IndirectDrawParams {
-    /// Buffer containing draw parameters.
+    ///  Buffer containing draw parameters.
     pub buffer_id: nat,
-    /// Byte offset into the buffer.
+    ///  Byte offset into the buffer.
     pub offset: nat,
-    /// Number of draws to issue.
+    ///  Number of draws to issue.
     pub draw_count: nat,
-    /// Byte stride between consecutive draw parameter structs.
+    ///  Byte stride between consecutive draw parameter structs.
     pub stride: nat,
 }
 
-/// Size of a single VkDrawIndirectCommand (4 u32s = 16 bytes).
+///  Size of a single VkDrawIndirectCommand (4 u32s = 16 bytes).
 pub open spec fn DRAW_INDIRECT_COMMAND_SIZE() -> nat { 16 }
 
-/// Size of a single VkDrawIndexedIndirectCommand (5 u32s = 20 bytes).
+///  Size of a single VkDrawIndexedIndirectCommand (5 u32s = 20 bytes).
 pub open spec fn DRAW_INDEXED_INDIRECT_COMMAND_SIZE() -> nat { 20 }
 
-/// Size of a single VkDispatchIndirectCommand (3 u32s = 12 bytes).
+///  Size of a single VkDispatchIndirectCommand (3 u32s = 12 bytes).
 pub open spec fn DISPATCH_INDIRECT_COMMAND_SIZE() -> nat { 12 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// The indirect buffer has enough space for all draw commands.
-/// Also validates offset alignment (must be 4-byte aligned) and
-/// that the buffer has USAGE_INDIRECT_BUFFER.
+///  The indirect buffer has enough space for all draw commands.
+///  Also validates offset alignment (must be 4-byte aligned) and
+///  that the buffer has USAGE_INDIRECT_BUFFER.
 pub open spec fn indirect_buffer_size_sufficient(
     params: IndirectDrawParams,
     buffer: BufferState,
@@ -52,7 +52,7 @@ pub open spec fn indirect_buffer_size_sufficient(
     )
 }
 
-/// An indirect draw is valid: pipeline bound, render pass active, buffer sufficient.
+///  An indirect draw is valid: pipeline bound, render pass active, buffer sufficient.
 pub open spec fn draw_indirect_valid(
     state: RecordingState,
     pipeline: GraphicsPipelineState,
@@ -64,7 +64,7 @@ pub open spec fn draw_indirect_valid(
     && indirect_buffer_size_sufficient(params, buffer, DRAW_INDIRECT_COMMAND_SIZE())
 }
 
-/// An indirect indexed draw is valid.
+///  An indirect indexed draw is valid.
 pub open spec fn draw_indexed_indirect_valid(
     state: RecordingState,
     pipeline: GraphicsPipelineState,
@@ -76,8 +76,8 @@ pub open spec fn draw_indexed_indirect_valid(
     && indirect_buffer_size_sufficient(params, buffer, DRAW_INDEXED_INDIRECT_COMMAND_SIZE())
 }
 
-/// An indirect dispatch is valid: compute pipeline bound, buffer sufficient.
-/// Buffer must have USAGE_INDIRECT_BUFFER flag.
+///  An indirect dispatch is valid: compute pipeline bound, buffer sufficient.
+///  Buffer must have USAGE_INDIRECT_BUFFER flag.
 pub open spec fn dispatch_indirect_valid(
     state: RecordingState,
     pipeline: ComputePipelineState,
@@ -92,7 +92,7 @@ pub open spec fn dispatch_indirect_valid(
     && offset + DISPATCH_INDIRECT_COMMAND_SIZE() <= buffer.size
 }
 
-/// Indirect draw with count from a separate count buffer.
+///  Indirect draw with count from a separate count buffer.
 pub open spec fn draw_indirect_count_valid(
     state: RecordingState,
     pipeline: GraphicsPipelineState,
@@ -106,9 +106,9 @@ pub open spec fn draw_indirect_count_valid(
     draw_call_valid(state, pipeline, rp)
     && draw_buffer.alive
     && count_buffer.alive
-    // Count buffer must have room for a u32
+    //  Count buffer must have room for a u32
     && count_offset + 4 <= count_buffer.size
-    // Draw buffer must have room for max_draw_count draws
+    //  Draw buffer must have room for max_draw_count draws
     && indirect_buffer_size_sufficient(
         IndirectDrawParams { draw_count: max_draw_count, ..params },
         draw_buffer,
@@ -116,14 +116,14 @@ pub open spec fn draw_indirect_count_valid(
     )
 }
 
-/// A zero-draw-count indirect command.
+///  A zero-draw-count indirect command.
 pub open spec fn indirect_is_noop(params: IndirectDrawParams) -> bool {
     params.draw_count == 0
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// A zero-count indirect draw needs no buffer space.
+///  A zero-count indirect draw needs no buffer space.
 pub proof fn lemma_zero_count_no_buffer_needed(
     params: IndirectDrawParams,
     buffer: BufferState,
@@ -140,7 +140,7 @@ pub proof fn lemma_zero_count_no_buffer_needed(
 {
 }
 
-/// draw_indirect_valid implies draw_call_valid.
+///  draw_indirect_valid implies draw_call_valid.
 pub proof fn lemma_indirect_implies_draw_valid(
     state: RecordingState,
     pipeline: GraphicsPipelineState,
@@ -153,7 +153,7 @@ pub proof fn lemma_indirect_implies_draw_valid(
 {
 }
 
-/// dispatch_indirect_valid implies dispatch_call_valid.
+///  dispatch_indirect_valid implies dispatch_call_valid.
 pub proof fn lemma_indirect_dispatch_implies_dispatch_valid(
     state: RecordingState,
     pipeline: ComputePipelineState,
@@ -166,8 +166,8 @@ pub proof fn lemma_indirect_dispatch_implies_dispatch_valid(
 {
 }
 
-/// A single indirect draw with stride == command_size needs exactly
-/// offset + command_size bytes.
+///  A single indirect draw with stride == command_size needs exactly
+///  offset + command_size bytes.
 pub proof fn lemma_single_draw_size(
     params: IndirectDrawParams,
     buffer: BufferState,
@@ -184,7 +184,7 @@ pub proof fn lemma_single_draw_size(
 {
 }
 
-/// Indirect count draw implies the draw buffer can hold max_draw_count draws.
+///  Indirect count draw implies the draw buffer can hold max_draw_count draws.
 pub proof fn lemma_count_draw_buffer_sufficient(
     state: RecordingState,
     pipeline: GraphicsPipelineState,
@@ -204,7 +204,7 @@ pub proof fn lemma_count_draw_buffer_sufficient(
 {
 }
 
-/// draw_indexed_indirect_valid implies draw_call_valid.
+///  draw_indexed_indirect_valid implies draw_call_valid.
 pub proof fn lemma_indexed_indirect_implies_draw_valid(
     state: RecordingState,
     pipeline: GraphicsPipelineState,
@@ -217,14 +217,14 @@ pub proof fn lemma_indexed_indirect_implies_draw_valid(
 {
 }
 
-/// A noop indirect draw (draw_count == 0) needs no specific buffer constraints.
+///  A noop indirect draw (draw_count == 0) needs no specific buffer constraints.
 pub proof fn lemma_noop_indirect_trivial(params: IndirectDrawParams)
     requires indirect_is_noop(params),
     ensures params.draw_count == 0,
 {
 }
 
-/// Indirect draw count valid implies both buffers are alive.
+///  Indirect draw count valid implies both buffers are alive.
 pub proof fn lemma_count_draw_both_alive(
     state: RecordingState,
     pipeline: GraphicsPipelineState,
@@ -244,4 +244,4 @@ pub proof fn lemma_count_draw_both_alive(
 {
 }
 
-} // verus!
+} //  verus!

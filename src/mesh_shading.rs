@@ -4,13 +4,13 @@ use crate::resource::*;
 
 verus! {
 
-// ── Types ───────────────────────────────────────────────────────────────
+//  ── Types ───────────────────────────────────────────────────────────────
 
-/// Ghost state for a mesh shading pipeline (VK_EXT_mesh_shader).
+///  Ghost state for a mesh shading pipeline (VK_EXT_mesh_shader).
 ///
-/// Mesh shading replaces the traditional vertex/geometry pipeline with
-/// task → mesh shader stages. The mesh shader is mandatory; the task
-/// shader is optional.
+///  Mesh shading replaces the traditional vertex/geometry pipeline with
+///  task → mesh shader stages. The mesh shader is mandatory; the task
+///  shader is optional.
 pub struct MeshPipelineState {
     pub id: nat,
     pub task_shader: Option<nat>,
@@ -21,21 +21,21 @@ pub struct MeshPipelineState {
     pub alive: bool,
 }
 
-/// Parameters for a mesh shader dispatch.
+///  Parameters for a mesh shader dispatch.
 pub struct MeshDispatchParams {
     pub group_count_x: nat,
     pub group_count_y: nat,
     pub group_count_z: nat,
 }
 
-/// Record of a mesh dispatch command.
+///  Record of a mesh dispatch command.
 pub struct MeshDispatchRecord {
     pub pipeline_id: nat,
     pub params: MeshDispatchParams,
     pub referenced_resources: Set<ResourceId>,
 }
 
-/// Device limits for mesh shading.
+///  Device limits for mesh shading.
 pub struct MeshLimits {
     pub max_task_work_group_invocations: nat,
     pub max_mesh_work_group_invocations: nat,
@@ -45,9 +45,9 @@ pub struct MeshLimits {
     pub max_draw_mesh_tasks_count: nat,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// A mesh pipeline is well-formed: alive, mesh shader present, outputs within limits.
+///  A mesh pipeline is well-formed: alive, mesh shader present, outputs within limits.
 pub open spec fn mesh_pipeline_well_formed(
     state: MeshPipelineState,
     limits: MeshLimits,
@@ -57,7 +57,7 @@ pub open spec fn mesh_pipeline_well_formed(
     && state.max_output_primitives <= limits.max_mesh_output_primitives
 }
 
-/// A mesh dispatch is valid: counts > 0 and product within max.
+///  A mesh dispatch is valid: counts > 0 and product within max.
 pub open spec fn mesh_dispatch_valid(
     state: MeshPipelineState,
     params: MeshDispatchParams,
@@ -71,12 +71,12 @@ pub open spec fn mesh_dispatch_valid(
         <= limits.max_draw_mesh_tasks_count
 }
 
-/// Total workgroups dispatched.
+///  Total workgroups dispatched.
 pub open spec fn mesh_dispatch_size(params: MeshDispatchParams) -> nat {
     params.group_count_x * params.group_count_y * params.group_count_z
 }
 
-/// Ghost: create a mesh pipeline.
+///  Ghost: create a mesh pipeline.
 pub open spec fn create_mesh_pipeline_ghost(
     id: nat,
     task_shader: Option<nat>,
@@ -96,14 +96,14 @@ pub open spec fn create_mesh_pipeline_ghost(
     }
 }
 
-/// Ghost: destroy a mesh pipeline.
+///  Ghost: destroy a mesh pipeline.
 pub open spec fn destroy_mesh_pipeline_ghost(
     state: MeshPipelineState,
 ) -> MeshPipelineState {
     MeshPipelineState { alive: false, ..state }
 }
 
-/// Ghost: record a mesh dispatch command.
+///  Ghost: record a mesh dispatch command.
 pub open spec fn draw_mesh_tasks_ghost(
     state: MeshPipelineState,
     params: MeshDispatchParams,
@@ -116,7 +116,7 @@ pub open spec fn draw_mesh_tasks_ghost(
     }
 }
 
-/// Indirect mesh dispatch is valid: buffer bounds + alignment.
+///  Indirect mesh dispatch is valid: buffer bounds + alignment.
 pub open spec fn mesh_indirect_valid(
     state: MeshPipelineState,
     buffer_size: nat,
@@ -126,13 +126,13 @@ pub open spec fn mesh_indirect_valid(
     limits: MeshLimits,
 ) -> bool {
     state.alive
-    && stride >= 12  // 3 × u32
+    && stride >= 12  //  3 × u32
     && draw_count <= limits.max_draw_mesh_tasks_count
     && offset + draw_count * stride <= buffer_size
     && offset % 4 == 0
 }
 
-/// Pipeline stages used by a mesh pipeline.
+///  Pipeline stages used by a mesh pipeline.
 pub open spec fn mesh_pipeline_stages(
     state: MeshPipelineState,
 ) -> PipelineStageFlags {
@@ -147,7 +147,7 @@ pub open spec fn mesh_pipeline_stages(
     }
 }
 
-/// Mesh pipelines are incompatible with vertex pipeline stages.
+///  Mesh pipelines are incompatible with vertex pipeline stages.
 pub open spec fn mesh_excludes_vertex_stages(
     mesh_stages: PipelineStageFlags,
 ) -> bool {
@@ -157,9 +157,9 @@ pub open spec fn mesh_excludes_vertex_stages(
     && !mesh_stages.stages.contains(STAGE_TESSELLATION_EVALUATION_SHADER())
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// Well-formed mesh pipeline has a mesh shader (alive).
+///  Well-formed mesh pipeline has a mesh shader (alive).
 pub proof fn lemma_mesh_pipeline_has_mesh_shader(
     state: MeshPipelineState,
     limits: MeshLimits,
@@ -169,7 +169,7 @@ pub proof fn lemma_mesh_pipeline_has_mesh_shader(
 {
 }
 
-/// Valid dispatch has positive total size.
+///  Valid dispatch has positive total size.
 pub proof fn lemma_mesh_dispatch_positive_size(
     state: MeshPipelineState,
     params: MeshDispatchParams,
@@ -188,7 +188,7 @@ pub proof fn lemma_mesh_dispatch_positive_size(
     );
 }
 
-/// Created pipeline is alive.
+///  Created pipeline is alive.
 pub proof fn lemma_create_is_alive(
     id: nat,
     task_shader: Option<nat>,
@@ -201,13 +201,13 @@ pub proof fn lemma_create_is_alive(
 {
 }
 
-/// Destroyed pipeline is not alive.
+///  Destroyed pipeline is not alive.
 pub proof fn lemma_destroy_not_alive(state: MeshPipelineState)
     ensures !destroy_mesh_pipeline_ghost(state).alive,
 {
 }
 
-/// Pipeline is valid with or without task shader.
+///  Pipeline is valid with or without task shader.
 pub proof fn lemma_task_optional(
     id: nat,
     mesh_shader: nat,
@@ -229,7 +229,7 @@ pub proof fn lemma_task_optional(
 {
 }
 
-/// Valid dispatch respects all limits.
+///  Valid dispatch respects all limits.
 pub proof fn lemma_dispatch_within_limits(
     state: MeshPipelineState,
     params: MeshDispatchParams,
@@ -241,7 +241,7 @@ pub proof fn lemma_dispatch_within_limits(
 {
 }
 
-/// Pipeline stages are always non-empty.
+///  Pipeline stages are always non-empty.
 pub proof fn lemma_mesh_stages_nonempty(state: MeshPipelineState)
     ensures mesh_pipeline_stages(state).stages.len() > 0,
 {
@@ -252,7 +252,7 @@ pub proof fn lemma_mesh_stages_nonempty(state: MeshPipelineState)
     }
 }
 
-/// Indirect dispatch requires an alive pipeline.
+///  Indirect dispatch requires an alive pipeline.
 pub proof fn lemma_indirect_requires_well_formed(
     state: MeshPipelineState,
     buffer_size: nat,
@@ -266,16 +266,16 @@ pub proof fn lemma_indirect_requires_well_formed(
 {
 }
 
-/// Destroy preserves pipeline id.
+///  Destroy preserves pipeline id.
 pub proof fn lemma_destroy_preserves_id(state: MeshPipelineState)
     ensures destroy_mesh_pipeline_ghost(state).id == state.id,
 {
 }
 
-/// Mesh pipeline stages exclude vertex/geometry/tessellation stages.
+///  Mesh pipeline stages exclude vertex/geometry/tessellation stages.
 pub proof fn lemma_mesh_excludes_vertex(state: MeshPipelineState)
     ensures mesh_excludes_vertex_stages(mesh_pipeline_stages(state)),
 {
 }
 
-} // verus!
+} //  verus!

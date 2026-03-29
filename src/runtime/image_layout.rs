@@ -5,12 +5,12 @@ use crate::resource::*;
 
 verus! {
 
-/// Runtime wrapper for tracking image layout state.
+///  Runtime wrapper for tracking image layout state.
 ///
-/// Wraps the spec-level ImageLayoutMap, allowing exec code to
-/// perform layout transitions with verified preconditions.
+///  Wraps the spec-level ImageLayoutMap, allowing exec code to
+///  perform layout transitions with verified preconditions.
 pub struct RuntimeImageLayoutTracker {
-    /// Ghost model: per-resource layout map.
+    ///  Ghost model: per-resource layout map.
     pub states: Ghost<ImageLayoutMap>,
 }
 
@@ -19,14 +19,14 @@ impl View for RuntimeImageLayoutTracker {
     open spec fn view(&self) -> ImageLayoutMap { self.states@ }
 }
 
-/// Well-formedness of the layout tracker.
-/// No resource is in the Preinitialized layout (Vulkan forbids transitioning to it).
+///  Well-formedness of the layout tracker.
+///  No resource is in the Preinitialized layout (Vulkan forbids transitioning to it).
 pub open spec fn layout_tracker_wf(tracker: &RuntimeImageLayoutTracker) -> bool {
     forall|r: ResourceId| tracker@.contains_key(r)
         ==> tracker@[r] != ImageLayout::Preinitialized
 }
 
-/// Current layout of a specific resource.
+///  Current layout of a specific resource.
 pub open spec fn current_layout(
     tracker: &RuntimeImageLayoutTracker,
     resource: ResourceId,
@@ -36,7 +36,7 @@ pub open spec fn current_layout(
     tracker@[resource]
 }
 
-/// Whether a resource is tracked.
+///  Whether a resource is tracked.
 pub open spec fn resource_tracked(
     tracker: &RuntimeImageLayoutTracker,
     resource: ResourceId,
@@ -44,13 +44,13 @@ pub open spec fn resource_tracked(
     tracker@.contains_key(resource)
 }
 
-/// All tracked resources have usable layouts.
+///  All tracked resources have usable layouts.
 pub open spec fn all_layouts_usable(tracker: &RuntimeImageLayoutTracker) -> bool {
     forall|r: ResourceId| tracker@.contains_key(r) ==>
         is_usable_layout(tracker@[r])
 }
 
-/// Whether a transition from current to new layout is valid.
+///  Whether a transition from current to new layout is valid.
 pub open spec fn transition_would_be_valid(
     tracker: &RuntimeImageLayoutTracker,
     resource: ResourceId,
@@ -59,7 +59,7 @@ pub open spec fn transition_would_be_valid(
     is_usable_layout(new_layout)
 }
 
-/// Whether a layout is a depth layout.
+///  Whether a layout is a depth layout.
 pub open spec fn is_depth_layout(layout: ImageLayout) -> bool {
     matches!(layout,
         ImageLayout::DepthStencilAttachmentOptimal |
@@ -67,12 +67,12 @@ pub open spec fn is_depth_layout(layout: ImageLayout) -> bool {
     )
 }
 
-/// Whether a layout is a color layout.
+///  Whether a layout is a color layout.
 pub open spec fn is_color_layout(layout: ImageLayout) -> bool {
     matches!(layout, ImageLayout::ColorAttachmentOptimal)
 }
 
-/// Whether a layout is a transfer layout.
+///  Whether a layout is a transfer layout.
 pub open spec fn is_transfer_layout(layout: ImageLayout) -> bool {
     matches!(layout,
         ImageLayout::TransferSrcOptimal |
@@ -80,12 +80,12 @@ pub open spec fn is_transfer_layout(layout: ImageLayout) -> bool {
     )
 }
 
-/// Number of tracked resources.
+///  Number of tracked resources.
 pub open spec fn layouts_count(tracker: &RuntimeImageLayoutTracker) -> nat {
     tracker@.dom().len()
 }
 
-/// Exec: create a layout tracker with initial resources all Undefined.
+///  Exec: create a layout tracker with initial resources all Undefined.
 pub fn create_layout_tracker_exec(
     resources: Ghost<Set<ResourceId>>,
 ) -> (out: RuntimeImageLayoutTracker)
@@ -94,7 +94,7 @@ pub fn create_layout_tracker_exec(
         out@ == initial_layout_map(resources@),
 {
     proof {
-        // initial_layout_map sets everything to Undefined, not Preinitialized
+        //  initial_layout_map sets everything to Undefined, not Preinitialized
         assert forall|r: ResourceId| initial_layout_map(resources@).contains_key(r)
             implies initial_layout_map(resources@)[r] != ImageLayout::Preinitialized by {
             lemma_initial_map_all_undefined(resources@, r);
@@ -105,9 +105,9 @@ pub fn create_layout_tracker_exec(
     }
 }
 
-/// Exec: transition a single resource to a new layout.
-/// Caller must prove the resource is tracked and its current layout matches old_layout.
-/// Pass Undefined as old_layout for "don't care" semantics (contents discarded).
+///  Exec: transition a single resource to a new layout.
+///  Caller must prove the resource is tracked and its current layout matches old_layout.
+///  Pass Undefined as old_layout for "don't care" semantics (contents discarded).
 pub fn transition_layout_exec(
     tracker: &mut RuntimeImageLayoutTracker,
     resource: Ghost<ResourceId>,
@@ -128,7 +128,7 @@ pub fn transition_layout_exec(
     tracker.states = Ghost(apply_layout_transition(tracker.states@, resource@, new_layout@));
 }
 
-/// Exec: reset a resource layout to Undefined.
+///  Exec: reset a resource layout to Undefined.
 pub fn reset_layout_exec(
     tracker: &mut RuntimeImageLayoutTracker,
     resource: Ghost<ResourceId>,
@@ -139,15 +139,15 @@ pub fn reset_layout_exec(
     tracker.states = Ghost(apply_layout_transition(tracker.states@, resource@, ImageLayout::Undefined));
 }
 
-/// Exec: apply a batch of transitions (ghost-level sequence).
+///  Exec: apply a batch of transitions (ghost-level sequence).
 pub fn batch_transition_exec(
     tracker: &mut RuntimeImageLayoutTracker,
     transitions: Ghost<Seq<LayoutTransition>>,
 )
     requires
         all_transitions_valid(transitions@),
-        // Each transition's resource must be tracked (in the state after prior transitions)
-        // and old_layout must match (or be Undefined for "don't care")
+        //  Each transition's resource must be tracked (in the state after prior transitions)
+        //  and old_layout must match (or be Undefined for "don't care")
         forall|i: int| #![trigger transitions@[i]]
             0 <= i < transitions@.len() ==>
                 apply_transitions(old(tracker)@, transitions@.subrange(0, i)).contains_key(transitions@[i].resource)
@@ -159,7 +159,7 @@ pub fn batch_transition_exec(
     tracker.states = Ghost(apply_transitions(tracker.states@, transitions@));
 }
 
-/// Exec: get current layout of a resource (ghost query).
+///  Exec: get current layout of a resource (ghost query).
 pub fn get_current_layout_exec(
     tracker: &RuntimeImageLayoutTracker,
     resource: Ghost<ResourceId>,
@@ -172,9 +172,9 @@ pub fn get_current_layout_exec(
     Ghost(tracker.states@[resource@])
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// After transition, the resource has the new layout.
+///  After transition, the resource has the new layout.
 pub proof fn lemma_transition_valid_updates(
     tracker: &RuntimeImageLayoutTracker,
     resource: ResourceId,
@@ -191,7 +191,7 @@ pub proof fn lemma_transition_valid_updates(
     lemma_transition_updates_target(tracker@, resource, new_layout);
 }
 
-/// From Undefined, any usable layout is a valid transition target.
+///  From Undefined, any usable layout is a valid transition target.
 pub proof fn lemma_undefined_to_any(
     tracker: &RuntimeImageLayoutTracker,
     resource: ResourceId,
@@ -207,7 +207,7 @@ pub proof fn lemma_undefined_to_any(
     lemma_undefined_to_any_valid(new_layout);
 }
 
-/// After transition, the resource layout is usable.
+///  After transition, the resource layout is usable.
 pub proof fn lemma_usable_after_transition(
     tracker: &RuntimeImageLayoutTracker,
     resource: ResourceId,
@@ -221,19 +221,19 @@ pub proof fn lemma_usable_after_transition(
 {
 }
 
-/// Depth and color layouts are mutually exclusive.
+///  Depth and color layouts are mutually exclusive.
 pub proof fn lemma_depth_color_exclusive(layout: ImageLayout)
     ensures !(is_depth_layout(layout) && is_color_layout(layout)),
 {
 }
 
-/// PresentSrc is a valid transition target.
+///  PresentSrc is a valid transition target.
 pub proof fn lemma_present_src_valid(old_layout: ImageLayout)
     ensures layout_transition_valid(old_layout, ImageLayout::PresentSrc),
 {
 }
 
-/// Transfer layouts are valid transition targets.
+///  Transfer layouts are valid transition targets.
 pub proof fn lemma_transfer_layouts_valid(old_layout: ImageLayout)
     ensures
         layout_transition_valid(old_layout, ImageLayout::TransferSrcOptimal),
@@ -241,7 +241,7 @@ pub proof fn lemma_transfer_layouts_valid(old_layout: ImageLayout)
 {
 }
 
-/// Batch transition is equivalent to sequential application.
+///  Batch transition is equivalent to sequential application.
 pub proof fn lemma_batch_equivalent(
     map: ImageLayoutMap,
     t1: LayoutTransition,
@@ -258,7 +258,7 @@ pub proof fn lemma_batch_equivalent(
     lemma_transitions_compose(map, t1, t2);
 }
 
-/// Reset sets layout to Undefined.
+///  Reset sets layout to Undefined.
 pub proof fn lemma_reset_to_undefined(
     tracker: &RuntimeImageLayoutTracker,
     resource: ResourceId,
@@ -270,7 +270,7 @@ pub proof fn lemma_reset_to_undefined(
 {
 }
 
-/// Initial tracker has all resources as Undefined.
+///  Initial tracker has all resources as Undefined.
 pub proof fn lemma_initial_undefined(
     resources: Set<ResourceId>,
     r: ResourceId,
@@ -283,8 +283,8 @@ pub proof fn lemma_initial_undefined(
     lemma_initial_map_all_undefined(resources, r);
 }
 
-/// Transition sequence composition: applying [t1..tn, tn+1..tm] equals
-/// applying [t1..tn] then [tn+1..tm].
+///  Transition sequence composition: applying [t1..tn, tn+1..tm] equals
+///  applying [t1..tn] then [tn+1..tm].
 pub proof fn lemma_transition_sequence_composition(
     map: ImageLayoutMap,
     transitions: Seq<LayoutTransition>,
@@ -310,4 +310,4 @@ pub proof fn lemma_transition_sequence_composition(
     assert(extended.drop_last() =~= transitions);
 }
 
-} // verus!
+} //  verus!

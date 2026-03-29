@@ -3,9 +3,9 @@ use crate::animation::*;
 
 verus! {
 
-/// Runtime wrapper for animation state tracking.
+///  Runtime wrapper for animation state tracking.
 pub struct RuntimeAnimation {
-    /// Ghost model of the animation state.
+    ///  Ghost model of the animation state.
     pub state: Ghost<AnimationState>,
 }
 
@@ -14,7 +14,7 @@ impl View for RuntimeAnimation {
     open spec fn view(&self) -> AnimationState { self.state@ }
 }
 
-/// Exec: create an animation tracker from ghost state.
+///  Exec: create an animation tracker from ghost state.
 pub fn create_animation_exec(
     anim_state: Ghost<AnimationState>,
 ) -> (out: RuntimeAnimation)
@@ -23,7 +23,7 @@ pub fn create_animation_exec(
     RuntimeAnimation { state: anim_state }
 }
 
-/// Exec: advance all animation parameters toward their targets.
+///  Exec: advance all animation parameters toward their targets.
 pub fn advance_animation_exec(
     anim: &mut RuntimeAnimation,
     targets: Ghost<Map<nat, int>>,
@@ -36,4 +36,4 @@ pub fn advance_animation_exec(
     anim.state = Ghost(advance_animation(anim.state@, targets@));
 }
 
-} // verus!
+} //  verus!

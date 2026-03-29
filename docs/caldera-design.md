@@ -205,7 +205,7 @@ pub fn create_image(device: &Device, info: &ImageCreateInfo) -> Result<Image>
                 && forall |sr| image.ghost_layout(sr) == vk::ImageLayout::UNDEFINED
                 && image.ghost_sync == SyncState::initial()
             }
-            Err(_) => true  // Creation can fail; no ghost state to establish
+            Err(_) => true  //  Creation can fail; no ghost state to establish
         }
 {
     ...
@@ -224,19 +224,19 @@ pub fn cmd_copy_buffer(
     requires
         self.is_recording(),
         !self.inside_render_pass(),
-        src.ghost_is_bound(),       // Memory must be bound
+        src.ghost_is_bound(),       //  Memory must be bound
         dst.ghost_is_bound(),
         src.ghost_usage.contains(TRANSFER_SRC),
         dst.ghost_usage.contains(TRANSFER_DST),
-        // All copy regions must be in bounds
+        //  All copy regions must be in bounds
         forall |r: &BufferCopy| regions.contains(r) ==> {
             r.src_offset + r.size <= src.ghost_size
             && r.dst_offset + r.size <= dst.ghost_size
         },
-        // No overlapping regions when src == dst
+        //  No overlapping regions when src == dst
         src.ghost_handle != dst.ghost_handle
             || no_overlap(regions),
-        // Synchronization: src readable, dst writable at TRANSFER stage
+        //  Synchronization: src readable, dst writable at TRANSFER stage
         self.ghost_sync.readable(src, PipelineStage::TRANSFER),
         self.ghost_sync.writable(dst, PipelineStage::TRANSFER),
 {
@@ -260,10 +260,10 @@ pub fn cmd_begin_render_pass(
 )
     requires
         self.is_recording(),
-        !self.inside_render_pass(),   // Can't nest render passes
+        !self.inside_render_pass(),   //  Can't nest render passes
         info.render_pass.ghost_subpass_count > 0,
         info.framebuffer.ghost_compatible_with(info.render_pass),
-        // All attachments in correct layout
+        //  All attachments in correct layout
         forall |i: nat| i < info.framebuffer.ghost_attachment_count() ==> {
             let img = info.framebuffer.ghost_attachment_image(i);
             let expected = info.render_pass.ghost_initial_layout(i);
@@ -275,7 +275,7 @@ pub fn cmd_begin_render_pass(
         self.ghost_current_render_pass() == info.render_pass,
         self.ghost_current_subpass() == 0,
         self.ghost_subpass_contents() == contents,
-        // Attachment layouts transition to first subpass layouts
+        //  Attachment layouts transition to first subpass layouts
         forall |i: nat| i < info.framebuffer.ghost_attachment_count() ==> {
             let layout = info.render_pass.ghost_subpass_layout(0, i);
             self.ghost_image_layout(info.framebuffer.ghost_attachment_image(i))
@@ -319,8 +319,8 @@ Creation sets `alive = true`. Every `cmd_*` function that references a resource 
 pub fn destroy_buffer(device: &Device, buffer: &mut Buffer)
     requires
         buffer.ghost_alive,
-        // No command buffer in the pending state references this buffer.
-        // This is tracked through the device's ghost submission log.
+        //  No command buffer in the pending state references this buffer.
+        //  This is tracked through the device's ghost submission log.
         device.ghost_no_pending_references(buffer.ghost_handle),
     ensures
         !buffer.ghost_alive,
@@ -347,12 +347,12 @@ pub open spec fn ghost_no_pending_references(
 ```rust
 pub fn wait_for_fences(device: &mut Device, fences: &[&Fence], wait_all: bool)
     requires
-        wait_all,  // v0.1: only support wait_all=true
+        wait_all,  //  v0.1: only support wait_all=true
         forall |f| fences.contains(f) ==> f.ghost_is_signaled() || f.ghost_is_pending(),
     ensures
-        // All fences are now signaled
+        //  All fences are now signaled
         forall |f| fences.contains(f) ==> f.ghost_is_signaled(),
-        // Submissions guarded by these fences are removed from pending log
+        //  Submissions guarded by these fences are removed from pending log
         forall |i: nat| i < old(device).ghost_pending_submissions.len() ==> {
             let sub = old(device).ghost_pending_submissions[i];
             fences.contains(&sub.fence) ==>
@@ -376,7 +376,7 @@ pub struct Device {
     ghost live_images: nat,
     ghost live_descriptor_pools: nat,
     ghost live_pipelines: nat,
-    // ... one counter per resource type
+    //  ... one counter per resource type
 }
 ```
 
@@ -385,12 +385,12 @@ Every `create_*` increments the corresponding counter; every `destroy_*` decreme
 ```rust
 pub fn device_shutdown(device: Device)
     requires
-        device.ghost_pending_submissions.len() == 0,  // All work completed
+        device.ghost_pending_submissions.len() == 0,  //  All work completed
         device.ghost_live_buffers == 0,
         device.ghost_live_images == 0,
         device.ghost_live_descriptor_pools == 0,
         device.ghost_live_pipelines == 0,
-        // ... all resource types
+        //  ... all resource types
 {
     ...
 }
@@ -406,7 +406,7 @@ while running
         device.ghost_live_buffers <= MAX_STREAMING_BUFFERS,
         device.ghost_live_images <= MAX_STREAMING_IMAGES,
 {
-    // ... frame logic that creates and destroys transient resources
+    //  ... frame logic that creates and destroys transient resources
 }
 ```
 
@@ -422,13 +422,13 @@ Caldera addresses this with **ghost checkpoints**: explicit points in a command 
 pub fn ghost_checkpoint(&mut self) -> (checkpoint: Ghost<CommandBufferSnapshot>)
     ensures
         checkpoint@ == self.ghost_snapshot(),
-        // The checkpoint captures ALL current ghost state
+        //  The checkpoint captures ALL current ghost state
         checkpoint@.sync_state == self.ghost_sync_state(),
         checkpoint@.bound_pipeline == self.ghost_bound_pipeline(),
         checkpoint@.render_pass_state == self.ghost_render_pass_state(),
         checkpoint@.image_layouts == self.ghost_image_layouts(),
 {
-    // No-op at runtime — purely ghost
+    //  No-op at runtime — purely ghost
     Ghost(self.ghost_snapshot())
 }
 ```
@@ -436,24 +436,24 @@ pub fn ghost_checkpoint(&mut self) -> (checkpoint: Ghost<CommandBufferSnapshot>)
 The intended usage pattern mirrors verus-topology's phase snapshots:
 
 ```rust
-// Phase 1: Upload
+//  Phase 1: Upload
 cmd.cmd_copy_buffer(&staging, &vertex_buf, &[region]);
 cmd.cmd_copy_buffer(&staging, &index_buf, &[region]);
 let post_upload = cmd.ghost_checkpoint();
 
-// Phase 2: Barriers (verifier only needs post_upload, not upload details)
+//  Phase 2: Barriers (verifier only needs post_upload, not upload details)
 cmd.cmd_pipeline_barrier(&upload_to_compute_barrier);
 let post_barrier = cmd.ghost_checkpoint();
 
-// Phase 3: Compute (verifier only needs post_barrier)
+//  Phase 3: Compute (verifier only needs post_barrier)
 cmd.cmd_bind_pipeline(PipelineBindPoint::COMPUTE, &skin_pipeline);
 cmd.cmd_dispatch(groups, 1, 1);
 let post_compute = cmd.ghost_checkpoint();
 
-// Phase 4: Render (verifier only needs post_compute)
+//  Phase 4: Render (verifier only needs post_compute)
 cmd.cmd_pipeline_barrier(&compute_to_graphics_barrier);
 cmd.cmd_begin_render_pass(&rp_info, SubpassContents::INLINE);
-// ...draw commands...
+//  ...draw commands...
 cmd.cmd_end_render_pass();
 ```
 
@@ -467,8 +467,8 @@ let mut i: usize = 0;
 while i < mesh_count
     invariant
         cmd.ghost_snapshot() == checkpoint@
-            .with_draws(i as nat),  // Abstract: "i draws have been recorded"
-        // Sync state: all previously-drawn meshes' resources are still valid
+            .with_draws(i as nat),  //  Abstract: "i draws have been recorded"
+        //  Sync state: all previously-drawn meshes' resources are still valid
         forall |j: nat| j < i as nat ==>
             cmd.ghost_sync.readable(meshes[j].vertex_buffer, VERTEX_INPUT),
 {
@@ -486,9 +486,9 @@ Caldera tracks memory consumption per heap as ghost state on the `Device`:
 
 ```rust
 pub struct Device {
-    // ...
-    ghost heap_usage: Map<u32, nat>,    // heap_index → bytes currently allocated
-    ghost heap_capacity: Map<u32, nat>, // heap_index → max bytes (from physical device)
+    //  ...
+    ghost heap_usage: Map<u32, nat>,    //  heap_index → bytes currently allocated
+    ghost heap_capacity: Map<u32, nat>, //  heap_index → max bytes (from physical device)
 }
 ```
 
@@ -501,7 +501,7 @@ pub fn allocate_memory(
 ) -> Result<DeviceMemory>
     requires
         info.memory_type_index < device.ghost_memory_type_count(),
-        // The allocation must fit within the heap's remaining capacity
+        //  The allocation must fit within the heap's remaining capacity
         device.ghost_heap_usage[device.ghost_heap_for_type(info.memory_type_index)]
             + info.allocation_size as nat
             <= device.ghost_heap_capacity[device.ghost_heap_for_type(info.memory_type_index)],
@@ -510,7 +510,7 @@ pub fn allocate_memory(
             Ok(mem) => {
                 mem.ghost_size == info.allocation_size as nat
                 && mem.ghost_heap == device.ghost_heap_for_type(info.memory_type_index)
-                // Heap usage updated
+                //  Heap usage updated
                 && device.ghost_heap_usage[mem.ghost_heap]
                     == old(device).ghost_heap_usage[mem.ghost_heap] + info.allocation_size as nat
             }
@@ -553,8 +553,8 @@ pub ghost struct SyncPoint {
     pub stage: vk::PipelineStageFlags2,
     pub access: vk::AccessFlags2,
     pub queue_family: u32,
-    pub submission_order: nat,    // Monotonic counter per queue
-    pub barrier_epoch: nat,       // Incremented by each barrier
+    pub submission_order: nat,    //  Monotonic counter per queue
+    pub barrier_epoch: nat,       //  Incremented by each barrier
 }
 ```
 
@@ -571,10 +571,10 @@ pub open spec fn readable(
     reading_stage: vk::PipelineStageFlags2,
 ) -> bool {
     match resource.ghost_sync().last_write {
-        None => true,  // Never written — always safe to read
+        None => true,  //  Never written — always safe to read
         Some(write_point) => {
-            // There must be a barrier whose src includes the write's stage/access
-            // and whose dst includes the reading stage
+            //  There must be a barrier whose src includes the write's stage/access
+            //  and whose dst includes the reading stage
             self.barrier_chain_exists(write_point, reading_stage)
         }
     }
@@ -585,9 +585,9 @@ pub open spec fn writable(
     resource: &impl Resource,
     writing_stage: vk::PipelineStageFlags2,
 ) -> bool {
-    // Must be barriered from the last write (WAW hazard)
+    //  Must be barriered from the last write (WAW hazard)
     self.readable(resource, writing_stage)
-    // AND must be barriered from all outstanding reads (WAR hazard)
+    //  AND must be barriered from all outstanding reads (WAR hazard)
     && forall |read_point| resource.ghost_sync().last_reads.contains(read_point) ==> {
         self.barrier_chain_exists(read_point, writing_stage)
     }
@@ -606,12 +606,12 @@ pub ghost struct BarrierLog {
 }
 
 pub ghost struct BarrierEntry {
-    pub position: nat,          // Recording order index
+    pub position: nat,          //  Recording order index
     pub src_stage: PipelineStageFlags2,
     pub src_access: AccessFlags2,
     pub dst_stage: PipelineStageFlags2,
     pub dst_access: AccessFlags2,
-    pub resource: ResourceId,   // Which resource (or ALL for global memory barriers)
+    pub resource: ResourceId,   //  Which resource (or ALL for global memory barriers)
 }
 ```
 
@@ -631,15 +631,15 @@ pub open spec fn barrier_chain_exists(
 ) -> bool {
     exists |i: nat| i < self.barrier_log.entries.len() && {
         let entry = self.barrier_log.entries[i];
-        // Barrier was recorded after the source access
+        //  Barrier was recorded after the source access
         entry.position > from.position
-        // Execution dependency: src scope includes the write's stage
+        //  Execution dependency: src scope includes the write's stage
         && entry.src_stage.contains(from.stage)
-        // Memory dependency: src access includes the write's access
+        //  Memory dependency: src access includes the write's access
         && entry.src_access.contains(from.access)
-        // Execution dependency: dst scope includes the read's stage
+        //  Execution dependency: dst scope includes the read's stage
         && entry.dst_stage.contains(to_stage)
-        // Covers this resource (or is a global memory barrier)
+        //  Covers this resource (or is a global memory barrier)
         && (entry.resource == resource || entry.resource == ResourceId::All)
     }
 }
@@ -652,19 +652,19 @@ This formulation is deliberately simpler than the full Vulkan spec, which allows
 **Render pass implicit barriers:** Render passes create implicit synchronization between subpasses (and between the render pass and external commands) via subpass dependencies. These are modeled by injecting synthetic barrier entries into the log when `cmd_begin_render_pass`, `cmd_next_subpass`, and `cmd_end_render_pass` are recorded:
 
 ```rust
-// In cmd_begin_render_pass ensures:
-// For each external→subpass0 dependency in the render pass:
+//  In cmd_begin_render_pass ensures:
+//  For each external→subpass0 dependency in the render pass:
 forall |dep: &DependencyModel|
     info.render_pass.ghost_dependencies().contains(dep)
     && dep.src_subpass == vk::SUBPASS_EXTERNAL
     && dep.dst_subpass == 0 ==> {
-        // A synthetic barrier entry is added to the log
+        //  A synthetic barrier entry is added to the log
         self.barrier_log.entries.last() == BarrierEntry {
             src_stage: dep.src_stage_mask,
             src_access: dep.src_access_mask,
             dst_stage: dep.dst_stage_mask,
             dst_access: dep.dst_access_mask,
-            resource: ResourceId::All,  // Subpass deps are global
+            resource: ResourceId::All,  //  Subpass deps are global
             ..
         }
     }
@@ -682,19 +682,19 @@ pub fn cmd_pipeline_barrier(
     requires
         self.is_recording(),
     ensures
-        // For each memory barrier: all resources' sync states are advanced
-        // For each buffer memory barrier: named buffer's sync state is advanced
-        // For each image memory barrier: named image subresource's sync state
-        //   is advanced AND its layout ghost state transitions
+        //  For each memory barrier: all resources' sync states are advanced
+        //  For each buffer memory barrier: named buffer's sync state is advanced
+        //  For each image memory barrier: named image subresource's sync state
+        //    is advanced AND its layout ghost state transitions
         forall |imb: &ImageMemoryBarrier2|
             dependency_info.image_memory_barriers.contains(imb) ==> {
-                // Layout transition
+                //  Layout transition
                 self.ghost_image_layout(imb.image, imb.subresource_range)
                     == imb.new_layout
-                // Sync advancement
+                //  Sync advancement
                 && self.ghost_sync_epoch(imb.image, imb.subresource_range)
                     == old(self).ghost_sync_epoch(imb.image, imb.subresource_range) + 1
-                // The barrier records its src/dst stage+access for chain validation
+                //  The barrier records its src/dst stage+access for chain validation
                 && self.ghost_last_barrier(imb.image, imb.subresource_range)
                     == BarrierRecord {
                         src_stage: imb.src_stage_mask,
@@ -722,20 +722,20 @@ pub fn queue_submit(
     fence: Option<&Fence>,
 )
     requires
-        // Each wait semaphore must have been signaled
+        //  Each wait semaphore must have been signaled
         forall |s| submits.wait_semaphores().contains(s) ==>
             s.semaphore.ghost_is_signaled(),
-        // Each command buffer's initial ghost state must match
-        // the current known state of its referenced resources
-        // (after accounting for waited semaphores' guarantees)
+        //  Each command buffer's initial ghost state must match
+        //  the current known state of its referenced resources
+        //  (after accounting for waited semaphores' guarantees)
         ...
     ensures
-        // Signal semaphores carry the post-execution ghost state
+        //  Signal semaphores carry the post-execution ghost state
         forall |s| submits.signal_semaphores().contains(s) ==>
             s.semaphore.ghost_is_signaled()
             && s.semaphore.ghost_resource_states() ==
                 post_execution_states(submits),
-        // Fence (if any) carries the same guarantee
+        //  Fence (if any) carries the same guarantee
         fence.is_some() ==>
             fence.unwrap().ghost_is_signaled()
             && ...,
@@ -754,10 +754,10 @@ Caldera models this with a ghost enum per swapchain image slot:
 
 ```rust
 pub ghost enum SwapchainImageState {
-    Available,                  // Owned by presentation engine
-    Acquired { frame_id: nat }, // Application has it, not yet rendered
-    Rendered { frame_id: nat }, // Render commands recorded and submitted
-    Presented,                  // Queued for presentation, will become Available
+    Available,                  //  Owned by presentation engine
+    Acquired { frame_id: nat }, //  Application has it, not yet rendered
+    Rendered { frame_id: nat }, //  Render commands recorded and submitted
+    Presented,                  //  Queued for presentation, will become Available
 }
 ```
 
@@ -770,7 +770,7 @@ pub fn acquire_next_image(
     semaphore: &Semaphore,
 ) -> Result<u32>
     requires
-        // Must not exceed in-flight limit
+        //  Must not exceed in-flight limit
         swapchain.ghost_in_flight_count() < swapchain.ghost_image_count() - 1,
     ensures
         match result {
@@ -780,7 +780,7 @@ pub fn acquire_next_image(
                 && swapchain.ghost_image_state(index as nat)
                     == SwapchainImageState::Acquired { frame_id: swapchain.ghost_frame_counter() }
                 && semaphore.ghost_is_signaled()
-                // All other slots unchanged
+                //  All other slots unchanged
                 && forall |i: nat| i < swapchain.ghost_image_count() && i != index as nat ==>
                     swapchain.ghost_image_state(i) == old(swapchain).ghost_image_state(i)
             }
@@ -803,7 +803,7 @@ pub fn queue_present(
     requires
         wait_semaphore.ghost_is_signaled(),
         image_index < swapchain.ghost_image_count() as u32,
-        // Can't present an image you haven't rendered to
+        //  Can't present an image you haven't rendered to
         swapchain.ghost_image_state(image_index as nat).is_rendered(),
     ensures
         swapchain.ghost_image_state(image_index as nat) == SwapchainImageState::Presented,
@@ -862,16 +862,16 @@ Caldera models the shader's interface as ghost state on `ShaderModule`:
 ```rust
 pub ghost struct ShaderInterface {
     pub stage: vk::ShaderStageFlags,
-    pub inputs: Seq<ShaderInputAttribute>,   // Vertex shader inputs
-    pub outputs: Seq<ShaderOutputAttribute>,  // Fragment shader outputs
+    pub inputs: Seq<ShaderInputAttribute>,   //  Vertex shader inputs
+    pub outputs: Seq<ShaderOutputAttribute>,  //  Fragment shader outputs
     pub descriptor_bindings: Seq<ShaderDescriptorBinding>,
     pub push_constant_range: Option<PushConstantRange>,
 }
 
 pub ghost struct ShaderInputAttribute {
     pub location: nat,
-    pub format: vk::Format,    // Expected format (e.g., R32G32B32_SFLOAT)
-    pub name: Seq<char>,       // For diagnostics only
+    pub format: vk::Format,    //  Expected format (e.g., R32G32B32_SFLOAT)
+    pub name: Seq<char>,       //  For diagnostics only
 }
 
 pub ghost struct ShaderDescriptorBinding {
@@ -891,17 +891,17 @@ pub fn create_graphics_pipeline(
     info: &GraphicsPipelineCreateInfo,
 ) -> Result<Pipeline>
     requires
-        // Vertex input state matches vertex shader's expected inputs
+        //  Vertex input state matches vertex shader's expected inputs
         forall |i: nat| i < info.vertex_shader.ghost_interface().inputs.len() ==> {
             let attr = info.vertex_shader.ghost_interface().inputs[i];
-            // There must be a vertex input attribute at this location with matching format
+            //  There must be a vertex input attribute at this location with matching format
             exists |j: nat| j < info.vertex_input_state.attributes.len() && {
                 let vk_attr = info.vertex_input_state.attributes[j];
                 vk_attr.location == attr.location as u32
                 && format_compatible(vk_attr.format, attr.format)
             }
         },
-        // Descriptor set layouts match shader's expected bindings
+        //  Descriptor set layouts match shader's expected bindings
         forall |binding: &ShaderDescriptorBinding|
             info.vertex_shader.ghost_interface().descriptor_bindings.contains(binding)
             || info.fragment_shader.ghost_interface().descriptor_bindings.contains(binding) ==> {
@@ -909,10 +909,10 @@ pub fn create_graphics_pipeline(
                 && info.layout.ghost_set_layouts()[binding.set]
                     .ghost_has_binding(binding.binding, binding.descriptor_type, binding.count)
             },
-        // Fragment shader output count matches color attachment count
+        //  Fragment shader output count matches color attachment count
         info.fragment_shader.ghost_interface().outputs.len()
             == info.color_blend_state.attachment_count as nat,
-        // Push constant ranges cover shader requirements
+        //  Push constant ranges cover shader requirements
         info.vertex_shader.ghost_interface().push_constant_range.is_some() ==> {
             info.layout.ghost_push_constant_ranges_cover(
                 info.vertex_shader.ghost_interface().push_constant_range.unwrap()
@@ -941,8 +941,8 @@ pub fn cmd_draw(
         self.is_recording(),
         self.inside_render_pass(),
         self.ghost_bound_graphics_pipeline().is_some(),
-        // Descriptor set coherence: every binding expected by the shader
-        // has a valid resource bound with correct type and sufficient size
+        //  Descriptor set coherence: every binding expected by the shader
+        //  has a valid resource bound with correct type and sufficient size
         forall |binding: &ShaderDescriptorBinding|
             self.ghost_bound_pipeline_shader_bindings().contains(binding) ==> {
                 let desc_set = self.ghost_bound_descriptor_set(binding.set);
@@ -951,17 +951,17 @@ pub fn cmd_draw(
                     == binding.descriptor_type
                 && desc_set.unwrap().ghost_binding_count(binding.binding)
                     >= binding.count
-                // Bound resources are alive and in correct state
+                //  Bound resources are alive and in correct state
                 && desc_set.unwrap().ghost_binding_resources_alive(binding.binding)
                 && match binding.descriptor_type {
                     UNIFORM_BUFFER | STORAGE_BUFFER => {
-                        // Buffer is bound, has sufficient size, correct usage flags
+                        //  Buffer is bound, has sufficient size, correct usage flags
                         desc_set.unwrap().ghost_binding_buffer_size(binding.binding)
                             >= binding.min_size
                     }
                     COMBINED_IMAGE_SAMPLER => {
-                        // Image view format matches shader expectation
-                        // Image is in SHADER_READ_ONLY_OPTIMAL layout
+                        //  Image view format matches shader expectation
+                        //  Image is in SHADER_READ_ONLY_OPTIMAL layout
                         desc_set.unwrap().ghost_binding_image_layout(binding.binding)
                             == vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL
                     }
@@ -972,13 +972,13 @@ pub fn cmd_draw(
                     _ => true
                 }
             },
-        // Vertex buffer bound with sufficient size
+        //  Vertex buffer bound with sufficient size
         self.ghost_bound_vertex_buffer().is_some(),
         self.ghost_bound_vertex_buffer_size()
             >= (first_vertex + vertex_count) as nat
                 * self.ghost_bound_pipeline_vertex_stride() as nat,
-        // All bound resources are synchronized
-        // (omitted for brevity — same pattern as section 7)
+        //  All bound resources are synchronized
+        //  (omitted for brevity — same pattern as section 7)
 {
     ...
 }
@@ -1014,24 +1014,24 @@ pub fn cmd_execute_commands(
         forall |i: nat| i < secondary_buffers.len() ==> {
             let sec = secondary_buffers[i];
             sec.ghost_is_executable()
-            // All referenced resources are still alive
+            //  All referenced resources are still alive
             && forall |r| sec.ghost_assumptions().referenced_resources.contains(r) ==>
                 self.ghost_resource_alive(r)
-            // Render pass compatibility (if secondary expects one)
+            //  Render pass compatibility (if secondary expects one)
             && sec.ghost_assumptions().requires_render_pass ==> {
                 self.inside_render_pass()
                 && self.ghost_rendering_info().compatible_with(
                     sec.ghost_assumptions().expected_render_pass_format.unwrap()
                 )
             }
-            // Sync state satisfies secondary's requirements
+            //  Sync state satisfies secondary's requirements
             && forall |r, sync|
                 sec.ghost_assumptions().required_sync_state.contains_pair(r, sync) ==> {
                     self.ghost_sync_satisfies(r, sync)
                 }
         },
     ensures
-        // Ghost state updated with secondary's effects
+        //  Ghost state updated with secondary's effects
         ...
 {
     ...
@@ -1058,13 +1058,13 @@ pub fn cmd_begin_rendering(
     requires
         self.is_recording(),
         !self.inside_render_pass(),
-        // All color attachments in correct layout
+        //  All color attachments in correct layout
         forall |i: nat| i < info.color_attachments.len() ==> {
             let att = info.color_attachments[i];
             self.ghost_image_layout(att.image_view.ghost_image(), att.image_view.ghost_subresource())
                 == att.image_layout
         },
-        // Depth attachment (if any) in correct layout
+        //  Depth attachment (if any) in correct layout
         info.depth_attachment.is_some() ==> {
             let att = info.depth_attachment.unwrap();
             self.ghost_image_layout(att.image_view.ghost_image(), att.image_view.ghost_subresource())
@@ -1141,10 +1141,10 @@ pub struct ComputeKernelHandle<K: CuteKernel> {
 pub trait CuteKernel {
     type Spec;
 
-    // Ghost: minimum buffer sizes required by this kernel
+    //  Ghost: minimum buffer sizes required by this kernel
     spec fn required_buffer_sizes(&self) -> Seq<nat>;
 
-    // Ghost: what the kernel computes (functional spec)
+    //  Ghost: what the kernel computes (functional spec)
     spec fn output_spec(&self, inputs: Seq<Seq<u8>>) -> Seq<Seq<u8>>;
 }
 ```
@@ -1164,12 +1164,12 @@ pub fn cmd_dispatch_cute_kernel<K: CuteKernel>(
         cmd.is_recording(),
         !cmd.inside_render_pass(),
         cmd.ghost_bound_compute_pipeline() == Some(kernel.pipeline),
-        // CuTe-RS buffer size requirements met by Caldera's buffer model
+        //  CuTe-RS buffer size requirements met by Caldera's buffer model
         forall |i: nat| i < kernel.ghost_kernel_spec.required_buffer_sizes().len() ==> {
             descriptor_set.ghost_binding_buffer_size(i)
                 >= kernel.ghost_kernel_spec.required_buffer_sizes().index(i)
         },
-        // All bound buffers are synchronized for compute access
+        //  All bound buffers are synchronized for compute access
         forall |i: nat| i < descriptor_set.ghost_binding_count() ==> {
             cmd.ghost_sync.readable_or_writable(
                 descriptor_set.ghost_binding_resource(i),
@@ -1177,7 +1177,7 @@ pub fn cmd_dispatch_cute_kernel<K: CuteKernel>(
             )
         },
     ensures
-        // Sync state updated: output buffers now have a pending write at COMPUTE_SHADER
+        //  Sync state updated: output buffers now have a pending write at COMPUTE_SHADER
         forall |i: nat| kernel.ghost_kernel_spec.is_output(i) ==> {
             cmd.ghost_sync.last_write(descriptor_set.ghost_binding_resource(i))
                 == Some(SyncPoint {
@@ -1185,14 +1185,14 @@ pub fn cmd_dispatch_cute_kernel<K: CuteKernel>(
                     ..
                 })
         },
-        // Input buffers: sync state unchanged (read-only access)
+        //  Input buffers: sync state unchanged (read-only access)
         forall |i: nat| kernel.ghost_kernel_spec.is_input_only(i) ==> {
             cmd.ghost_sync.last_reads(descriptor_set.ghost_binding_resource(i))
                 == old(cmd).ghost_sync.last_reads(
                     descriptor_set.ghost_binding_resource(i)
                 ).insert(SyncPoint { stage: PipelineStage::COMPUTE_SHADER, .. })
         },
-        // Functional correctness (Tier 2 — only when kernel provides output_spec):
+        //  Functional correctness (Tier 2 — only when kernel provides output_spec):
         kernel.ghost_kernel_spec.has_functional_spec() ==> {
             forall |i: nat| kernel.ghost_kernel_spec.is_output(i) ==> {
                 cmd.ghost_buffer_contents(descriptor_set.ghost_binding_resource(i))
@@ -1217,31 +1217,31 @@ The ensures clause has two tiers of guarantees:
 To make this concrete, here is a simplified verified lifecycle for a compute-then-render workflow:
 
 ```rust
-// 1. Create buffers (ghost: size established, sync state = initial)
+//  1. Create buffers (ghost: size established, sync state = initial)
 let vertex_buffer = caldera.create_buffer(size, VERTEX | STORAGE | TRANSFER_DST)?;
 let uniform_buffer = caldera.create_buffer(size, UNIFORM | TRANSFER_DST)?;
 
-// 2. Upload initial data via staging (ghost: sync state = TRANSFER write)
+//  2. Upload initial data via staging (ghost: sync state = TRANSFER write)
 cmd.cmd_copy_buffer(&staging, &vertex_buffer, &[region])?;
 
-// 3. Barrier: TRANSFER → COMPUTE (ghost: sync advanced, vertex_buffer readable at COMPUTE)
+//  3. Barrier: TRANSFER → COMPUTE (ghost: sync advanced, vertex_buffer readable at COMPUTE)
 cmd.cmd_pipeline_barrier(&barrier!(
     buffer: vertex_buffer,
     src: TRANSFER_WRITE,
     dst: COMPUTE_SHADER_READ | COMPUTE_SHADER_WRITE,
 ));
 
-// 4. CuTe-RS kernel modifies vertex positions (ghost: output_spec applied, write at COMPUTE)
+//  4. CuTe-RS kernel modifies vertex positions (ghost: output_spec applied, write at COMPUTE)
 cmd.cmd_dispatch_cute_kernel(&skin_kernel, &desc_set, groups_x, 1, 1)?;
 
-// 5. Barrier: COMPUTE → VERTEX_INPUT (ghost: sync advanced, vertex_buffer readable at VERTEX)
+//  5. Barrier: COMPUTE → VERTEX_INPUT (ghost: sync advanced, vertex_buffer readable at VERTEX)
 cmd.cmd_pipeline_barrier(&barrier!(
     buffer: vertex_buffer,
     src: COMPUTE_SHADER_WRITE,
     dst: VERTEX_ATTRIBUTE_READ,
 ));
 
-// 6. Render pass uses vertex buffer (ghost: precondition met by barrier in step 5)
+//  6. Render pass uses vertex buffer (ghost: precondition met by barrier in step 5)
 cmd.cmd_begin_render_pass(&rp_info, SubpassContents::INLINE)?;
 cmd.cmd_bind_vertex_buffers(0, &[&vertex_buffer], &[0])?;
 cmd.cmd_draw(vertex_count, 1, 0, 0)?;
@@ -1272,18 +1272,18 @@ pub ghost struct RenderGraph {
 
 pub ghost struct RenderPassNode {
     pub id: nat,
-    pub name: Seq<char>,       // For diagnostics
+    pub name: Seq<char>,       //  For diagnostics
     pub reads: Set<ResourceId>,
     pub writes: Set<ResourceId>,
-    pub pass_type: PassType,   // Graphics, Compute, Transfer
+    pub pass_type: PassType,   //  Graphics, Compute, Transfer
 }
 
 pub ghost struct ResourceEdge {
-    pub from_pass: nat,        // Writer pass ID
-    pub to_pass: nat,          // Reader pass ID
+    pub from_pass: nat,        //  Writer pass ID
+    pub to_pass: nat,          //  Reader pass ID
     pub resource: ResourceId,
-    pub src_layout: vk::ImageLayout,  // Layout after write
-    pub dst_layout: vk::ImageLayout,  // Layout needed by reader
+    pub src_layout: vk::ImageLayout,  //  Layout after write
+    pub dst_layout: vk::ImageLayout,  //  Layout needed by reader
 }
 
 pub ghost enum PassType {
@@ -1296,9 +1296,9 @@ pub ghost enum PassType {
 Spec functions verify structural properties:
 
 ```rust
-/// The render graph contains no cycles.
+///  The render graph contains no cycles.
 pub open spec fn is_acyclic(graph: &RenderGraph) -> bool {
-    // Topological ordering exists
+    //  Topological ordering exists
     exists |order: Seq<nat>| {
         order.len() == graph.passes.len()
         && order.is_permutation_of(graph.pass_ids())
@@ -1308,8 +1308,8 @@ pub open spec fn is_acyclic(graph: &RenderGraph) -> bool {
     }
 }
 
-/// Every resource read by a pass is either written by an earlier pass
-/// (connected by an edge) or is an external input.
+///  Every resource read by a pass is either written by an earlier pass
+///  (connected by an edge) or is an external input.
 pub open spec fn all_dependencies_satisfied(
     graph: &RenderGraph,
     external_inputs: Set<ResourceId>,
@@ -1326,12 +1326,12 @@ pub open spec fn all_dependencies_satisfied(
     }
 }
 
-/// No two passes write to the same resource without an ordering edge.
+///  No two passes write to the same resource without an ordering edge.
 pub open spec fn no_write_conflicts(graph: &RenderGraph) -> bool {
     forall |p1: &RenderPassNode, p2: &RenderPassNode|
         graph.passes.contains(p1) && graph.passes.contains(p2) && p1.id != p2.id ==> {
             forall |r| p1.writes.contains(r) && p2.writes.contains(r) ==> {
-                // There must be an ordering between p1 and p2
+                //  There must be an ordering between p1 and p2
                 graph.reachable(p1.id, p2.id) || graph.reachable(p2.id, p1.id)
             }
         }
@@ -1353,19 +1353,19 @@ pub fn execute_render_graph(
         is_acyclic(graph),
         all_dependencies_satisfied(graph, resources.ghost_external_inputs()),
         no_write_conflicts(graph),
-        // All resources referenced by the graph exist and are alive
+        //  All resources referenced by the graph exist and are alive
         forall |r| graph.all_resources().contains(r) ==>
             resources.ghost_resource_alive(r),
     ensures
-        // All passes have been recorded in a valid topological order
-        // All inter-pass barriers are present for each edge
-        // All resources end in their expected final layouts
+        //  All passes have been recorded in a valid topological order
+        //  All inter-pass barriers are present for each edge
+        //  All resources end in their expected final layouts
         forall |e: &ResourceEdge| graph.edges.contains(e) ==> {
             cmd.ghost_barrier_exists_for_edge(e)
         },
 {
-    // Topologically sort passes, record each pass's commands,
-    // insert barriers between passes based on edges
+    //  Topologically sort passes, record each pass's commands,
+    //  insert barriers between passes based on edges
     ...
 }
 ```
@@ -1377,7 +1377,7 @@ let topo_order = topological_sort(graph);
 let mut i: usize = 0;
 while i < topo_order.len()
     invariant
-        // All passes [0, i) have been recorded with correct barriers
+        //  All passes [0, i) have been recorded with correct barriers
         forall |j: nat| j < i as nat ==> {
             let pass = graph.passes[topo_order[j]];
             cmd.ghost_pass_recorded(pass)
@@ -1389,9 +1389,9 @@ while i < topo_order.len()
         },
 {
     let pass = &graph.passes[topo_order[i]];
-    // Record barriers for incoming edges
+    //  Record barriers for incoming edges
     record_incoming_barriers(cmd, graph, pass);
-    // Record pass commands
+    //  Record pass commands
     record_pass(cmd, graph, pass, resources);
     i += 1;
 }
@@ -1431,8 +1431,8 @@ Caldera's VR layer tracks frame completeness with ghost state on the `FrameConte
 
 ```rust
 pub struct FrameContext {
-    ghost views_rendered: Set<nat>,  // Which views (eyes) have been rendered
-    ghost view_count: nat,           // Total views expected (2 for stereo)
+    ghost views_rendered: Set<nat>,  //  Which views (eyes) have been rendered
+    ghost view_count: nat,           //  Total views expected (2 for stereo)
     ghost frame_id: nat,
 }
 ```
@@ -1445,11 +1445,11 @@ pub fn end_frame(
     swapchain: &Swapchain,
 )
     requires
-        // Every view must have been rendered this frame
+        //  Every view must have been rendered this frame
         frame.ghost_views_rendered.len() == frame.ghost_view_count,
         forall |v: nat| v < frame.ghost_view_count ==>
             frame.ghost_views_rendered.contains(v),
-        // Swapchain images for all views are in Rendered state
+        //  Swapchain images for all views are in Rendered state
         forall |v: nat| v < frame.ghost_view_count ==> {
             swapchain.ghost_image_state(v).is_rendered()
             && swapchain.ghost_image_state(v).frame_id() == frame.ghost_frame_id
@@ -1464,7 +1464,7 @@ If any code path can reach `end_frame` without rendering both eyes, Verus reject
 For multiview rendering (both eyes in a single render pass), the render pass itself marks both views as rendered in one shot:
 
 ```rust
-// After cmd_end_rendering with a multiview pass covering views 0 and 1:
+//  After cmd_end_rendering with a multiview pass covering views 0 and 1:
 ensures
     frame.ghost_views_rendered == old(frame).ghost_views_rendered
         .insert(0).insert(1),
@@ -1478,8 +1478,8 @@ Caldera verifies stereo consistency by tracking the **data generation** of unifo
 
 ```rust
 pub ghost struct BufferGeneration {
-    pub generation: nat,        // Monotonically increasing on each write
-    pub last_writer: Seq<char>, // Identifies the write source (for diagnostics)
+    pub generation: nat,        //  Monotonically increasing on each write
+    pub last_writer: Seq<char>, //  Identifies the write source (for diagnostics)
 }
 ```
 
@@ -1492,19 +1492,19 @@ pub fn render_stereo_frame(
     scene: &SceneResources,
 )
     requires
-        // Scene data is finalized — no writes pending between eye renders
+        //  Scene data is finalized — no writes pending between eye renders
         scene.ghost_uniform_buffer_generation() == scene.ghost_frame_generation(),
-        // Both eye view matrices are available
+        //  Both eye view matrices are available
         frame.ghost_view_matrices_set(),
     ensures
         frame.ghost_views_rendered.contains(0)
         && frame.ghost_views_rendered.contains(1)
-        // Both eyes saw the same buffer generation
+        //  Both eyes saw the same buffer generation
         && frame.ghost_left_eye_data_generation()
             == frame.ghost_right_eye_data_generation()
 {
-    // Record left eye render
-    // Record right eye render (or use multiview)
+    //  Record left eye render
+    //  Record right eye render (or use multiview)
     ...
 }
 ```
@@ -1532,19 +1532,19 @@ pub ghost struct MeshBufferInvariants {
     pub vertex_count: nat,
     pub index_count: nat,
     pub vertex_stride: nat,
-    pub index_type: vk::IndexType,   // UINT16 or UINT32
+    pub index_type: vk::IndexType,   //  UINT16 or UINT32
     pub has_normals: bool,
     pub has_tangents: bool,
-    pub bone_count: Option<nat>,     // For skinned meshes
-    // Structural invariants
-    pub all_indices_in_range: bool,  // Every index < vertex_count
+    pub bone_count: Option<nat>,     //  For skinned meshes
+    //  Structural invariants
+    pub all_indices_in_range: bool,  //  Every index < vertex_count
     pub no_degenerate_triangles: bool,
     pub consistent_winding: bool,
-    pub normalized_weights: bool,    // Bone weights sum to 1.0
-    // From verus-topology
-    pub structurally_valid: bool,    // Half-edge mesh invariants hold
-    pub euler_characteristic: int,   // V - E + F
-    pub is_closed: bool,            // No boundary edges
+    pub normalized_weights: bool,    //  Bone weights sum to 1.0
+    //  From verus-topology
+    pub structurally_valid: bool,    //  Half-edge mesh invariants hold
+    pub euler_characteristic: int,   //  V - E + F
+    pub is_closed: bool,            //  No boundary edges
 }
 ```
 
@@ -1560,17 +1560,17 @@ pub fn upload_mesh<M: VerifiedMesh>(
 )
     requires
         cmd.is_recording(),
-        // Mesh satisfies structural invariants (from verus-topology)
+        //  Mesh satisfies structural invariants (from verus-topology)
         mesh.ghost_structurally_valid(),
         mesh.ghost_all_indices_in_range(),
-        // Buffers are large enough
+        //  Buffers are large enough
         vertex_buffer.ghost_size >= mesh.ghost_vertex_count() * mesh.ghost_vertex_stride(),
         index_buffer.ghost_size >= mesh.ghost_index_count() * mesh.ghost_index_size(),
-        // Standard sync requirements
+        //  Standard sync requirements
         cmd.ghost_sync.writable(vertex_buffer, PipelineStage::TRANSFER),
         cmd.ghost_sync.writable(index_buffer, PipelineStage::TRANSFER),
     ensures
-        // Ghost mesh invariants are now on the GPU buffers
+        //  Ghost mesh invariants are now on the GPU buffers
         vertex_buffer.ghost_mesh_invariants == Some(MeshBufferInvariants {
             vertex_count: mesh.ghost_vertex_count(),
             index_count: mesh.ghost_index_count(),
@@ -1604,20 +1604,20 @@ pub fn cmd_draw_indexed(
         self.inside_render_pass(),
         self.ghost_bound_graphics_pipeline().is_some(),
         self.ghost_bound_index_buffer().is_some(),
-        // Index buffer has mesh invariants attached
+        //  Index buffer has mesh invariants attached
         self.ghost_bound_index_buffer_mesh_invariants().is_some(),
-        // All indices are in range of the vertex buffer
+        //  All indices are in range of the vertex buffer
         self.ghost_bound_index_buffer_mesh_invariants().unwrap().all_indices_in_range,
-        // Index count within the index buffer's bounds
+        //  Index count within the index buffer's bounds
         (first_index + index_count) as nat
             <= self.ghost_bound_index_buffer_mesh_invariants().unwrap().index_count,
-        // Vertex offset doesn't push indices out of range
+        //  Vertex offset doesn't push indices out of range
         vertex_offset >= 0 ==> {
             self.ghost_bound_index_buffer_mesh_invariants().unwrap().vertex_count
                 + vertex_offset as nat
                 <= self.ghost_bound_vertex_buffer_vertex_count()
         },
-        // ... standard descriptor set and sync requirements
+        //  ... standard descriptor set and sync requirements
 {
     ...
 }
@@ -1631,20 +1631,20 @@ The verified asset pipeline is the first concrete example of cross-crate ghost i
 
 ```rust
 pub trait VerifiedMesh {
-    // From verus-topology
+    //  From verus-topology
     spec fn ghost_structurally_valid(&self) -> bool;
     spec fn ghost_all_indices_in_range(&self) -> bool;
     spec fn ghost_consistent_winding(&self) -> bool;
     spec fn ghost_no_degenerate_triangles(&self) -> bool;
     spec fn ghost_euler_characteristic(&self) -> int;
 
-    // Geometry (from verus-geometry)
+    //  Geometry (from verus-geometry)
     spec fn ghost_vertex_count(&self) -> nat;
     spec fn ghost_index_count(&self) -> nat;
     spec fn ghost_vertex_stride(&self) -> nat;
     spec fn ghost_index_size(&self) -> nat;
 
-    // Serialization: the byte representation preserves invariants
+    //  Serialization: the byte representation preserves invariants
     proof fn lemma_serialization_preserves_invariants(&self)
         requires self.ghost_structurally_valid()
         ensures self.as_bytes().ghost_deserializes_to_valid_mesh();
@@ -1671,19 +1671,19 @@ The simplest temporal invariant: resource counts don't grow.
 let mut frame_id: u64 = 0;
 while running
     invariant
-        // Resource counts are bounded
+        //  Resource counts are bounded
         device.ghost_live_buffers <= BUFFER_POOL_SIZE,
         device.ghost_live_images <= IMAGE_POOL_SIZE,
-        // GPU memory usage is stable
+        //  GPU memory usage is stable
         forall |h: nat| h < device.ghost_heap_count() ==> {
             device.ghost_heap_usage[h] <= device.ghost_heap_budget[h]
         },
-        // Frame counter doesn't overflow (u64 won't in practice, but Verus proves it)
+        //  Frame counter doesn't overflow (u64 won't in practice, but Verus proves it)
         frame_id < u64::MAX,
-        // In-flight frame count bounded
+        //  In-flight frame count bounded
         device.ghost_pending_submissions.len() <= MAX_IN_FLIGHT_FRAMES,
 {
-    // ... frame logic ...
+    //  ... frame logic ...
     frame_id = frame_id + 1;
 }
 ```
@@ -1696,19 +1696,19 @@ Triple-buffered rendering uses a ring buffer of frame resources (command buffers
 
 ```rust
 pub ghost struct RingBuffer<const N: usize> {
-    pub write_head: nat,    // Next frame to write
-    pub read_head: nat,     // Oldest frame still in flight
+    pub write_head: nat,    //  Next frame to write
+    pub read_head: nat,     //  Oldest frame still in flight
     pub frames_in_flight: nat,
 }
 
-// Main loop invariant includes:
+//  Main loop invariant includes:
 invariant
     ring.ghost_frames_in_flight <= MAX_IN_FLIGHT_FRAMES,
     ring.ghost_frames_in_flight == (ring.ghost_write_head - ring.ghost_read_head) % N,
-    // The write slot is not still in flight
+    //  The write slot is not still in flight
     ring.ghost_write_head % N != ring.ghost_read_head % N
         || ring.ghost_frames_in_flight == 0,
-    // Each in-flight frame's resources are not aliased
+    //  Each in-flight frame's resources are not aliased
     forall |i: nat, j: nat|
         i < ring.ghost_frames_in_flight && j < ring.ghost_frames_in_flight && i != j ==> {
             (ring.ghost_read_head + i) % N != (ring.ghost_read_head + j) % N
@@ -1722,15 +1722,15 @@ The fence-wait at the start of each frame advances `read_head`, which the invari
 Temporal coherence in animation requires that interpolation parameters change smoothly between frames. A discontinuity (parameter jumping from 0.99 to 0.0 without wrapping correctly) causes visible popping. Caldera can verify continuity:
 
 ```rust
-// Animation loop invariant
+//  Animation loop invariant
 invariant
-    // Parameter is in valid range
+    //  Parameter is in valid range
     anim_t >= RationalModel::from_int_spec(0),
     anim_t.lt(RationalModel::from_int_spec(1)),
-    // Delta is bounded (no sudden jumps)
+    //  Delta is bounded (no sudden jumps)
     anim_delta.le(max_delta),
     anim_delta.ge(RationalModel::from_int_spec(0)),
-    // Wraparound is explicit and correct
+    //  Wraparound is explicit and correct
     anim_t.add(anim_delta).ge(RationalModel::from_int_spec(1)) ==> {
         next_anim_t.eqv(anim_t.add(anim_delta).sub(RationalModel::from_int_spec(1)))
     },
@@ -1757,10 +1757,10 @@ Caldera models information flow with ghost taint labels on every buffer and imag
 
 ```rust
 pub ghost enum TaintLabel {
-    Public,                         // Safe for any player to see
-    PlayerPrivate { player_id: nat }, // Only visible to this player
-    SessionPrivate,                 // Visible to all players in session, not outside
-    ServerOnly,                     // Never rendered, only used for server-side logic
+    Public,                         //  Safe for any player to see
+    PlayerPrivate { player_id: nat }, //  Only visible to this player
+    SessionPrivate,                 //  Visible to all players in session, not outside
+    ServerOnly,                     //  Never rendered, only used for server-side logic
 }
 
 pub ghost struct TaintSet {
@@ -1788,9 +1788,9 @@ pub fn cmd_draw_for_player(
     requires
         self.is_recording(),
         self.inside_render_pass(),
-        // The render target is this player's swapchain
+        //  The render target is this player's swapchain
         self.ghost_current_render_target_owner() == player_id,
-        // ALL resources read by this draw are visible to this player
+        //  ALL resources read by this draw are visible to this player
         forall |r| self.ghost_draw_reads().contains(r) ==> {
             let taint = self.ghost_resource_taint(r);
             taint.visible_to(player_id)
@@ -1816,9 +1816,9 @@ pub open spec fn visible_to(taint: &TaintSet, player_id: nat) -> bool {
 The CuTe-RS bridge (section 10) already tracks which buffers are inputs and outputs of a kernel dispatch. Taint propagation is a natural extension:
 
 ```rust
-// In cmd_dispatch_cute_kernel ensures clause:
+//  In cmd_dispatch_cute_kernel ensures clause:
 ensures
-    // Output taint = union of input taints
+    //  Output taint = union of input taints
     forall |i: nat| kernel.ghost_kernel_spec.is_output(i) ==> {
         let output_resource = descriptor_set.ghost_binding_resource(i);
         self.ghost_resource_taint(output_resource) == TaintSet {
@@ -1878,18 +1878,18 @@ Each crate currently verifies in isolation. But the ghost invariants at each cra
 The key mechanism is **ghost spec traits** that cross crate boundaries. Each crate defines what it guarantees about its output, and the next crate in the pipeline requires that guarantee as input:
 
 ```rust
-// verus-topology guarantees:
+//  verus-topology guarantees:
 ensures
     mesh.structurally_valid()
-    && mesh.euler_characteristic() == 2  // Topological sphere
+    && mesh.euler_characteristic() == 2  //  Topological sphere
     && mesh.is_closed()
 
-// verus-geometry adds:
+//  verus-geometry adds:
 ensures
     mesh.consistently_oriented()
     && mesh.no_degenerate_triangles()
 
-// Asset upload (Caldera) requires:
+//  Asset upload (Caldera) requires:
 requires
     mesh.ghost_structurally_valid()
     && mesh.ghost_consistently_oriented()
@@ -1897,18 +1897,18 @@ requires
 ensures
     vertex_buffer.ghost_mesh_invariants.structurally_valid == true
 
-// CuTe-RS skinning kernel requires:
+//  CuTe-RS skinning kernel requires:
 requires
     input_buffer.ghost_mesh_invariants.vertex_count > 0
     && input_buffer.ghost_mesh_invariants.all_indices_in_range
 ensures
-    // Vertex count preserved, positions modified but count unchanged
+    //  Vertex count preserved, positions modified but count unchanged
     output_buffer.ghost_mesh_invariants.vertex_count
         == input_buffer.ghost_mesh_invariants.vertex_count
     && output_buffer.ghost_mesh_invariants.all_indices_in_range
         == input_buffer.ghost_mesh_invariants.all_indices_in_range
 
-// Caldera draw requires:
+//  Caldera draw requires:
 requires
     vertex_buffer.ghost_mesh_invariants.all_indices_in_range
     && vertex_buffer.ghost_mesh_invariants.vertex_count > 0
@@ -1935,10 +1935,10 @@ pub fn cmd_copy_buffer_to_staging(
         cmd.ghost_sync.readable(gpu_buffer, PipelineStage::TRANSFER),
         cmd.ghost_sync.writable(staging_buffer, PipelineStage::TRANSFER),
     ensures
-        // Staging buffer inherits GPU buffer's ghost contents
+        //  Staging buffer inherits GPU buffer's ghost contents
         staging_buffer.ghost_contents_at(region.dst_offset, region.size)
             == gpu_buffer.ghost_contents_at(region.src_offset, region.size),
-        // And inherits taint labels
+        //  And inherits taint labels
         staging_buffer.ghost_taint == gpu_buffer.ghost_taint,
 {
     ...
@@ -1953,11 +1953,11 @@ pub fn map_memory_and_read(
     requires
         staging_buffer.ghost_host_visible,
         staging_buffer.ghost_is_bound(),
-        // Must have waited for all GPU writes to complete
+        //  Must have waited for all GPU writes to complete
         device.ghost_no_pending_writes_to(staging_buffer),
         offset + size <= staging_buffer.ghost_size as usize,
     ensures
-        // The returned bytes match the ghost model
+        //  The returned bytes match the ghost model
         result.len() == size,
         result@ == staging_buffer.ghost_contents_at(offset as nat, size as nat),
 {
@@ -1985,15 +1985,15 @@ pub fn hot_reload_graphics_pipeline(
     new_fragment_shader: Option<&ShaderModule>,
 ) -> Result<Pipeline>
     requires
-        // If replacing vertex shader: descriptor bindings must be compatible
+        //  If replacing vertex shader: descriptor bindings must be compatible
         new_vertex_shader.is_some() ==> {
             let new_if = new_vertex_shader.unwrap().ghost_interface();
             let old_if = old_pipeline.ghost_vertex_shader_interface();
-            // Same descriptor set layout requirements
+            //  Same descriptor set layout requirements
             new_if.descriptor_bindings == old_if.descriptor_bindings
-            // Same or compatible push constant range
+            //  Same or compatible push constant range
             && new_if.push_constant_range.compatible_with(old_if.push_constant_range)
-            // Vertex inputs: same locations, compatible formats
+            //  Vertex inputs: same locations, compatible formats
             && forall |i: nat| i < new_if.inputs.len() ==> {
                 exists |j: nat| j < old_if.inputs.len() && {
                     old_if.inputs[j].location == new_if.inputs[i].location
@@ -2001,7 +2001,7 @@ pub fn hot_reload_graphics_pipeline(
                 }
             }
         },
-        // If replacing fragment shader: output count must match
+        //  If replacing fragment shader: output count must match
         new_fragment_shader.is_some() ==> {
             new_fragment_shader.unwrap().ghost_interface().outputs.len()
                 == old_pipeline.ghost_fragment_shader_interface().outputs.len()
@@ -2009,9 +2009,9 @@ pub fn hot_reload_graphics_pipeline(
     ensures
         match result {
             Ok(new_pipeline) => {
-                // New pipeline is layout-compatible with old
+                //  New pipeline is layout-compatible with old
                 new_pipeline.ghost_layout_compatible(old_pipeline)
-                // All existing descriptor sets remain valid
+                //  All existing descriptor sets remain valid
                 && forall |ds: &DescriptorSet|
                     ds.ghost_compatible_with_layout(old_pipeline.ghost_layout()) ==>
                         ds.ghost_compatible_with_layout(new_pipeline.ghost_layout())
@@ -2036,13 +2036,13 @@ pub fn swap_pipeline(
     new_pipeline: Pipeline,
 )
     requires
-        // No in-flight frame uses the old pipeline
+        //  No in-flight frame uses the old pipeline
         renderer.device.ghost_no_pending_pipeline_references(old_pipeline),
-        // New pipeline is layout-compatible (from hot_reload_graphics_pipeline)
+        //  New pipeline is layout-compatible (from hot_reload_graphics_pipeline)
         new_pipeline.ghost_layout_compatible(old_pipeline),
     ensures
         renderer.ghost_active_pipeline() == new_pipeline,
-        // Old pipeline can now be destroyed
+        //  Old pipeline can now be destroyed
         renderer.device.ghost_no_pending_references(old_pipeline.ghost_handle),
 {
     ...

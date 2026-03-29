@@ -2,9 +2,9 @@ use vstd::prelude::*;
 
 verus! {
 
-// ── Types ───────────────────────────────────────────────────────────────
+//  ── Types ───────────────────────────────────────────────────────────────
 
-/// A single sparse memory binding: maps a region of a resource to a region of device memory.
+///  A single sparse memory binding: maps a region of a resource to a region of device memory.
 pub struct SparseBinding {
     pub resource_offset: nat,
     pub memory_offset: nat,
@@ -12,7 +12,7 @@ pub struct SparseBinding {
     pub size: nat,
 }
 
-/// State of a sparse resource.
+///  State of a sparse resource.
 pub struct SparseResourceState {
     pub id: nat,
     pub alive: bool,
@@ -23,9 +23,9 @@ pub struct SparseResourceState {
     pub fully_bound: bool,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// Create a fresh sparse resource with no bindings.
+///  Create a fresh sparse resource with no bindings.
 pub open spec fn create_sparse_resource(
     id: nat,
     total_blocks: nat,
@@ -41,7 +41,7 @@ pub open spec fn create_sparse_resource(
     }
 }
 
-/// A sparse binding is valid: non-zero size and within resource bounds.
+///  A sparse binding is valid: non-zero size and within resource bounds.
 pub open spec fn sparse_binding_valid(
     binding: SparseBinding,
     resource: SparseResourceState,
@@ -50,7 +50,7 @@ pub open spec fn sparse_binding_valid(
     && binding.resource_offset + binding.size <= resource.total_blocks
 }
 
-/// Ghost update: bind sparse memory (add a binding).
+///  Ghost update: bind sparse memory (add a binding).
 pub open spec fn bind_sparse_memory(
     state: SparseResourceState,
     binding: SparseBinding,
@@ -63,7 +63,7 @@ pub open spec fn bind_sparse_memory(
     }
 }
 
-/// Ghost update: unbind sparse memory (remove last binding).
+///  Ghost update: unbind sparse memory (remove last binding).
 pub open spec fn unbind_sparse_memory(
     state: SparseResourceState,
 ) -> SparseResourceState
@@ -87,25 +87,25 @@ pub open spec fn unbind_sparse_memory(
     }
 }
 
-/// Two sparse bindings do not overlap in their resource region.
+///  Two sparse bindings do not overlap in their resource region.
 pub open spec fn sparse_bindings_non_overlapping(a: SparseBinding, b: SparseBinding) -> bool {
     a.resource_offset + a.size <= b.resource_offset
     || b.resource_offset + b.size <= a.resource_offset
 }
 
-/// All bindings in a sequence are pairwise non-overlapping.
+///  All bindings in a sequence are pairwise non-overlapping.
 pub open spec fn all_bindings_non_overlapping(bindings: Seq<SparseBinding>) -> bool {
     forall|i: int, j: int|
         0 <= i < bindings.len() && 0 <= j < bindings.len() && i != j
         ==> sparse_bindings_non_overlapping(#[trigger] bindings[i], #[trigger] bindings[j])
 }
 
-/// A sparse resource is fully bound when bound_blocks >= total_blocks.
+///  A sparse resource is fully bound when bound_blocks >= total_blocks.
 pub open spec fn sparse_fully_bound(state: SparseResourceState) -> bool {
     state.bound_blocks >= state.total_blocks
 }
 
-/// A sparse bind operation on a queue is valid.
+///  A sparse bind operation on a queue is valid.
 pub open spec fn queue_sparse_bind_valid(
     state: SparseResourceState,
     binding: SparseBinding,
@@ -115,7 +115,7 @@ pub open spec fn queue_sparse_bind_valid(
     && sparse_binding_valid(binding, state)
 }
 
-/// Destroy a sparse resource.
+///  Destroy a sparse resource.
 pub open spec fn destroy_sparse_resource(state: SparseResourceState) -> SparseResourceState {
     SparseResourceState {
         alive: false,
@@ -123,21 +123,21 @@ pub open spec fn destroy_sparse_resource(state: SparseResourceState) -> SparseRe
     }
 }
 
-// ── Lemmas ──────────────────────────────────────────────────────────────
+//  ── Lemmas ──────────────────────────────────────────────────────────────
 
-/// A freshly created sparse resource has no bindings.
+///  A freshly created sparse resource has no bindings.
 pub proof fn lemma_fresh_no_bindings(id: nat, total: nat)
     ensures create_sparse_resource(id, total).bindings.len() == 0,
 {
 }
 
-/// A freshly created sparse resource is alive.
+///  A freshly created sparse resource is alive.
 pub proof fn lemma_fresh_is_alive(id: nat, total: nat)
     ensures create_sparse_resource(id, total).alive,
 {
 }
 
-/// Binding increments bound_blocks by the binding size.
+///  Binding increments bound_blocks by the binding size.
 pub proof fn lemma_bind_increments_bound(
     state: SparseResourceState,
     binding: SparseBinding,
@@ -148,7 +148,7 @@ pub proof fn lemma_bind_increments_bound(
 {
 }
 
-/// Binding adds the binding to the sequence.
+///  Binding adds the binding to the sequence.
 pub proof fn lemma_bind_appends(
     state: SparseResourceState,
     binding: SparseBinding,
@@ -159,16 +159,16 @@ pub proof fn lemma_bind_appends(
 {
 }
 
-/// A destroyed sparse resource is not alive.
+///  A destroyed sparse resource is not alive.
 pub proof fn lemma_destroy_not_alive(state: SparseResourceState)
     ensures !destroy_sparse_resource(state).alive,
 {
 }
 
-/// Destroying preserves the resource id.
+///  Destroying preserves the resource id.
 pub proof fn lemma_destroy_preserves_id(state: SparseResourceState)
     ensures destroy_sparse_resource(state).id == state.id,
 {
 }
 
-} // verus!
+} //  verus!

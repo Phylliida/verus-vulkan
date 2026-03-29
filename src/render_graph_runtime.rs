@@ -6,49 +6,49 @@ use crate::flags::*;
 
 verus! {
 
-// ── Types ──────────────────────────────────────────────────────────────
+//  ── Types ──────────────────────────────────────────────────────────────
 
-/// Runtime representation of a barrier action.
+///  Runtime representation of a barrier action.
 pub struct RuntimeBarrierAction {
-    /// Resource identifier.
+    ///  Resource identifier.
     pub resource_id: nat,
-    /// Is this a buffer or image barrier?
+    ///  Is this a buffer or image barrier?
     pub is_image: bool,
-    /// Source stage bits.
+    ///  Source stage bits.
     pub src_stage_bits: nat,
-    /// Destination stage bits.
+    ///  Destination stage bits.
     pub dst_stage_bits: nat,
-    /// Source access bits.
+    ///  Source access bits.
     pub src_access_bits: nat,
-    /// Destination access bits.
+    ///  Destination access bits.
     pub dst_access_bits: nat,
-    /// Old image layout (ignored for buffers).
+    ///  Old image layout (ignored for buffers).
     pub old_layout: nat,
-    /// New image layout (ignored for buffers).
+    ///  New image layout (ignored for buffers).
     pub new_layout: nat,
 }
 
-/// Runtime compiled graph output.
+///  Runtime compiled graph output.
 pub struct RuntimeCompiledGraph {
-    /// Pass execution order.
+    ///  Pass execution order.
     pub order: Seq<nat>,
-    /// Pre-barriers for each pass.
+    ///  Pre-barriers for each pass.
     pub pre_barriers: Seq<Seq<RuntimeBarrierAction>>,
-    /// Post-barriers for each pass.
+    ///  Post-barriers for each pass.
     pub post_barriers: Seq<Seq<RuntimeBarrierAction>>,
-    /// Total number of barriers.
+    ///  Total number of barriers.
     pub total_barriers: nat,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────
 
-/// A runtime compiled graph is well-formed.
+///  A runtime compiled graph is well-formed.
 pub open spec fn runtime_compiled_well_formed(rcg: RuntimeCompiledGraph) -> bool {
     rcg.order.len() == rcg.pre_barriers.len()
     && rcg.order.len() == rcg.post_barriers.len()
 }
 
-/// Count of pre-barriers for a specific pass.
+///  Count of pre-barriers for a specific pass.
 pub open spec fn pass_pre_barrier_count(
     rcg: RuntimeCompiledGraph,
     pass_idx: nat,
@@ -58,7 +58,7 @@ pub open spec fn pass_pre_barrier_count(
     rcg.pre_barriers[pass_idx as int].len()
 }
 
-/// Count of post-barriers for a specific pass.
+///  Count of post-barriers for a specific pass.
 pub open spec fn pass_post_barrier_count(
     rcg: RuntimeCompiledGraph,
     pass_idx: nat,
@@ -68,7 +68,7 @@ pub open spec fn pass_post_barrier_count(
     rcg.post_barriers[pass_idx as int].len()
 }
 
-/// Total barriers across all passes.
+///  Total barriers across all passes.
 pub open spec fn compute_total_barriers(rcg: RuntimeCompiledGraph) -> nat
     decreases rcg.order.len(),
 {
@@ -87,12 +87,12 @@ pub open spec fn compute_total_barriers(rcg: RuntimeCompiledGraph) -> nat
     }
 }
 
-/// A runtime barrier action is valid: non-zero stage bits.
+///  A runtime barrier action is valid: non-zero stage bits.
 pub open spec fn runtime_barrier_valid(rba: RuntimeBarrierAction) -> bool {
     rba.src_stage_bits > 0 && rba.dst_stage_bits > 0
 }
 
-/// All barriers for a pass are valid.
+///  All barriers for a pass are valid.
 pub open spec fn pass_barriers_all_valid(
     rcg: RuntimeCompiledGraph,
     pass_idx: nat,
@@ -109,7 +109,7 @@ pub open spec fn pass_barriers_all_valid(
         ==> runtime_barrier_valid(rcg.post_barriers[pass_idx as int][i as int]))
 }
 
-/// A runtime compiled graph where all barriers are valid.
+///  A runtime compiled graph where all barriers are valid.
 pub open spec fn all_barriers_valid(rcg: RuntimeCompiledGraph) -> bool {
     forall|p: nat|
         #![trigger rcg.pre_barriers[p as int]]
@@ -117,13 +117,13 @@ pub open spec fn all_barriers_valid(rcg: RuntimeCompiledGraph) -> bool {
         ==> pass_barriers_all_valid(rcg, p)
 }
 
-/// Validation result: the compiled graph is well-formed and all barriers valid.
+///  Validation result: the compiled graph is well-formed and all barriers valid.
 pub open spec fn validate_compiled_graph_spec(rcg: RuntimeCompiledGraph) -> bool {
     runtime_compiled_well_formed(rcg)
     && all_barriers_valid(rcg)
 }
 
-/// No duplicate pass indices in the execution order.
+///  No duplicate pass indices in the execution order.
 pub open spec fn order_no_duplicates(order: Seq<nat>) -> bool {
     forall|i: nat, j: nat|
         #![trigger order[i as int], order[j as int]]
@@ -131,9 +131,9 @@ pub open spec fn order_no_duplicates(order: Seq<nat>) -> bool {
         ==> order[i as int] != order[j as int]
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────
 
-/// An empty compiled graph is well-formed.
+///  An empty compiled graph is well-formed.
 pub proof fn lemma_empty_runtime_compiled_well_formed()
     ensures runtime_compiled_well_formed(RuntimeCompiledGraph {
         order: Seq::empty(),
@@ -144,7 +144,7 @@ pub proof fn lemma_empty_runtime_compiled_well_formed()
 {
 }
 
-/// An empty compiled graph has zero total barriers.
+///  An empty compiled graph has zero total barriers.
 pub proof fn lemma_empty_runtime_zero_barriers()
     ensures compute_total_barriers(RuntimeCompiledGraph {
         order: Seq::empty(),
@@ -155,7 +155,7 @@ pub proof fn lemma_empty_runtime_zero_barriers()
 {
 }
 
-/// Validation of a well-formed, all-valid graph succeeds.
+///  Validation of a well-formed, all-valid graph succeeds.
 pub proof fn lemma_valid_graph_passes_validation(
     rcg: RuntimeCompiledGraph,
 )
@@ -166,7 +166,7 @@ pub proof fn lemma_valid_graph_passes_validation(
 {
 }
 
-/// Well-formed runtime graph has matching lengths.
+///  Well-formed runtime graph has matching lengths.
 pub proof fn lemma_runtime_matching_lengths(
     rcg: RuntimeCompiledGraph,
 )
@@ -177,7 +177,7 @@ pub proof fn lemma_runtime_matching_lengths(
 {
 }
 
-/// Pass barrier count is non-negative (trivially true for nat).
+///  Pass barrier count is non-negative (trivially true for nat).
 pub proof fn lemma_barrier_count_non_negative(
     rcg: RuntimeCompiledGraph,
     pass_idx: nat,
@@ -191,7 +191,7 @@ pub proof fn lemma_barrier_count_non_negative(
 {
 }
 
-/// If all barriers for pass p are valid, each pre-barrier has non-zero stages.
+///  If all barriers for pass p are valid, each pre-barrier has non-zero stages.
 pub proof fn lemma_valid_barriers_have_stages(
     rcg: RuntimeCompiledGraph,
     pass_idx: nat,
@@ -208,7 +208,7 @@ pub proof fn lemma_valid_barriers_have_stages(
 {
 }
 
-/// An empty graph trivially has all barriers valid.
+///  An empty graph trivially has all barriers valid.
 pub proof fn lemma_empty_all_barriers_valid()
     ensures all_barriers_valid(RuntimeCompiledGraph {
         order: Seq::empty(),
@@ -219,7 +219,7 @@ pub proof fn lemma_empty_all_barriers_valid()
 {
 }
 
-/// A graph with no barriers per pass validates.
+///  A graph with no barriers per pass validates.
 pub proof fn lemma_no_barriers_validates(n: nat)
     ensures validate_compiled_graph_spec(RuntimeCompiledGraph {
         order: Seq::new(n, |i: int| i as nat),
@@ -238,13 +238,13 @@ pub proof fn lemma_no_barriers_validates(n: nat)
     assert forall|p: nat|
         p < rcg.order.len()
         implies pass_barriers_all_valid(rcg, p) by {
-        // No barriers to validate
+        //  No barriers to validate
     }
 }
 
-// ── Extended Specs ──────────────────────────────────────────────────
+//  ── Extended Specs ──────────────────────────────────────────────────
 
-/// Total number of pre+post barriers for a pass.
+///  Total number of pre+post barriers for a pass.
 pub open spec fn runtime_pass_total_barriers(
     rcg: RuntimeCompiledGraph,
     pass_idx: nat,
@@ -256,7 +256,7 @@ pub open spec fn runtime_pass_total_barriers(
     rcg.pre_barriers[pass_idx as int].len() + rcg.post_barriers[pass_idx as int].len()
 }
 
-/// Number of passes that have at least one barrier.
+///  Number of passes that have at least one barrier.
 pub open spec fn passes_with_barriers(rcg: RuntimeCompiledGraph) -> nat
     decreases rcg.order.len(),
 {
@@ -276,7 +276,7 @@ pub open spec fn passes_with_barriers(rcg: RuntimeCompiledGraph) -> nat
     }
 }
 
-/// Execution order indices are bounded by num_passes.
+///  Execution order indices are bounded by num_passes.
 pub open spec fn runtime_order_bounded(rcg: RuntimeCompiledGraph, num_passes: nat) -> bool {
     forall|i: nat|
         #![trigger rcg.order[i as int]]
@@ -284,12 +284,12 @@ pub open spec fn runtime_order_bounded(rcg: RuntimeCompiledGraph, num_passes: na
         ==> rcg.order[i as int] < num_passes
 }
 
-/// No duplicate pass indices in the runtime order.
+///  No duplicate pass indices in the runtime order.
 pub open spec fn runtime_order_no_duplicates(rcg: RuntimeCompiledGraph) -> bool {
     order_no_duplicates(rcg.order)
 }
 
-/// A runtime compiled graph is fully valid.
+///  A runtime compiled graph is fully valid.
 pub open spec fn runtime_compiled_fully_valid(rcg: RuntimeCompiledGraph, num_passes: nat) -> bool {
     runtime_compiled_well_formed(rcg)
     && all_barriers_valid(rcg)
@@ -297,7 +297,7 @@ pub open spec fn runtime_compiled_fully_valid(rcg: RuntimeCompiledGraph, num_pas
     && runtime_order_no_duplicates(rcg)
 }
 
-/// All pre-barriers for a specific pass are valid.
+///  All pre-barriers for a specific pass are valid.
 pub open spec fn pass_pre_barriers_valid(
     rcg: RuntimeCompiledGraph,
     pass_idx: nat,
@@ -310,7 +310,7 @@ pub open spec fn pass_pre_barriers_valid(
         ==> runtime_barrier_valid(rcg.pre_barriers[pass_idx as int][i as int])
 }
 
-/// All post-barriers for a specific pass are valid.
+///  All post-barriers for a specific pass are valid.
 pub open spec fn pass_post_barriers_valid(
     rcg: RuntimeCompiledGraph,
     pass_idx: nat,
@@ -323,14 +323,14 @@ pub open spec fn pass_post_barriers_valid(
         ==> runtime_barrier_valid(rcg.post_barriers[pass_idx as int][i as int])
 }
 
-/// Count of passes in the compiled graph.
+///  Count of passes in the compiled graph.
 pub open spec fn runtime_pass_count(rcg: RuntimeCompiledGraph) -> nat {
     rcg.order.len()
 }
 
-// ── Extended Proofs ────────────────────────────────────────────────
+//  ── Extended Proofs ────────────────────────────────────────────────
 
-/// All barriers valid implies each pass has valid pre-barriers.
+///  All barriers valid implies each pass has valid pre-barriers.
 pub proof fn lemma_all_valid_implies_pre_valid(
     rcg: RuntimeCompiledGraph,
     pass_idx: nat,
@@ -342,7 +342,7 @@ pub proof fn lemma_all_valid_implies_pre_valid(
 {
 }
 
-/// All barriers valid implies each pass has valid post-barriers.
+///  All barriers valid implies each pass has valid post-barriers.
 pub proof fn lemma_all_valid_implies_post_valid(
     rcg: RuntimeCompiledGraph,
     pass_idx: nat,
@@ -355,21 +355,21 @@ pub proof fn lemma_all_valid_implies_post_valid(
     assert(pass_barriers_all_valid(rcg, pass_idx));
 }
 
-/// Validate implies well-formed.
+///  Validate implies well-formed.
 pub proof fn lemma_validate_implies_well_formed(rcg: RuntimeCompiledGraph)
     requires validate_compiled_graph_spec(rcg),
     ensures runtime_compiled_well_formed(rcg),
 {
 }
 
-/// Validate implies all barriers valid.
+///  Validate implies all barriers valid.
 pub proof fn lemma_validate_implies_all_valid(rcg: RuntimeCompiledGraph)
     requires validate_compiled_graph_spec(rcg),
     ensures all_barriers_valid(rcg),
 {
 }
 
-/// Empty pass has zero runtime barriers.
+///  Empty pass has zero runtime barriers.
 pub proof fn lemma_empty_pass_zero_barriers(pass_idx: nat)
     ensures runtime_pass_total_barriers(
         RuntimeCompiledGraph {
@@ -383,7 +383,7 @@ pub proof fn lemma_empty_pass_zero_barriers(pass_idx: nat)
 {
 }
 
-/// Fully valid implies well-formed.
+///  Fully valid implies well-formed.
 pub proof fn lemma_fully_valid_implies_well_formed(
     rcg: RuntimeCompiledGraph,
     num_passes: nat,
@@ -393,7 +393,7 @@ pub proof fn lemma_fully_valid_implies_well_formed(
 {
 }
 
-/// Fully valid implies bounded order.
+///  Fully valid implies bounded order.
 pub proof fn lemma_fully_valid_implies_bounded(
     rcg: RuntimeCompiledGraph,
     num_passes: nat,
@@ -403,13 +403,13 @@ pub proof fn lemma_fully_valid_implies_bounded(
 {
 }
 
-/// Runtime pass count matches order length.
+///  Runtime pass count matches order length.
 pub proof fn lemma_pass_count_matches(rcg: RuntimeCompiledGraph)
     ensures runtime_pass_count(rcg) == rcg.order.len(),
 {
 }
 
-/// Empty graph has zero passes.
+///  Empty graph has zero passes.
 pub proof fn lemma_empty_graph_zero_passes()
     ensures runtime_pass_count(RuntimeCompiledGraph {
         order: Seq::empty(),
@@ -420,21 +420,21 @@ pub proof fn lemma_empty_graph_zero_passes()
 {
 }
 
-/// Well-formed implies pre and post barrier lengths match.
+///  Well-formed implies pre and post barrier lengths match.
 pub proof fn lemma_wf_pre_post_match(rcg: RuntimeCompiledGraph)
     requires runtime_compiled_well_formed(rcg),
     ensures rcg.pre_barriers.len() == rcg.post_barriers.len(),
 {
 }
 
-/// Order length equals pre-barrier length.
+///  Order length equals pre-barrier length.
 pub proof fn lemma_wf_order_pre_match(rcg: RuntimeCompiledGraph)
     requires runtime_compiled_well_formed(rcg),
     ensures rcg.order.len() == rcg.pre_barriers.len(),
 {
 }
 
-/// Empty runtime compiled graph passes validation.
+///  Empty runtime compiled graph passes validation.
 pub proof fn lemma_empty_validates()
     ensures validate_compiled_graph_spec(RuntimeCompiledGraph {
         order: Seq::empty(),
@@ -453,13 +453,13 @@ pub proof fn lemma_empty_validates()
     assert(all_barriers_valid(rcg));
 }
 
-/// Pass count is non-negative (trivial for nat).
+///  Pass count is non-negative (trivial for nat).
 pub proof fn lemma_pass_count_non_negative(rcg: RuntimeCompiledGraph)
     ensures runtime_pass_count(rcg) >= 0,
 {
 }
 
-/// Fully valid with n passes means order has n entries.
+///  Fully valid with n passes means order has n entries.
 pub proof fn lemma_fully_valid_order_length(
     rcg: RuntimeCompiledGraph,
     num_passes: nat,
@@ -469,7 +469,7 @@ pub proof fn lemma_fully_valid_order_length(
 {
 }
 
-/// Fully valid implies all barriers valid.
+///  Fully valid implies all barriers valid.
 pub proof fn lemma_fully_valid_all_barriers(
     rcg: RuntimeCompiledGraph,
     num_passes: nat,
@@ -479,4 +479,4 @@ pub proof fn lemma_fully_valid_all_barriers(
 {
 }
 
-} // verus!
+} //  verus!

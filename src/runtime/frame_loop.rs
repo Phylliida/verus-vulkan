@@ -19,18 +19,18 @@ use crate::pool_ownership::*;
 use crate::sync_token::*;
 use crate::runtime::command_buffer::*;
 
-// ─── Types ─────────────────────────────────────────────────────
+//  ─── Types ─────────────────────────────────────────────────────
 
-/// Runtime frame state: tracks the lifecycle of a single frame in flight.
+///  Runtime frame state: tracks the lifecycle of a single frame in flight.
 pub struct RuntimeFrameState {
     pub lifecycle: Ghost<FrameLifecycleState>,
     pub frame: Ghost<FrameSubmission>,
     pub image_index: u64,
 }
 
-// ─── Spec functions ────────────────────────────────────────────
+//  ─── Spec functions ────────────────────────────────────────────
 
-/// Well-formedness of the runtime frame state.
+///  Well-formedness of the runtime frame state.
 pub open spec fn frame_state_wf(
     fs: &RuntimeFrameState,
     inv: FrameInvariant,
@@ -40,19 +40,19 @@ pub open spec fn frame_state_wf(
     && fs.image_index as nat == inv.frame.image_index
 }
 
-/// Frame is idle and ready to begin.
+///  Frame is idle and ready to begin.
 pub open spec fn frame_is_idle(fs: &RuntimeFrameState) -> bool {
     fs.lifecycle@ == FrameLifecycleState::Idle
 }
 
-/// Frame has completed (fence waited).
+///  Frame has completed (fence waited).
 pub open spec fn frame_is_completed(fs: &RuntimeFrameState) -> bool {
     fs.lifecycle@ == FrameLifecycleState::Completed
 }
 
-// ─── Exec functions ────────────────────────────────────────────
+//  ─── Exec functions ────────────────────────────────────────────
 
-/// Begin a frame: acquire swapchain image. Idle → Acquired.
+///  Begin a frame: acquire swapchain image. Idle → Acquired.
 pub fn frame_begin_exec(
     fs: &mut RuntimeFrameState,
     inv: Ghost<FrameInvariant>,
@@ -71,8 +71,8 @@ pub fn frame_begin_exec(
     fs.lifecycle = Ghost(FrameLifecycleState::Acquired);
 }
 
-/// Submit recorded commands. Acquired+Recorded → Submitted.
-/// Caller must have recorded commands and established sync.
+///  Submit recorded commands. Acquired+Recorded → Submitted.
+///  Caller must have recorded commands and established sync.
 pub fn frame_submit_exec(
     fs: &mut RuntimeFrameState,
     inv: Ghost<FrameInvariant>,
@@ -93,7 +93,7 @@ pub fn frame_submit_exec(
     fs.lifecycle = Ghost(FrameLifecycleState::Submitted);
 }
 
-/// Present the swapchain image. Submitted → Presented.
+///  Present the swapchain image. Submitted → Presented.
 pub fn frame_present_exec(
     fs: &mut RuntimeFrameState,
     inv: Ghost<FrameInvariant>,
@@ -109,7 +109,7 @@ pub fn frame_present_exec(
     fs.lifecycle = Ghost(FrameLifecycleState::Presented);
 }
 
-/// Wait on fence. Presented/Submitted → Completed.
+///  Wait on fence. Presented/Submitted → Completed.
 pub fn frame_wait_exec(
     fs: &mut RuntimeFrameState,
     inv: Ghost<FrameInvariant>,
@@ -126,9 +126,9 @@ pub fn frame_wait_exec(
     fs.lifecycle = Ghost(FrameLifecycleState::Completed);
 }
 
-// ─── Proof functions ───────────────────────────────────────────
+//  ─── Proof functions ───────────────────────────────────────────
 
-/// Acquire advances from Idle to Acquired.
+///  Acquire advances from Idle to Acquired.
 pub proof fn lemma_begin_advances(
     fs: RuntimeFrameState,
     inv: FrameInvariant,
@@ -145,7 +145,7 @@ pub proof fn lemma_begin_advances(
     lemma_acquire_advances_lifecycle(inv);
 }
 
-/// Submit advances from Recorded to Submitted.
+///  Submit advances from Recorded to Submitted.
 pub proof fn lemma_submit_advances(
     fs: RuntimeFrameState,
     inv: FrameInvariant,
@@ -161,7 +161,7 @@ pub proof fn lemma_submit_advances(
     lemma_record_advances_lifecycle(inv, ctx);
 }
 
-/// Present advances from Submitted.
+///  Present advances from Submitted.
 pub proof fn lemma_present_advances(
     fs: RuntimeFrameState,
     inv: FrameInvariant,
@@ -178,8 +178,8 @@ pub proof fn lemma_present_advances(
     lemma_present_after_submit(inv);
 }
 
-/// **Crown jewel**: A full frame loop (begin → submit → present → wait) produces
-/// a state where all referenced resources are safe to destroy.
+///  **Crown jewel**: A full frame loop (begin → submit → present → wait) produces
+///  a state where all referenced resources are safe to destroy.
 pub proof fn lemma_full_frame_loop_safe(
     inv: FrameInvariant,
     resource: ResourceId,
@@ -213,4 +213,4 @@ pub proof fn lemma_full_frame_loop_safe(
     lemma_full_frame_safe(inv, resource);
 }
 
-} // verus!
+} //  verus!

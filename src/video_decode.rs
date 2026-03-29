@@ -4,9 +4,9 @@ use crate::image_layout::*;
 
 verus! {
 
-// ── Types ───────────────────────────────────────────────────────────────
+//  ── Types ───────────────────────────────────────────────────────────────
 
-/// Video codec type (VK_KHR_video_decode_queue).
+///  Video codec type (VK_KHR_video_decode_queue).
 pub enum VideoCodecType {
     H264,
     H265,
@@ -14,7 +14,7 @@ pub enum VideoCodecType {
     VP9,
 }
 
-/// Profile describing a video decode session.
+///  Profile describing a video decode session.
 pub struct VideoProfileState {
     pub codec: VideoCodecType,
     pub width: nat,
@@ -23,26 +23,26 @@ pub struct VideoProfileState {
     pub max_active_reference_pictures: nat,
 }
 
-/// Ghost state for a video decode session.
+///  Ghost state for a video decode session.
 pub struct VideoSessionState {
     pub id: nat,
     pub profile: VideoProfileState,
     pub alive: bool,
 }
 
-/// State of a single DPB (decoded picture buffer) slot.
+///  State of a single DPB (decoded picture buffer) slot.
 pub enum DpbSlotState {
     Empty,
     Active { image_view: nat, decode_order: nat },
 }
 
-/// Decoded picture buffer state.
+///  Decoded picture buffer state.
 pub struct DpbState {
     pub slots: Seq<DpbSlotState>,
     pub max_slots: nat,
 }
 
-/// A decode operation referencing a session and DPB.
+///  A decode operation referencing a session and DPB.
 pub struct DecodeOperation {
     pub session_id: nat,
     pub dst_image_view: nat,
@@ -50,9 +50,9 @@ pub struct DecodeOperation {
     pub output_slot: nat,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// A video profile is well-formed: positive dimensions, positive DPB slots.
+///  A video profile is well-formed: positive dimensions, positive DPB slots.
 pub open spec fn video_profile_well_formed(profile: VideoProfileState) -> bool {
     profile.width > 0
     && profile.height > 0
@@ -60,19 +60,19 @@ pub open spec fn video_profile_well_formed(profile: VideoProfileState) -> bool {
     && profile.max_active_reference_pictures < profile.max_dpb_slots
 }
 
-/// A video session is well-formed: alive, profile well-formed.
+///  A video session is well-formed: alive, profile well-formed.
 pub open spec fn video_session_well_formed(state: VideoSessionState) -> bool {
     state.alive
     && video_profile_well_formed(state.profile)
 }
 
-/// DPB state is well-formed relative to a profile.
+///  DPB state is well-formed relative to a profile.
 pub open spec fn dpb_state_well_formed(dpb: DpbState, profile: VideoProfileState) -> bool {
     dpb.slots.len() == dpb.max_slots
     && dpb.max_slots == profile.max_dpb_slots
 }
 
-/// Ghost: create a new video session.
+///  Ghost: create a new video session.
 pub open spec fn create_video_session_ghost(
     id: nat,
     profile: VideoProfileState,
@@ -80,14 +80,14 @@ pub open spec fn create_video_session_ghost(
     VideoSessionState { id, profile, alive: true }
 }
 
-/// Ghost: destroy a video session.
+///  Ghost: destroy a video session.
 pub open spec fn destroy_video_session_ghost(
     state: VideoSessionState,
 ) -> VideoSessionState {
     VideoSessionState { alive: false, ..state }
 }
 
-/// Create an initial DPB with all Empty slots.
+///  Create an initial DPB with all Empty slots.
 pub open spec fn dpb_initial(profile: VideoProfileState) -> DpbState {
     DpbState {
         slots: Seq::new(profile.max_dpb_slots, |_i: int| DpbSlotState::Empty),
@@ -95,7 +95,7 @@ pub open spec fn dpb_initial(profile: VideoProfileState) -> DpbState {
     }
 }
 
-/// Whether a DPB slot is active.
+///  Whether a DPB slot is active.
 pub open spec fn dpb_slot_active(dpb: DpbState, idx: nat) -> bool {
     (idx as int) < dpb.slots.len()
     && match dpb.slots[idx as int] {
@@ -104,12 +104,12 @@ pub open spec fn dpb_slot_active(dpb: DpbState, idx: nat) -> bool {
     }
 }
 
-/// All reference slots in a set are Active.
+///  All reference slots in a set are Active.
 pub open spec fn dpb_reference_slots_valid(dpb: DpbState, refs: Set<nat>) -> bool {
     forall|idx: nat| refs.contains(idx) ==> dpb_slot_active(dpb, idx)
 }
 
-/// A decode operation is valid.
+///  A decode operation is valid.
 pub open spec fn decode_operation_valid(
     op: DecodeOperation,
     session: VideoSessionState,
@@ -123,7 +123,7 @@ pub open spec fn decode_operation_valid(
     && op.reference_slots.len() <= session.profile.max_active_reference_pictures
 }
 
-/// Ghost: perform a decode, activating the output slot.
+///  Ghost: perform a decode, activating the output slot.
 pub open spec fn decode_ghost(op: DecodeOperation, dpb: DpbState) -> DpbState {
     DpbState {
         slots: dpb.slots.update(
@@ -137,7 +137,7 @@ pub open spec fn decode_ghost(op: DecodeOperation, dpb: DpbState) -> DpbState {
     }
 }
 
-/// Whether a DpbSlotState is Active.
+///  Whether a DpbSlotState is Active.
 pub open spec fn is_active_slot(slot: DpbSlotState) -> bool {
     match slot {
         DpbSlotState::Active { .. } => true,
@@ -145,7 +145,7 @@ pub open spec fn is_active_slot(slot: DpbSlotState) -> bool {
     }
 }
 
-/// Count the number of Active slots in the DPB.
+///  Count the number of Active slots in the DPB.
 pub open spec fn dpb_active_count(dpb: DpbState) -> nat
     decreases dpb.slots.len(),
 {
@@ -158,7 +158,7 @@ pub open spec fn dpb_active_count(dpb: DpbState) -> nat
     }
 }
 
-/// Ghost: reset a DPB slot to Empty.
+///  Ghost: reset a DPB slot to Empty.
 pub open spec fn reset_dpb_slot_ghost(dpb: DpbState, idx: nat) -> DpbState {
     DpbState {
         slots: dpb.slots.update(idx as int, DpbSlotState::Empty),
@@ -166,9 +166,9 @@ pub open spec fn reset_dpb_slot_ghost(dpb: DpbState, idx: nat) -> DpbState {
     }
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// Initial DPB has all Empty slots.
+///  Initial DPB has all Empty slots.
 pub proof fn lemma_initial_dpb_all_empty(profile: VideoProfileState)
     requires profile.max_dpb_slots > 0,
     ensures
@@ -183,33 +183,33 @@ pub proof fn lemma_initial_dpb_all_empty(profile: VideoProfileState)
     }
 }
 
-/// Initial DPB is well-formed.
+///  Initial DPB is well-formed.
 pub proof fn lemma_initial_dpb_well_formed(profile: VideoProfileState)
     requires video_profile_well_formed(profile),
     ensures dpb_state_well_formed(dpb_initial(profile), profile),
 {
 }
 
-/// Created session is alive.
+///  Created session is alive.
 pub proof fn lemma_create_session_alive(id: nat, profile: VideoProfileState)
     ensures create_video_session_ghost(id, profile).alive,
 {
 }
 
-/// Destroyed session is not alive.
+///  Destroyed session is not alive.
 pub proof fn lemma_destroy_session_not_alive(state: VideoSessionState)
     ensures !destroy_video_session_ghost(state).alive,
 {
 }
 
-/// After decode, the output slot is Active.
+///  After decode, the output slot is Active.
 pub proof fn lemma_decode_activates_slot(op: DecodeOperation, dpb: DpbState)
     requires (op.output_slot as int) < dpb.slots.len(),
     ensures dpb_slot_active(decode_ghost(op, dpb), op.output_slot),
 {
 }
 
-/// Decode preserves reference slots (slots not equal to output_slot).
+///  Decode preserves reference slots (slots not equal to output_slot).
 pub proof fn lemma_decode_preserves_references(
     op: DecodeOperation,
     dpb: DpbState,
@@ -223,7 +223,7 @@ pub proof fn lemma_decode_preserves_references(
 {
 }
 
-/// Active count is bounded by max_slots.
+///  Active count is bounded by max_slots.
 pub proof fn lemma_active_count_bounded(dpb: DpbState)
     ensures dpb_active_count(dpb) <= dpb.slots.len(),
     decreases dpb.slots.len(),
@@ -234,7 +234,7 @@ pub proof fn lemma_active_count_bounded(dpb: DpbState)
     }
 }
 
-/// Valid decode implies output_slot is in range.
+///  Valid decode implies output_slot is in range.
 pub proof fn lemma_valid_decode_output_in_range(
     op: DecodeOperation,
     session: VideoSessionState,
@@ -245,17 +245,17 @@ pub proof fn lemma_valid_decode_output_in_range(
 {
 }
 
-/// Resetting an Active slot makes it Empty.
+///  Resetting an Active slot makes it Empty.
 pub proof fn lemma_reset_makes_empty(dpb: DpbState, idx: nat)
     requires (idx as int) < dpb.slots.len(),
     ensures !dpb_slot_active(reset_dpb_slot_ghost(dpb, idx), idx),
 {
 }
 
-/// Destroy preserves session id.
+///  Destroy preserves session id.
 pub proof fn lemma_destroy_preserves_id(state: VideoSessionState)
     ensures destroy_video_session_ghost(state).id == state.id,
 {
 }
 
-} // verus!
+} //  verus!

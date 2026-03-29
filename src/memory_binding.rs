@@ -8,9 +8,9 @@ use crate::resource::*;
 use crate::runtime::memory_aliasing::*;
 use crate::allocator_proofs::*;
 
-// ─── Spec functions ────────────────────────────────────────────
+//  ─── Spec functions ────────────────────────────────────────────
 
-/// Convert an AllocationRecord to a MemoryRange for aliasing tracking.
+///  Convert an AllocationRecord to a MemoryRange for aliasing tracking.
 pub open spec fn allocation_to_memory_range(alloc: AllocationRecord, block_id: nat) -> MemoryRange {
     MemoryRange {
         allocation_id: block_id,
@@ -19,19 +19,19 @@ pub open spec fn allocation_to_memory_range(alloc: AllocationRecord, block_id: n
     }
 }
 
-/// Whether an allocation is aligned to the given alignment.
+///  Whether an allocation is aligned to the given alignment.
 pub open spec fn allocation_aligned_for_buffer(alloc: AllocationRecord, alignment: nat) -> bool
     recommends alignment > 0,
 {
     alloc.offset % alignment == 0
 }
 
-/// Whether an allocation is large enough for a resource.
+///  Whether an allocation is large enough for a resource.
 pub open spec fn allocation_fits_resource(alloc: AllocationRecord, required_size: nat) -> bool {
     alloc.size >= required_size
 }
 
-/// Combined validity: allocation is aligned, fits, and within block.
+///  Combined validity: allocation is aligned, fits, and within block.
 pub open spec fn binding_valid_for_resource(
     alloc: AllocationRecord,
     block_size: nat,
@@ -44,8 +44,8 @@ pub open spec fn binding_valid_for_resource(
     && alloc.size > 0
 }
 
-/// Whether an allocation from this sub-allocator doesn't overlap any existing allocation's
-/// memory range — i.e., it's safe to bind.
+///  Whether an allocation from this sub-allocator doesn't overlap any existing allocation's
+///  memory range — i.e., it's safe to bind.
 pub open spec fn allocator_binding_safe(sub: SubAllocatorState, alloc: AllocationRecord) -> bool {
     forall|id: nat|
         #![trigger sub.allocations[id]]
@@ -54,9 +54,9 @@ pub open spec fn allocator_binding_safe(sub: SubAllocatorState, alloc: Allocatio
             || alloc_end(alloc) <= sub.allocations[id].offset
 }
 
-// ─── Proof functions ───────────────────────────────────────────
+//  ─── Proof functions ───────────────────────────────────────────
 
-/// Helper: find_best_fit returning Some(idx) implies block_can_fit on that block.
+///  Helper: find_best_fit returning Some(idx) implies block_can_fit on that block.
 proof fn lemma_find_best_fit_implies_can_fit(
     free_list: Seq<FreeBlock>,
     size: nat,
@@ -73,20 +73,20 @@ proof fn lemma_find_best_fit_implies_can_fit(
     decreases free_list.len(),
 {
     if free_list.len() == 0 {
-        // Contradiction: find_best_fit returns None for empty list
+        //  Contradiction: find_best_fit returns None for empty list
     } else if block_can_fit(free_list[0], size, alignment) {
-        // find_best_fit returns Some(0), block_can_fit(free_list[0], ...)
+        //  find_best_fit returns Some(0), block_can_fit(free_list[0], ...)
     } else {
         let rest = free_list.subrange(1, free_list.len() as int);
         lemma_find_best_fit_implies_can_fit(rest, size, alignment);
         let j = find_best_fit(rest, size, alignment).unwrap();
-        // find_best_fit(free_list, ...) == Some(j + 1)
-        // block_can_fit(rest[j], ...) == block_can_fit(free_list[j+1], ...)
+        //  find_best_fit(free_list, ...) == Some(j + 1)
+        //  block_can_fit(rest[j], ...) == block_can_fit(free_list[j+1], ...)
         assert(rest[j as int] == free_list[(j + 1) as int]);
     }
 }
 
-/// A successful allocation produces an aligned result.
+///  A successful allocation produces an aligned result.
 pub proof fn lemma_allocate_produces_aligned(
     sub: SubAllocatorState,
     size: nat,
@@ -109,7 +109,7 @@ pub proof fn lemma_allocate_produces_aligned(
     lemma_align_up_aligned(block.offset, alignment);
 }
 
-/// A successful allocation stays within the block.
+///  A successful allocation stays within the block.
 pub proof fn lemma_allocate_within_bounds(
     sub: SubAllocatorState,
     size: nat,
@@ -131,12 +131,12 @@ pub proof fn lemma_allocate_within_bounds(
     let idx = find_best_fit(sub.free_list, size, alignment).unwrap();
     let block = sub.free_list[idx as int];
     lemma_alignment_within_block(block, size, alignment);
-    // free_list_within_bounds from wf: free_block_end(block) <= block_size
-    // Trigger: free_list[idx as int]
+    //  free_list_within_bounds from wf: free_block_end(block) <= block_size
+    //  Trigger: free_list[idx as int]
     assert(free_block_end(sub.free_list[idx as int]) <= sub.block_size);
 }
 
-/// A successful allocation does not overlap any existing allocation.
+///  A successful allocation does not overlap any existing allocation.
 pub proof fn lemma_allocate_no_overlap_existing(
     sub: SubAllocatorState,
     size: nat,
@@ -160,10 +160,10 @@ pub proof fn lemma_allocate_no_overlap_existing(
 
     let (new_sub, alloc) = allocate_from_block(sub, size, alignment).unwrap();
 
-    // alloc.offset = align_up(block.offset, alignment) >= block.offset
-    // alloc_end(alloc) = alloc.offset + size <= free_block_end(block)
-    // no_overlap_alloc_free: for all alloc id and free block fi,
-    //   alloc_end(allocs[id]) <= free_list[fi].offset || free_block_end(free_list[fi]) <= allocs[id].offset
+    //  alloc.offset = align_up(block.offset, alignment) >= block.offset
+    //  alloc_end(alloc) = alloc.offset + size <= free_block_end(block)
+    //  no_overlap_alloc_free: for all alloc id and free block fi,
+    //    alloc_end(allocs[id]) <= free_list[fi].offset || free_block_end(free_list[fi]) <= allocs[id].offset
     assert(no_overlap_alloc_free(sub.allocations, sub.free_list));
 
     assert forall|id: nat|
@@ -174,16 +174,16 @@ pub proof fn lemma_allocate_no_overlap_existing(
         || alloc_end(alloc) <= sub.allocations[id].offset
     by {
         let existing = sub.allocations[id];
-        // Trigger no_overlap_alloc_free with (id, idx)
+        //  Trigger no_overlap_alloc_free with (id, idx)
         assert(sub.allocations.contains_key(id) && idx < sub.free_list.len());
-        // This gives us: alloc_end(existing) <= block.offset || free_block_end(block) <= existing.offset
+        //  This gives us: alloc_end(existing) <= block.offset || free_block_end(block) <= existing.offset
         assert(alloc_end(existing) <= sub.free_list[idx as int].offset
             || free_block_end(sub.free_list[idx as int]) <= existing.offset);
-        // alloc.offset >= block.offset and alloc_end(alloc) <= free_block_end(block)
+        //  alloc.offset >= block.offset and alloc_end(alloc) <= free_block_end(block)
     }
 }
 
-/// Non-overlapping allocations produce non-overlapping memory ranges.
+///  Non-overlapping allocations produce non-overlapping memory ranges.
 pub proof fn lemma_allocation_to_range_no_overlap(
     a1: AllocationRecord,
     a2: AllocationRecord,
@@ -199,12 +199,12 @@ pub proof fn lemma_allocation_to_range_no_overlap(
 {
     let r1 = allocation_to_memory_range(a1, block_id);
     let r2 = allocation_to_memory_range(a2, block_id);
-    // r1 and r2 have the same allocation_id (block_id),
-    // but their byte ranges don't intersect
+    //  r1 and r2 have the same allocation_id (block_id),
+    //  but their byte ranges don't intersect
     assert(r1.offset + r1.size <= r2.offset || r2.offset + r2.size <= r1.offset);
 }
 
-/// Different blocks are trivially disjoint (different allocation_ids).
+///  Different blocks are trivially disjoint (different allocation_ids).
 pub proof fn lemma_different_blocks_no_overlap(
     a1: AllocationRecord,
     a2: AllocationRecord,
@@ -224,8 +224,8 @@ pub proof fn lemma_different_blocks_no_overlap(
     assert(r1.allocation_id != r2.allocation_id);
 }
 
-/// **Crown jewel**: A well-formed allocator producing a successful allocation yields
-/// a valid, non-overlapping memory range binding.
+///  **Crown jewel**: A well-formed allocator producing a successful allocation yields
+///  a valid, non-overlapping memory range binding.
 pub proof fn lemma_allocate_and_bind_safe(
     sub: SubAllocatorState,
     size: nat,
@@ -253,7 +253,7 @@ pub proof fn lemma_allocate_and_bind_safe(
     assert(alloc.size >= size);
 }
 
-/// After freeing an allocation, its range is available for reuse (no longer in allocations map).
+///  After freeing an allocation, its range is available for reuse (no longer in allocations map).
 pub proof fn lemma_free_enables_rebind(
     sub: SubAllocatorState,
     alloc_id: nat,
@@ -267,10 +267,10 @@ pub proof fn lemma_free_enables_rebind(
             !new_sub.allocations.contains_key(alloc_id)
         }),
 {
-    // Directly from free_allocation definition: allocations.remove(alloc_id)
+    //  Directly from free_allocation definition: allocations.remove(alloc_id)
 }
 
-/// All allocations in a well-formed sub-allocator produce pairwise non-overlapping MemoryRanges.
+///  All allocations in a well-formed sub-allocator produce pairwise non-overlapping MemoryRanges.
 pub proof fn lemma_wf_allocator_all_bindings_safe(
     sub: SubAllocatorState,
     block_id: nat,
@@ -307,9 +307,9 @@ pub proof fn lemma_wf_allocator_all_bindings_safe(
     }
 }
 
-// ─── Exec functions ────────────────────────────────────────────
+//  ─── Exec functions ────────────────────────────────────────────
 
-/// Exec: allocate from a sub-allocator and bind the resulting range to a resource in the tracker.
+///  Exec: allocate from a sub-allocator and bind the resulting range to a resource in the tracker.
 pub fn allocate_and_bind_exec(
     sub: Ghost<SubAllocatorState>,
     tracker: &mut RuntimeAliasingTracker,
@@ -342,7 +342,7 @@ pub fn allocate_and_bind_exec(
     bind_resource_exec(tracker, resource, Ghost(range));
 }
 
-/// Exec: free an allocation and unbind the corresponding resource from the tracker.
+///  Exec: free an allocation and unbind the corresponding resource from the tracker.
 pub fn free_and_unbind_exec(
     sub: Ghost<SubAllocatorState>,
     tracker: &mut RuntimeAliasingTracker,
@@ -368,4 +368,4 @@ pub fn free_and_unbind_exec(
     unbind_resource_exec(tracker, resource);
 }
 
-} // verus!
+} //  verus!

@@ -5,56 +5,56 @@ use crate::framebuffer::*;
 
 verus! {
 
-// ── Types ────────────────────────────────────────────────────────────
+//  ── Types ────────────────────────────────────────────────────────────
 
-/// A render pass instance: tracks which render pass and framebuffer are active,
-/// and the current subpass index.
+///  A render pass instance: tracks which render pass and framebuffer are active,
+///  and the current subpass index.
 pub struct RenderPassInstance {
-    /// The render pass being executed.
+    ///  The render pass being executed.
     pub render_pass_id: nat,
-    /// The framebuffer bound for this render pass instance.
+    ///  The framebuffer bound for this render pass instance.
     pub framebuffer_id: nat,
-    /// The current subpass index within the render pass.
+    ///  The current subpass index within the render pass.
     pub subpass_index: nat,
 }
 
-/// The ghost state of a command buffer during recording.
-/// Tracks what is currently bound and whether a render pass is active.
+///  The ghost state of a command buffer during recording.
+///  Tracks what is currently bound and whether a render pass is active.
 pub struct RecordingState {
-    /// Currently bound graphics pipeline, if any.
+    ///  Currently bound graphics pipeline, if any.
     pub bound_graphics_pipeline: Option<nat>,
-    /// Currently bound compute pipeline, if any.
+    ///  Currently bound compute pipeline, if any.
     pub bound_compute_pipeline: Option<nat>,
-    /// Currently bound descriptor sets: maps set index → descriptor set id.
+    ///  Currently bound descriptor sets: maps set index → descriptor set id.
     pub bound_descriptor_sets: Map<nat, nat>,
-    /// Currently bound descriptor set layouts: maps set index → layout id.
-    /// Tracked alongside bound_descriptor_sets so draw/dispatch can verify
-    /// that bound sets have layouts matching the pipeline's expected layouts.
+    ///  Currently bound descriptor set layouts: maps set index → layout id.
+    ///  Tracked alongside bound_descriptor_sets so draw/dispatch can verify
+    ///  that bound sets have layouts matching the pipeline's expected layouts.
     pub bound_set_layouts: Map<nat, nat>,
-    /// The active render pass instance, if recording inside a render pass.
+    ///  The active render pass instance, if recording inside a render pass.
     pub active_render_pass: Option<RenderPassInstance>,
-    /// Currently bound vertex buffers: maps binding slot → buffer id.
+    ///  Currently bound vertex buffers: maps binding slot → buffer id.
     pub bound_vertex_buffers: Map<nat, nat>,
-    /// Currently bound index buffer, if any.
+    ///  Currently bound index buffer, if any.
     pub bound_index_buffer: Option<nat>,
-    /// Whether the dynamic viewport has been set.
+    ///  Whether the dynamic viewport has been set.
     pub viewport_set: bool,
-    /// Whether the dynamic scissor has been set.
+    ///  Whether the dynamic scissor has been set.
     pub scissor_set: bool,
-    /// Whether push constants have been set.
+    ///  Whether push constants have been set.
     pub push_constants_set: bool,
-    /// Dynamic offsets for each descriptor set index: maps set_index → dynamic offsets seq.
+    ///  Dynamic offsets for each descriptor set index: maps set_index → dynamic offsets seq.
     pub bound_dynamic_offsets: Map<nat, Seq<nat>>,
-    /// Set layouts of the currently bound graphics pipeline, if any.
-    /// Used to invalidate incompatible descriptor sets on pipeline rebind.
+    ///  Set layouts of the currently bound graphics pipeline, if any.
+    ///  Used to invalidate incompatible descriptor sets on pipeline rebind.
     pub bound_graphics_layout: Option<Seq<nat>>,
-    /// Set layouts of the currently bound compute pipeline, if any.
+    ///  Set layouts of the currently bound compute pipeline, if any.
     pub bound_compute_layout: Option<Seq<nat>>,
 }
 
-// ── Spec Functions ───────────────────────────────────────────────────
+//  ── Spec Functions ───────────────────────────────────────────────────
 
-/// A fresh recording state: nothing bound, no active render pass.
+///  A fresh recording state: nothing bound, no active render pass.
 pub open spec fn initial_recording_state() -> RecordingState {
     RecordingState {
         bound_graphics_pipeline: None,
@@ -73,9 +73,9 @@ pub open spec fn initial_recording_state() -> RecordingState {
     }
 }
 
-/// Find the length of the compatible prefix between two pipeline layouts.
-/// Sets at indices < this value have matching set layouts; sets at or above
-/// this index are incompatible and must be invalidated (Vulkan spec 14.2.2).
+///  Find the length of the compatible prefix between two pipeline layouts.
+///  Sets at indices < this value have matching set layouts; sets at or above
+///  this index are incompatible and must be invalidated (Vulkan spec 14.2.2).
 pub open spec fn compatible_prefix_len(
     old_layouts: Seq<nat>,
     new_layouts: Seq<nat>,
@@ -85,7 +85,7 @@ pub open spec fn compatible_prefix_len(
     compatible_prefix_len_rec(old_layouts, new_layouts, 0)
 }
 
-/// Recursive helper: find first index >= start where layouts diverge.
+///  Recursive helper: find first index >= start where layouts diverge.
 pub open spec fn compatible_prefix_len_rec(
     old_layouts: Seq<nat>,
     new_layouts: Seq<nat>,
@@ -102,9 +102,9 @@ pub open spec fn compatible_prefix_len_rec(
     }
 }
 
-/// Invalidate descriptor sets at indices >= the compatible prefix.
-/// Vulkan spec 14.2.2: on pipeline rebind, sets whose layout doesn't match
-/// the new pipeline's layout at that index are disturbed.
+///  Invalidate descriptor sets at indices >= the compatible prefix.
+///  Vulkan spec 14.2.2: on pipeline rebind, sets whose layout doesn't match
+///  the new pipeline's layout at that index are disturbed.
 pub open spec fn invalidate_incompatible_sets(
     sets: Map<nat, nat>,
     layouts: Map<nat, nat>,
@@ -114,12 +114,12 @@ pub open spec fn invalidate_incompatible_sets(
 ) -> (Map<nat, nat>, Map<nat, nat>, Map<nat, Seq<nat>>) {
     match old_pipeline_layouts {
         None => {
-            // No previous pipeline: invalidate all sets
+            //  No previous pipeline: invalidate all sets
             (Map::empty(), Map::empty(), Map::empty())
         },
         Some(old_layouts) => {
             let prefix = compatible_prefix_len(old_layouts, new_pipeline_layouts);
-            // Keep only sets at indices < prefix
+            //  Keep only sets at indices < prefix
             (
                 Map::new(
                     |k: nat| sets.contains_key(k) && k < prefix,
@@ -138,8 +138,8 @@ pub open spec fn invalidate_incompatible_sets(
     }
 }
 
-/// Ghost update: bind a graphics pipeline. Invalidates descriptor sets
-/// at indices incompatible with the new pipeline's layout (Vulkan 14.2.2).
+///  Ghost update: bind a graphics pipeline. Invalidates descriptor sets
+///  at indices incompatible with the new pipeline's layout (Vulkan 14.2.2).
 pub open spec fn bind_graphics_pipeline(
     state: RecordingState,
     pipeline_id: nat,
@@ -162,8 +162,8 @@ pub open spec fn bind_graphics_pipeline(
     }
 }
 
-/// Ghost update: bind a compute pipeline. Invalidates descriptor sets
-/// at indices incompatible with the new pipeline's layout (Vulkan 14.2.2).
+///  Ghost update: bind a compute pipeline. Invalidates descriptor sets
+///  at indices incompatible with the new pipeline's layout (Vulkan 14.2.2).
 pub open spec fn bind_compute_pipeline(
     state: RecordingState,
     pipeline_id: nat,
@@ -186,9 +186,9 @@ pub open spec fn bind_compute_pipeline(
     }
 }
 
-/// Ghost update: bind a descriptor set at a given set index.
-/// Tracks both the set id and the set's layout id for pipeline compatibility checking.
-/// Dynamic offsets are stored for later validation against buffer bounds.
+///  Ghost update: bind a descriptor set at a given set index.
+///  Tracks both the set id and the set's layout id for pipeline compatibility checking.
+///  Dynamic offsets are stored for later validation against buffer bounds.
 pub open spec fn bind_descriptor_set(
     state: RecordingState,
     set_index: nat,
@@ -204,7 +204,7 @@ pub open spec fn bind_descriptor_set(
     }
 }
 
-/// Ghost update: begin a render pass, entering subpass 0.
+///  Ghost update: begin a render pass, entering subpass 0.
 pub open spec fn begin_render_pass_recording(
     state: RecordingState,
     rp_id: nat,
@@ -222,7 +222,7 @@ pub open spec fn begin_render_pass_recording(
     }
 }
 
-/// Ghost update: end the current render pass.
+///  Ghost update: end the current render pass.
 pub open spec fn end_render_pass_recording(
     state: RecordingState,
 ) -> RecordingState
@@ -234,14 +234,14 @@ pub open spec fn end_render_pass_recording(
     }
 }
 
-/// Whether it is safe to advance to the next subpass:
-/// a render pass is active and the current subpass is not the last.
+///  Whether it is safe to advance to the next subpass:
+///  a render pass is active and the current subpass is not the last.
 pub open spec fn subpass_advance_valid(state: RecordingState, rp: RenderPassState) -> bool {
     state.active_render_pass.is_some()
     && state.active_render_pass.unwrap().subpass_index + 1 < rp.subpasses.len()
 }
 
-/// Ghost update: advance to the next subpass.
+///  Ghost update: advance to the next subpass.
 pub open spec fn next_subpass_recording(
     state: RecordingState,
 ) -> RecordingState
@@ -257,15 +257,15 @@ pub open spec fn next_subpass_recording(
     }
 }
 
-/// Whether a render pass is currently active.
+///  Whether a render pass is currently active.
 pub open spec fn in_render_pass(state: RecordingState) -> bool {
     state.active_render_pass.is_some()
 }
 
-/// A draw call is valid:
-/// - A render pass is active.
-/// - A graphics pipeline is bound.
-/// - The pipeline is compatible with the current subpass of the render pass.
+///  A draw call is valid:
+///  - A render pass is active.
+///  - A graphics pipeline is bound.
+///  - The pipeline is compatible with the current subpass of the render pass.
 pub open spec fn draw_call_valid(
     state: RecordingState,
     pipeline: GraphicsPipelineState,
@@ -282,9 +282,9 @@ pub open spec fn draw_call_valid(
     })
 }
 
-/// A dispatch call is valid:
-/// - No render pass is active.
-/// - A compute pipeline is bound and alive.
+///  A dispatch call is valid:
+///  - No render pass is active.
+///  - A compute pipeline is bound and alive.
 pub open spec fn dispatch_call_valid(
     state: RecordingState,
     pipeline: ComputePipelineState,
@@ -294,8 +294,8 @@ pub open spec fn dispatch_call_valid(
     && pipeline.alive
 }
 
-/// All descriptor set indices required by the pipeline layout are bound,
-/// and their layout ids match what the pipeline expects.
+///  All descriptor set indices required by the pipeline layout are bound,
+///  and their layout ids match what the pipeline expects.
 pub open spec fn descriptor_sets_bound_for_pipeline(
     state: RecordingState,
     pipeline_layouts: Seq<nat>,
@@ -307,9 +307,9 @@ pub open spec fn descriptor_sets_bound_for_pipeline(
     )
 }
 
-// ── Vertex/Index Buffer, Dynamic State, Push Constants ───────────────
+//  ── Vertex/Index Buffer, Dynamic State, Push Constants ───────────────
 
-/// Ghost update: bind a vertex buffer at a given slot.
+///  Ghost update: bind a vertex buffer at a given slot.
 pub open spec fn bind_vertex_buffer(
     state: RecordingState,
     slot: nat,
@@ -321,7 +321,7 @@ pub open spec fn bind_vertex_buffer(
     }
 }
 
-/// Ghost update: bind an index buffer.
+///  Ghost update: bind an index buffer.
 pub open spec fn bind_index_buffer(
     state: RecordingState,
     buffer_id: nat,
@@ -332,7 +332,7 @@ pub open spec fn bind_index_buffer(
     }
 }
 
-/// Ghost update: set the dynamic viewport.
+///  Ghost update: set the dynamic viewport.
 pub open spec fn set_viewport_recording(state: RecordingState) -> RecordingState {
     RecordingState {
         viewport_set: true,
@@ -340,7 +340,7 @@ pub open spec fn set_viewport_recording(state: RecordingState) -> RecordingState
     }
 }
 
-/// Ghost update: set the dynamic scissor.
+///  Ghost update: set the dynamic scissor.
 pub open spec fn set_scissor_recording(state: RecordingState) -> RecordingState {
     RecordingState {
         scissor_set: true,
@@ -348,7 +348,7 @@ pub open spec fn set_scissor_recording(state: RecordingState) -> RecordingState 
     }
 }
 
-/// Ghost update: set push constants.
+///  Ghost update: set push constants.
 pub open spec fn set_push_constants_recording(state: RecordingState) -> RecordingState {
     RecordingState {
         push_constants_set: true,
@@ -356,18 +356,18 @@ pub open spec fn set_push_constants_recording(state: RecordingState) -> Recordin
     }
 }
 
-/// At least one vertex buffer is bound (for non-indexed draw).
+///  At least one vertex buffer is bound (for non-indexed draw).
 pub open spec fn has_vertex_buffer_bound(state: RecordingState) -> bool {
     state.bound_vertex_buffers.dom().len() > 0
 }
 
-/// An index buffer is bound (for indexed draw).
+///  An index buffer is bound (for indexed draw).
 pub open spec fn has_index_buffer_bound(state: RecordingState) -> bool {
     state.bound_index_buffer.is_some()
 }
 
-/// Dynamic state required by the pipeline is satisfied.
-/// needs_dynamic_viewport/scissor come from the pipeline's dynamic state flags.
+///  Dynamic state required by the pipeline is satisfied.
+///  needs_dynamic_viewport/scissor come from the pipeline's dynamic state flags.
 pub open spec fn dynamic_state_satisfied(
     state: RecordingState,
     needs_dynamic_viewport: bool,
@@ -377,15 +377,15 @@ pub open spec fn dynamic_state_satisfied(
     && (!needs_dynamic_scissor || state.scissor_set)
 }
 
-// ── Lemmas ───────────────────────────────────────────────────────────
+//  ── Lemmas ───────────────────────────────────────────────────────────
 
-/// The initial recording state is not in a render pass.
+///  The initial recording state is not in a render pass.
 pub proof fn lemma_initial_not_in_render_pass()
     ensures !in_render_pass(initial_recording_state()),
 {
 }
 
-/// Beginning and then ending a render pass restores not-in-render-pass.
+///  Beginning and then ending a render pass restores not-in-render-pass.
 pub proof fn lemma_begin_end_render_pass(
     state: RecordingState,
     rp_id: nat,
@@ -400,7 +400,7 @@ pub proof fn lemma_begin_end_render_pass(
 {
 }
 
-/// A valid draw call implies we are in a render pass.
+///  A valid draw call implies we are in a render pass.
 pub proof fn lemma_draw_requires_render_pass(
     state: RecordingState,
     pipeline: GraphicsPipelineState,
@@ -411,7 +411,7 @@ pub proof fn lemma_draw_requires_render_pass(
 {
 }
 
-/// A valid dispatch call implies we are NOT in a render pass.
+///  A valid dispatch call implies we are NOT in a render pass.
 pub proof fn lemma_dispatch_requires_no_render_pass(
     state: RecordingState,
     pipeline: ComputePipelineState,
@@ -421,7 +421,7 @@ pub proof fn lemma_dispatch_requires_no_render_pass(
 {
 }
 
-/// Binding a graphics pipeline does not change the render pass state.
+///  Binding a graphics pipeline does not change the render pass state.
 pub proof fn lemma_bind_pipeline_preserves_render_pass(
     state: RecordingState,
     id: nat,
@@ -433,7 +433,7 @@ pub proof fn lemma_bind_pipeline_preserves_render_pass(
 {
 }
 
-/// Binding a compute pipeline does not change the render pass state.
+///  Binding a compute pipeline does not change the render pass state.
 pub proof fn lemma_bind_compute_preserves_render_pass(
     state: RecordingState, id: nat, layouts: Seq<nat>,
 )
@@ -443,7 +443,7 @@ pub proof fn lemma_bind_compute_preserves_render_pass(
 {
 }
 
-/// Binding a descriptor set does not change the render pass state.
+///  Binding a descriptor set does not change the render pass state.
 pub proof fn lemma_bind_descriptor_preserves_render_pass(
     state: RecordingState, set_index: nat, set_id: nat, layout_id: nat, dynamic_offsets: Seq<nat>,
 )
@@ -452,7 +452,7 @@ pub proof fn lemma_bind_descriptor_preserves_render_pass(
 {
 }
 
-/// After beginning a render pass, we are in a render pass.
+///  After beginning a render pass, we are in a render pass.
 pub proof fn lemma_begin_render_pass_active(
     state: RecordingState, rp_id: nat, fb_id: nat,
 )
@@ -460,13 +460,13 @@ pub proof fn lemma_begin_render_pass_active(
 {
 }
 
-/// After ending a render pass, we are NOT in a render pass.
+///  After ending a render pass, we are NOT in a render pass.
 pub proof fn lemma_end_render_pass_inactive(state: RecordingState)
     ensures !in_render_pass(end_render_pass_recording(state)),
 {
 }
 
-/// Binding a graphics pipeline with no previously bound layout invalidates all descriptors.
+///  Binding a graphics pipeline with no previously bound layout invalidates all descriptors.
 pub proof fn lemma_bind_graphics_invalidates_all_when_none(
     state: RecordingState, pipeline_id: nat, layouts: Seq<nat>,
 )
@@ -478,7 +478,7 @@ pub proof fn lemma_bind_graphics_invalidates_all_when_none(
 {
 }
 
-/// The compatible prefix length is always >= start.
+///  The compatible prefix length is always >= start.
 proof fn lemma_compatible_prefix_len_rec_lower_bound(
     old_layouts: Seq<nat>,
     new_layouts: Seq<nat>,
@@ -489,15 +489,15 @@ proof fn lemma_compatible_prefix_len_rec_lower_bound(
     decreases old_layouts.len() - start,
 {
     if start >= old_layouts.len() || start >= new_layouts.len() {
-        // Returns start
+        //  Returns start
     } else if old_layouts[start as int] != new_layouts[start as int] {
-        // Returns start
+        //  Returns start
     } else {
         lemma_compatible_prefix_len_rec_lower_bound(old_layouts, new_layouts, start + 1);
     }
 }
 
-/// Compatible prefix length is at least as large as the index when layouts match.
+///  Compatible prefix length is at least as large as the index when layouts match.
 proof fn lemma_compatible_prefix_len_rec_ge(
     old_layouts: Seq<nat>,
     new_layouts: Seq<nat>,
@@ -513,20 +513,20 @@ proof fn lemma_compatible_prefix_len_rec_ge(
         compatible_prefix_len_rec(old_layouts, new_layouts, start) > idx,
     decreases idx - start,
 {
-    // old_layouts[start] == new_layouts[start], so compatible_prefix_len_rec recurses
+    //  old_layouts[start] == new_layouts[start], so compatible_prefix_len_rec recurses
     assert(old_layouts[start as int] == new_layouts[start as int]);
     if start == idx {
-        // After matching at start, compatible_prefix_len_rec recurses to start+1.
-        // We need: compatible_prefix_len_rec(_, _, start+1) >= start+1 > idx
+        //  After matching at start, compatible_prefix_len_rec recurses to start+1.
+        //  We need: compatible_prefix_len_rec(_, _, start+1) >= start+1 > idx
         lemma_compatible_prefix_len_rec_lower_bound(old_layouts, new_layouts, start + 1);
     } else {
-        // start < idx: recurse on start+1
+        //  start < idx: recurse on start+1
         lemma_compatible_prefix_len_rec_ge(old_layouts, new_layouts, start + 1, idx);
     }
 }
 
-/// Binding a graphics pipeline with the same layouts preserves compatible
-/// descriptor sets (sets at indices within the compatible prefix are kept).
+///  Binding a graphics pipeline with the same layouts preserves compatible
+///  descriptor sets (sets at indices within the compatible prefix are kept).
 pub proof fn lemma_bind_graphics_preserves_compatible_descriptors(
     state: RecordingState, pipeline_id: nat, layouts: Seq<nat>,
     set_idx: nat,
@@ -541,11 +541,11 @@ pub proof fn lemma_bind_graphics_preserves_compatible_descriptors(
         bind_graphics_pipeline(state, pipeline_id, layouts)
             .bound_descriptor_sets[set_idx] == state.bound_descriptor_sets[set_idx],
 {
-    // When old == new layouts, every index matches, so prefix >= layouts.len()
+    //  When old == new layouts, every index matches, so prefix >= layouts.len()
     lemma_compatible_prefix_len_rec_ge(layouts, layouts, 0, set_idx);
 }
 
-/// Beginning a render pass preserves bound pipelines and descriptors.
+///  Beginning a render pass preserves bound pipelines and descriptors.
 pub proof fn lemma_begin_rp_preserves_bindings(
     state: RecordingState, rp_id: nat, fb_id: nat,
 )
@@ -559,7 +559,7 @@ pub proof fn lemma_begin_rp_preserves_bindings(
 {
 }
 
-/// Next subpass preserves bound pipelines and descriptors.
+///  Next subpass preserves bound pipelines and descriptors.
 pub proof fn lemma_next_subpass_preserves_bindings(state: RecordingState)
     requires state.active_render_pass.is_some(),
     ensures ({
@@ -572,7 +572,7 @@ pub proof fn lemma_next_subpass_preserves_bindings(state: RecordingState)
 {
 }
 
-/// Binding a vertex buffer preserves the render pass state.
+///  Binding a vertex buffer preserves the render pass state.
 pub proof fn lemma_bind_vertex_preserves_render_pass(
     state: RecordingState, slot: nat, buffer_id: nat,
 )
@@ -581,7 +581,7 @@ pub proof fn lemma_bind_vertex_preserves_render_pass(
 {
 }
 
-/// Binding an index buffer preserves the render pass state.
+///  Binding an index buffer preserves the render pass state.
 pub proof fn lemma_bind_index_preserves_render_pass(
     state: RecordingState, buffer_id: nat,
 )
@@ -590,25 +590,25 @@ pub proof fn lemma_bind_index_preserves_render_pass(
 {
 }
 
-/// Setting viewport preserves the render pass state.
+///  Setting viewport preserves the render pass state.
 pub proof fn lemma_set_viewport_preserves_render_pass(state: RecordingState)
     ensures in_render_pass(set_viewport_recording(state)) == in_render_pass(state),
 {
 }
 
-/// Setting scissor preserves the render pass state.
+///  Setting scissor preserves the render pass state.
 pub proof fn lemma_set_scissor_preserves_render_pass(state: RecordingState)
     ensures in_render_pass(set_scissor_recording(state)) == in_render_pass(state),
 {
 }
 
-/// Setting push constants preserves the render pass state.
+///  Setting push constants preserves the render pass state.
 pub proof fn lemma_set_push_constants_preserves_render_pass(state: RecordingState)
     ensures in_render_pass(set_push_constants_recording(state)) == in_render_pass(state),
 {
 }
 
-/// Advancing to the next subpass keeps the subpass index within bounds.
+///  Advancing to the next subpass keeps the subpass index within bounds.
 pub proof fn lemma_next_subpass_stays_in_bounds(state: RecordingState, rp: RenderPassState)
     requires subpass_advance_valid(state, rp),
     ensures
@@ -618,7 +618,7 @@ pub proof fn lemma_next_subpass_stays_in_bounds(state: RecordingState, rp: Rende
 {
 }
 
-/// Draw and dispatch are mutually exclusive contexts.
+///  Draw and dispatch are mutually exclusive contexts.
 pub proof fn lemma_draw_dispatch_exclusive(
     state: RecordingState,
     g_pipeline: GraphicsPipelineState,
@@ -629,4 +629,4 @@ pub proof fn lemma_draw_dispatch_exclusive(
 {
 }
 
-} // verus!
+} //  verus!

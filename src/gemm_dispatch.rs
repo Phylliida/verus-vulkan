@@ -9,9 +9,9 @@ use verus_cutedsl::runtime::gemm::gemm_int_mac;
 
 verus! {
 
-// ── Types ───────────────────────────────────────────────────────────────
+//  ── Types ───────────────────────────────────────────────────────────────
 
-/// GEMM dispatch configuration: matrix dims + tile dims + grid dims.
+///  GEMM dispatch configuration: matrix dims + tile dims + grid dims.
 pub ghost struct GemmDispatchConfig {
     pub m: nat,
     pub n: nat,
@@ -23,26 +23,26 @@ pub ghost struct GemmDispatchConfig {
     pub grid_y: nat,
 }
 
-/// A buffer binding for GEMM: layout + data size.
+///  A buffer binding for GEMM: layout + data size.
 pub ghost struct GemmBufferBinding {
     pub layout: LayoutSpec,
     pub data_size: nat,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// Grid dimensions match tile counts.
+///  Grid dimensions match tile counts.
 pub open spec fn grid_matches_tiles(config: &GemmDispatchConfig) -> bool {
     config.grid_x == num_tiles_ceil(config.m, config.bm)
     && config.grid_y == num_tiles_ceil(config.n, config.bn)
 }
 
-/// Linearize 2D tile coords to workgroup ID: wg_id = ti + tj * grid_x.
+///  Linearize 2D tile coords to workgroup ID: wg_id = ti + tj * grid_x.
 pub open spec fn tile_to_wg_id(ti: nat, tj: nat, grid_x: nat) -> nat {
     ti + tj * grid_x
 }
 
-/// Recover tile coords from workgroup ID.
+///  Recover tile coords from workgroup ID.
 pub open spec fn wg_id_to_ti(wg_id: nat, grid_x: nat) -> nat {
     wg_id % grid_x
 }
@@ -51,8 +51,8 @@ pub open spec fn wg_id_to_tj(wg_id: nat, grid_x: nat) -> nat {
     wg_id / grid_x
 }
 
-/// Full GEMM dispatch safety: CuTe config admissible + Vulkan limits OK
-/// + C buffer backing sufficient + buffers valid.
+///  Full GEMM dispatch safety: CuTe config admissible + Vulkan limits OK
+///  + C buffer backing sufficient + buffers valid.
 pub open spec fn gemm_dispatch_safe(
     config: &GemmDispatchConfig,
     a: &GemmBufferBinding,
@@ -60,34 +60,34 @@ pub open spec fn gemm_dispatch_safe(
     c: &GemmBufferBinding,
     limits: ComputeLimits,
 ) -> bool {
-    // CuTe-level admissibility
+    //  CuTe-level admissibility
     &&& gemm_config_admissible(config.m, config.n, config.k,
             config.bm, config.bn, config.bk,
             &a.layout, &b.layout, &c.layout)
-    // Shape bounds
+    //  Shape bounds
     &&& config.m <= c.layout.shape[0]
     &&& config.n <= c.layout.shape[1]
     &&& config.m <= a.layout.shape[0]
     &&& config.k <= a.layout.shape[1]
     &&& config.k <= b.layout.shape[0]
     &&& config.n <= b.layout.shape[1]
-    // Grid matches tiles
+    //  Grid matches tiles
     &&& grid_matches_tiles(config)
-    // Vulkan dispatch limits
+    //  Vulkan dispatch limits
     &&& dispatch_dimensions_valid(
             config.grid_x, config.grid_y, 1,
             limits)
-    // Tensor validity (data large enough for layout)
+    //  Tensor validity (data large enough for layout)
     &&& tensor_valid(&TensorSpec { layout: a.layout, data_size: a.data_size })
     &&& tensor_valid(&TensorSpec { layout: b.layout, data_size: b.data_size })
     &&& tensor_valid(&TensorSpec { layout: c.layout, data_size: c.data_size })
-    // Non-negative strides on C (needed for epilogue)
+    //  Non-negative strides on C (needed for epilogue)
     &&& c.layout.non_negative_strides()
 }
 
-// ── Write set construction for parallel framework ───────────────────────
+//  ── Write set construction for parallel framework ───────────────────────
 
-/// Whether (ti, tj, ei, ej) represents a valid write by a workgroup.
+///  Whether (ti, tj, ei, ej) represents a valid write by a workgroup.
 pub open spec fn is_valid_cta_write(
     config: &GemmDispatchConfig,
     c_layout: &LayoutSpec,
@@ -101,7 +101,7 @@ pub open spec fn is_valid_cta_write(
     && gemm_c_tile_offset(c_layout, ti, tj, ei, ej, config.bm, config.bn) == idx as int
 }
 
-/// The set of C buffer indices that workgroup wg_id writes.
+///  The set of C buffer indices that workgroup wg_id writes.
 pub open spec fn gemm_wg_write_set(
     config: &GemmDispatchConfig,
     c_layout: &LayoutSpec,
@@ -115,8 +115,8 @@ pub open spec fn gemm_wg_write_set(
     )
 }
 
-/// The value workgroup wg_id writes to global index (gi, gj).
-/// Defined directly from the global coordinates rather than recovering them.
+///  The value workgroup wg_id writes to global index (gi, gj).
+///  Defined directly from the global coordinates rather than recovering them.
 pub open spec fn gemm_write_value_at(
     a_layout: &LayoutSpec,
     b_layout: &LayoutSpec,
@@ -127,8 +127,8 @@ pub open spec fn gemm_write_value_at(
     gemm_int_mac(a_layout, b_layout, a_data, b_data, gi, gj, k_size)
 }
 
-/// Instantiate the parallel kernel spec for GEMM.
-/// write_value is defined via choose to recover the (ei,ej) pair from the offset.
+///  Instantiate the parallel kernel spec for GEMM.
+///  write_value is defined via choose to recover the (ei,ej) pair from the offset.
 pub open spec fn gemm_as_parallel_kernel(
     config: &GemmDispatchConfig,
     c: &GemmBufferBinding,
@@ -143,8 +143,8 @@ pub open spec fn gemm_as_parallel_kernel(
         write_value: |wg_id: nat, idx: nat| {
             let ti = wg_id_to_ti(wg_id, config.grid_x);
             let tj = wg_id_to_tj(wg_id, config.grid_x);
-            // Recover tile-local coords from the C offset.
-            // The choose recovers (ei, ej) such that idx matches the offset.
+            //  Recover tile-local coords from the C offset.
+            //  The choose recovers (ei, ej) such that idx matches the offset.
             let pair = choose|pair: (nat, nat)|
                 #[trigger] is_valid_cta_write(
                     config, &c.layout, ti, tj, pair.0, pair.1, idx);
@@ -156,9 +156,9 @@ pub open spec fn gemm_as_parallel_kernel(
     }
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// gemm_dispatch_safe implies all core CuTe correctness properties.
+///  gemm_dispatch_safe implies all core CuTe correctness properties.
 pub proof fn lemma_gemm_dispatch_safe_implies_correct(
     config: &GemmDispatchConfig,
     a: &GemmBufferBinding,
@@ -184,7 +184,7 @@ pub proof fn lemma_gemm_dispatch_safe_implies_correct(
     );
 }
 
-/// Different workgroup IDs map to different (ti, tj) pairs when grid_x > 0.
+///  Different workgroup IDs map to different (ti, tj) pairs when grid_x > 0.
 pub proof fn lemma_wg_id_to_tile_injective(
     wg_id1: nat, wg_id2: nat, grid_x: nat,
 )
@@ -198,13 +198,13 @@ pub proof fn lemma_wg_id_to_tile_injective(
     if wg_id_to_ti(wg_id1, grid_x) == wg_id_to_ti(wg_id2, grid_x)
         && wg_id_to_tj(wg_id1, grid_x) == wg_id_to_tj(wg_id2, grid_x)
     {
-        // Euclidean division identity: n == (n / d) * d + (n % d)
+        //  Euclidean division identity: n == (n / d) * d + (n % d)
         vstd::arithmetic::div_mod::lemma_fundamental_div_mod(wg_id1 as int, grid_x as int);
         vstd::arithmetic::div_mod::lemma_fundamental_div_mod(wg_id2 as int, grid_x as int);
     }
 }
 
-/// epilogue_cross_cta_disjoint implies the write sets of distinct workgroups are disjoint.
+///  epilogue_cross_cta_disjoint implies the write sets of distinct workgroups are disjoint.
 pub proof fn lemma_gemm_disjoint_bridge(
     config: &GemmDispatchConfig,
     c_layout: &LayoutSpec,
@@ -242,16 +242,16 @@ pub proof fn lemma_gemm_disjoint_bridge(
         let ti2 = wg_id_to_ti(w2, config.grid_x);
         let tj2 = wg_id_to_tj(w2, config.grid_x);
 
-        // Different wg_ids → different (ti, tj) pairs
+        //  Different wg_ids → different (ti, tj) pairs
         lemma_wg_id_to_tile_injective(w1, w2, config.grid_x);
 
-        // Prove disjointness by contradiction
+        //  Prove disjointness by contradiction
         lemma_gemm_disjoint_bridge_inner(config, c_layout, w1, w2);
         assert(s1.disjoint(s2));
     }
 }
 
-/// Inner helper: no idx belongs to both write sets of distinct workgroups.
+///  Inner helper: no idx belongs to both write sets of distinct workgroups.
 proof fn lemma_gemm_disjoint_bridge_inner(
     config: &GemmDispatchConfig,
     c_layout: &LayoutSpec,
@@ -281,23 +281,23 @@ proof fn lemma_gemm_disjoint_bridge_inner(
     let ti2 = wg_id_to_ti(w2, config.grid_x);
     let tj2 = wg_id_to_tj(w2, config.grid_x);
 
-    // Prove no index is in both write sets using C offset injectivity directly
+    //  Prove no index is in both write sets using C offset injectivity directly
     assert forall|idx: nat, ei1: nat, ej1: nat, ei2: nat, ej2: nat|
         #[trigger] is_valid_cta_write(config, c_layout, ti1, tj1, ei1, ej1, idx)
         && #[trigger] is_valid_cta_write(config, c_layout, ti2, tj2, ei2, ej2, idx)
         implies false
     by {
-        // From is_valid_cta_write: both offsets equal idx
-        // gemm_c_tile_offset(c, ti, tj, ei, ej, bm, bn) = gemm_c_offset(c, ti*bm+ei, tj*bn+ej)
+        //  From is_valid_cta_write: both offsets equal idx
+        //  gemm_c_tile_offset(c, ti, tj, ei, ej, bm, bn) = gemm_c_offset(c, ti*bm+ei, tj*bn+ej)
         let gi1 = ti1 * config.bm + ei1;
         let gj1 = tj1 * config.bn + ej1;
         let gi2 = ti2 * config.bm + ei2;
         let gj2 = tj2 * config.bn + ej2;
 
-        // From epilogue_predicated_store_safe: gi1 < m, gj1 < n, gi2 < m, gj2 < n
-        // (ti, tj) differ, so (gi1, gj1) != (gi2, gj2)
-        // Either ti1 != ti2 => gi1 in [ti1*bm, (ti1+1)*bm), gi2 in [ti2*bm, (ti2+1)*bm) => gi1 != gi2
-        // Or tj1 != tj2 => similarly gj1 != gj2
+        //  From epilogue_predicated_store_safe: gi1 < m, gj1 < n, gi2 < m, gj2 < n
+        //  (ti, tj) differ, so (gi1, gj1) != (gi2, gj2)
+        //  Either ti1 != ti2 => gi1 in [ti1*bm, (ti1+1)*bm), gi2 in [ti2*bm, (ti2+1)*bm) => gi1 != gi2
+        //  Or tj1 != tj2 => similarly gj1 != gj2
         if ti1 != ti2 {
             if ti1 < ti2 {
                 assert(gi1 < (ti1 + 1) * config.bm) by (nonlinear_arith)
@@ -336,21 +336,21 @@ proof fn lemma_gemm_disjoint_bridge_inner(
         }
         assert(gi1 != gi2 || gj1 != gj2);
 
-        // By C layout injectivity: distinct (gi, gj) → distinct offsets
+        //  By C layout injectivity: distinct (gi, gj) → distinct offsets
         verus_cutedsl::proof::gemm_lemmas::lemma_gemm_c_offset_injective(
             c_layout, config.m, config.n, gi1, gj1, gi2, gj2,
         );
-        // gemm_c_offset(c, gi1, gj1) != gemm_c_offset(c, gi2, gj2)
-        // But both equal idx as int — contradiction
+        //  gemm_c_offset(c, gi1, gj1) != gemm_c_offset(c, gi2, gj2)
+        //  But both equal idx as int — contradiction
     }
 
     assert forall|idx: nat| !(s1.contains(idx) && s2.contains(idx)) by {}
     assert(s1.disjoint(s2));
 }
 
-// ── Write-in-bounds helper ────────────────────────────────────────────
+//  ── Write-in-bounds helper ────────────────────────────────────────────
 
-/// For any valid CTA write, the target index is within the C buffer.
+///  For any valid CTA write, the target index is within the C buffer.
 proof fn lemma_valid_cta_write_in_bounds(
     config: &GemmDispatchConfig,
     c: &GemmBufferBinding,
@@ -373,8 +373,8 @@ proof fn lemma_valid_cta_write_in_bounds(
     let gj = tj * config.bn + ej;
     let coords = seq![gi, gj];
 
-    // From epilogue_predicated_store_safe: gi < m, gj < n
-    // Combined with m <= shape[0], n <= shape[1]: coords in bounds
+    //  From epilogue_predicated_store_safe: gi < m, gj < n
+    //  Combined with m <= shape[0], n <= shape[1]: coords in bounds
     assert(coords_in_bounds(coords, c.layout.shape)) by {
         assert(coords.len() == c.layout.shape.len());
         assert forall|i: int| 0 <= i < coords.len()
@@ -385,15 +385,15 @@ proof fn lemma_valid_cta_write_in_bounds(
         }
     }
 
-    // linearize in bounds → offset < cosize ≤ data_size
+    //  linearize in bounds → offset < cosize ≤ data_size
     verus_cutedsl::proof::shape_lemmas::lemma_linearize_bound(coords, c.layout.shape);
     let lin = linearize(coords, c.layout.shape);
     verus_cutedsl::proof::offset_lemmas::lemma_offset_upper_bound(c.layout, lin);
-    // c.layout.offset(lin) < cosize_nonneg() <= data_size
-    // And gemm_c_tile_offset == idx as int == c.layout.offset(lin)
+    //  c.layout.offset(lin) < cosize_nonneg() <= data_size
+    //  And gemm_c_tile_offset == idx as int == c.layout.offset(lin)
 }
 
-/// All GEMM CTA writes land within the C buffer.
+///  All GEMM CTA writes land within the C buffer.
 proof fn lemma_gemm_writes_in_bounds(
     config: &GemmDispatchConfig,
     c: &GemmBufferBinding,
@@ -415,22 +415,22 @@ proof fn lemma_gemm_writes_in_bounds(
             && #[trigger] gemm_wg_write_set(config, &c.layout, w).contains(idx)
             ==> idx < c.data_size,
 {
-    // Prove: for any (ti, tj, ei, ej, idx) satisfying is_valid_cta_write, idx < data_size
+    //  Prove: for any (ti, tj, ei, ej, idx) satisfying is_valid_cta_write, idx < data_size
     assert forall|ti: nat, tj: nat, ei: nat, ej: nat, idx: nat|
         #[trigger] is_valid_cta_write(config, &c.layout, ti, tj, ei, ej, idx)
         implies idx < c.data_size
     by {
         lemma_valid_cta_write_in_bounds(config, c, ti, tj, ei, ej, idx);
     }
-    // Z3 combines this universal with the existential from write_set membership
+    //  Z3 combines this universal with the existential from write_set membership
 }
 
-// ── Master Theorem ───────────────────────────────────────────────────
+//  ── Master Theorem ───────────────────────────────────────────────────
 
-/// Master theorem: parallel GEMM dispatch equals sequential execution.
-/// When `gemm_dispatch_safe` holds, parallel GPU dispatch (all workgroups
-/// fire simultaneously) produces the same result as sequential execution
-/// (workgroups applied one at a time in order).
+///  Master theorem: parallel GEMM dispatch equals sequential execution.
+///  When `gemm_dispatch_safe` holds, parallel GPU dispatch (all workgroups
+///  fire simultaneously) produces the same result as sequential execution
+///  (workgroups applied one at a time in order).
 pub proof fn lemma_gemm_parallel_dispatch_correct(
     config: &GemmDispatchConfig,
     a: &GemmBufferBinding,
@@ -452,27 +452,27 @@ pub proof fn lemma_gemm_parallel_dispatch_correct(
 {
     let k = gemm_as_parallel_kernel(config, c, &a.layout, &b.layout, a_data, b_data);
 
-    // Extract key facts from gemm_dispatch_safe for sub-lemma preconditions
-    // grid_x > 0: num_tiles_ceil(m, bm) >= 1 when m > 0 && bm > 0
-    // grid_x > 0: ceil_div(m, bm) = (m + bm - 1) / bm >= bm / bm = 1
+    //  Extract key facts from gemm_dispatch_safe for sub-lemma preconditions
+    //  grid_x > 0: num_tiles_ceil(m, bm) >= 1 when m > 0 && bm > 0
+    //  grid_x > 0: ceil_div(m, bm) = (m + bm - 1) / bm >= bm / bm = 1
     let den = config.bm as int;
     let num = (config.m + config.bm - 1) as int;
-    assert(num >= den);  // m >= 1 implies m + bm - 1 >= bm
+    assert(num >= den);  //  m >= 1 implies m + bm - 1 >= bm
     vstd::arithmetic::div_mod::lemma_div_by_self(den);
     vstd::arithmetic::div_mod::lemma_div_is_ordered(den, num, den);
     assert(config.grid_x > 0);
 
-    // 1. CuTe correctness properties
+    //  1. CuTe correctness properties
     lemma_gemm_dispatch_safe_implies_correct(config, a, b, c, limits);
 
-    // 2. Write disjointness: distinct workgroups write disjoint C indices
+    //  2. Write disjointness: distinct workgroups write disjoint C indices
     lemma_gemm_disjoint_bridge(config, &c.layout);
 
-    // 3. Write in-bounds: all writes land within C buffer
+    //  3. Write in-bounds: all writes land within C buffer
     lemma_gemm_writes_in_bounds(config, c);
 
-    // 4. Apply the general parallel ↔ sequential equivalence theorem
+    //  4. Apply the general parallel ↔ sequential equivalence theorem
     lemma_parallel_equals_sequential(k, initial_c_data);
 }
 
-} // verus!
+} //  verus!

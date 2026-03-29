@@ -19,25 +19,25 @@ use crate::resource_lifecycle::*;
 
 verus! {
 
-// ── Types ───────────────────────────────────────────────────────────────
+//  ── Types ───────────────────────────────────────────────────────────────
 
-/// The lifecycle state of a single frame in flight.
+///  The lifecycle state of a single frame in flight.
 pub enum FrameLifecycleState {
-    /// No frame in progress; resources idle.
+    ///  No frame in progress; resources idle.
     Idle,
-    /// Swapchain image acquired; ready to record commands.
+    ///  Swapchain image acquired; ready to record commands.
     Acquired,
-    /// Commands recorded; barriers applied; ready to submit.
+    ///  Commands recorded; barriers applied; ready to submit.
     Recorded,
-    /// Work submitted to GPU; fence associated.
+    ///  Work submitted to GPU; fence associated.
     Submitted,
-    /// Present issued to swapchain.
+    ///  Present issued to swapchain.
     Presented,
-    /// Fence waited; GPU work complete; safe to reuse/destroy resources.
+    ///  Fence waited; GPU work complete; safe to reuse/destroy resources.
     Completed,
 }
 
-/// Bundles all the state needed to track a frame through its lifecycle.
+///  Bundles all the state needed to track a frame through its lifecycle.
 pub struct FrameInvariant {
     pub frame: FrameSubmission,
     pub swapchain: SwapchainState,
@@ -51,30 +51,30 @@ pub struct FrameInvariant {
     pub reg: TokenRegistry,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// The frame lifecycle invariant for each state.
+///  The frame lifecycle invariant for each state.
 pub open spec fn frame_lifecycle_valid(
     state: FrameLifecycleState,
     inv: FrameInvariant,
 ) -> bool {
     match state {
         FrameLifecycleState::Idle => {
-            // Frame is well-formed and swapchain image is available
+            //  Frame is well-formed and swapchain image is available
             frame_submission_well_formed(inv.frame)
             && inv.swapchain.alive
             && !inv.swapchain.retired
             && inv.frame.image_index < inv.swapchain.image_states.len()
             && inv.swapchain.image_states[inv.frame.image_index as int]
                 == SwapchainImageState::Available
-            // Fence exists and is unsignaled
+            //  Fence exists and is unsignaled
             && inv.fence_states.contains_key(inv.frame.frame_fence)
             && !inv.fence_states[inv.frame.frame_fence].signaled
-            // Thread holds exclusive queue access
+            //  Thread holds exclusive queue access
             && holds_exclusive(inv.reg, SyncObjectId::Queue(inv.queue.queue_id), inv.thread)
         },
         FrameLifecycleState::Acquired => {
-            // Image is now Acquired
+            //  Image is now Acquired
             frame_submission_well_formed(inv.frame)
             && inv.frame.image_index < inv.swapchain.image_states.len()
             && inv.swapchain.image_states[inv.frame.image_index as int]
@@ -82,44 +82,44 @@ pub open spec fn frame_lifecycle_valid(
             && holds_exclusive(inv.reg, SyncObjectId::Queue(inv.queue.queue_id), inv.thread)
         },
         FrameLifecycleState::Recorded => {
-            // Commands recorded, ready to submit
+            //  Commands recorded, ready to submit
             frame_submission_well_formed(inv.frame)
             && inv.frame.image_index < inv.swapchain.image_states.len()
             && holds_exclusive(inv.reg, SyncObjectId::Queue(inv.queue.queue_id), inv.thread)
         },
         FrameLifecycleState::Submitted => {
-            // Work submitted, fence associated
+            //  Work submitted, fence associated
             frame_submission_well_formed(inv.frame)
             && inv.frame.image_index < inv.swapchain.image_states.len()
             && inv.fence_states.contains_key(inv.frame.frame_fence)
         },
         FrameLifecycleState::Presented => {
-            // Present issued, waiting for completion
+            //  Present issued, waiting for completion
             frame_submission_well_formed(inv.frame)
             && inv.frame.image_index < inv.swapchain.image_states.len()
             && inv.fence_states.contains_key(inv.frame.frame_fence)
         },
         FrameLifecycleState::Completed => {
-            // Fence waited, GPU work done
+            //  Fence waited, GPU work done
             frame_submission_well_formed(inv.frame)
         },
     }
 }
 
-/// All barrier recording is complete and resources are properly synchronized
-/// before submit.
+///  All barrier recording is complete and resources are properly synchronized
+///  before submit.
 pub open spec fn frame_sync_complete(
     ctx: RecordingContext,
     inv: FrameInvariant,
 ) -> bool {
-    // Referenced resources are tracked
+    //  Referenced resources are tracked
     forall|r: ResourceId| inv.frame.submit_info.referenced_resources.contains(r)
         ==> ctx.referenced_resources.contains(r)
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// Idle → Acquired: acquiring the swapchain image advances the lifecycle.
+///  Idle → Acquired: acquiring the swapchain image advances the lifecycle.
 pub proof fn lemma_acquire_advances_lifecycle(inv: FrameInvariant)
     requires frame_lifecycle_valid(FrameLifecycleState::Idle, inv),
     ensures ({
@@ -131,8 +131,8 @@ pub proof fn lemma_acquire_advances_lifecycle(inv: FrameInvariant)
     lemma_acquire_makes_acquired(inv.swapchain, inv.frame.image_index);
 }
 
-/// Acquired → Recorded: recording commands (externally) advances lifecycle.
-/// The caller provides a recording context that tracks resources.
+///  Acquired → Recorded: recording commands (externally) advances lifecycle.
+///  The caller provides a recording context that tracks resources.
 pub proof fn lemma_record_advances_lifecycle(
     inv: FrameInvariant,
     ctx: RecordingContext,
@@ -145,10 +145,10 @@ pub proof fn lemma_record_advances_lifecycle(
 {
 }
 
-/// Submitted → Completed after fence wait: resources are safe to destroy.
+///  Submitted → Completed after fence wait: resources are safe to destroy.
 ///
-/// Delegates to lemma_fence_wait_enables_destroy and
-/// lemma_submit_wait_destroy_safe.
+///  Delegates to lemma_fence_wait_enables_destroy and
+///  lemma_submit_wait_destroy_safe.
 pub proof fn lemma_fence_wait_enables_cleanup(
     inv: FrameInvariant,
     resource: ResourceId,
@@ -156,13 +156,13 @@ pub proof fn lemma_fence_wait_enables_cleanup(
     requires
         frame_lifecycle_valid(FrameLifecycleState::Submitted, inv),
         inv.frame.submit_info.referenced_resources.contains(resource),
-        // No prior submission references this resource
+        //  No prior submission references this resource
         forall|i: int| 0 <= i < inv.dev.pending_submissions.len()
             ==> !inv.dev.pending_submissions[i].referenced_resources.contains(resource),
-        // Thread still holds exclusive queue access
+        //  Thread still holds exclusive queue access
         holds_exclusive(inv.reg, SyncObjectId::Queue(inv.queue.queue_id), inv.thread),
     ensures ({
-        // After submit + fence wait, resource is safe to destroy
+        //  After submit + fence wait, resource is safe to destroy
         let submit_result = submit_ghost(inv.queue, inv.frame.submit_info, inv.thread, inv.reg);
         submit_result.is_some() ==> ({
             let (new_queue, record) = submit_result.unwrap();
@@ -185,10 +185,10 @@ pub proof fn lemma_fence_wait_enables_cleanup(
     }
 }
 
-/// **Crown jewel**: Idle → Completed in one shot.
-/// A frame that starts from Idle with a well-formed submission,
-/// acquires, records, submits, and fence-waits produces a state
-/// where all referenced resources are safe to destroy.
+///  **Crown jewel**: Idle → Completed in one shot.
+///  A frame that starts from Idle with a well-formed submission,
+///  acquires, records, submits, and fence-waits produces a state
+///  where all referenced resources are safe to destroy.
 pub proof fn lemma_full_frame_safe(
     inv: FrameInvariant,
     resource: ResourceId,
@@ -196,16 +196,16 @@ pub proof fn lemma_full_frame_safe(
     requires
         frame_lifecycle_valid(FrameLifecycleState::Idle, inv),
         inv.frame.submit_info.referenced_resources.contains(resource),
-        // No prior submission references this resource
+        //  No prior submission references this resource
         forall|i: int| 0 <= i < inv.dev.pending_submissions.len()
             ==> !inv.dev.pending_submissions[i].referenced_resources.contains(resource),
-        // Submission is valid
+        //  Submission is valid
         submission_valid(
             inv.frame.submit_info, inv.cb_states, inv.sem_states,
             inv.fence_states, inv.lifecycle_states, inv.queue.queue_id, inv.thread, inv.reg,
         ),
     ensures ({
-        // The full acquire→submit path succeeds
+        //  The full acquire→submit path succeeds
         let acquire_result = acquire_image(inv.swapchain, inv.frame.image_index);
         acquire_result.is_some() ==> ({
             let submit_result = submit_ghost(inv.queue, inv.frame.submit_info, inv.thread, inv.reg);
@@ -221,11 +221,11 @@ pub proof fn lemma_full_frame_safe(
         })
     }),
 {
-    // Step 1: Acquire succeeds
+    //  Step 1: Acquire succeeds
     lemma_acquire_makes_acquired(inv.swapchain, inv.frame.image_index);
     let acquire_result = acquire_image(inv.swapchain, inv.frame.image_index);
     if acquire_result.is_some() {
-        // Step 2: Submit + fence wait → safe to destroy
+        //  Step 2: Submit + fence wait → safe to destroy
         let submit_result = submit_ghost(inv.queue, inv.frame.submit_info, inv.thread, inv.reg);
         if submit_result.is_some() {
             lemma_submit_wait_destroy_safe(
@@ -237,8 +237,8 @@ pub proof fn lemma_full_frame_safe(
     }
 }
 
-/// Resources referenced by the frame are a subset of the recording context's
-/// referenced resources when frame_sync_complete holds.
+///  Resources referenced by the frame are a subset of the recording context's
+///  referenced resources when frame_sync_complete holds.
 pub proof fn lemma_frame_resources_bounded(
     inv: FrameInvariant,
     ctx: RecordingContext,
@@ -252,7 +252,7 @@ pub proof fn lemma_frame_resources_bounded(
 {
 }
 
-/// Present succeeds after submit when the swapchain image is still Acquired.
+///  Present succeeds after submit when the swapchain image is still Acquired.
 pub proof fn lemma_present_after_submit(
     inv: FrameInvariant,
 )
@@ -268,4 +268,4 @@ pub proof fn lemma_present_after_submit(
     lemma_present_makes_pending(inv.swapchain, inv.frame.image_index);
 }
 
-} // verus!
+} //  verus!

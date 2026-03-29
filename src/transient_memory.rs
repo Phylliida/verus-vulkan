@@ -5,10 +5,10 @@ use crate::render_graph_compile::*;
 
 verus! {
 
-// ── Types ───────────────────────────────────────────────────────────────
+//  ── Types ───────────────────────────────────────────────────────────────
 
-/// A transient attachment: a GPU resource that only lives within a
-/// single render graph execution (e.g., G-buffer, depth buffer).
+///  A transient attachment: a GPU resource that only lives within a
+///  single render graph execution (e.g., G-buffer, depth buffer).
 pub struct TransientAttachment {
     pub resource_id: ResourceId,
     pub size: nat,
@@ -16,64 +16,64 @@ pub struct TransientAttachment {
     pub format: nat,
 }
 
-/// Format size class for aliasing compatibility.
+///  Format size class for aliasing compatibility.
 pub enum FormatSizeClass {
-    /// 1 byte per pixel (R8)
+    ///  1 byte per pixel (R8)
     Byte1,
-    /// 2 bytes per pixel (R16, RG8)
+    ///  2 bytes per pixel (R16, RG8)
     Byte2,
-    /// 4 bytes per pixel (RGBA8, R32F)
+    ///  4 bytes per pixel (RGBA8, R32F)
     Byte4,
-    /// 8 bytes per pixel (RGBA16F, RG32F)
+    ///  8 bytes per pixel (RGBA16F, RG32F)
     Byte8,
-    /// 16 bytes per pixel (RGBA32F)
+    ///  16 bytes per pixel (RGBA32F)
     Byte16,
 }
 
-/// A pool of memory used for transient attachments.
-/// Resources are allocated and freed within a single frame.
+///  A pool of memory used for transient attachments.
+///  Resources are allocated and freed within a single frame.
 pub struct TransientMemoryPool {
-    /// Current allocations: resource → memory range.
+    ///  Current allocations: resource → memory range.
     pub allocations: Map<ResourceId, MemoryRange>,
-    /// Resource lifetimes: resource → (first_pass, last_pass).
+    ///  Resource lifetimes: resource → (first_pass, last_pass).
     pub lifetimes: Map<ResourceId, (nat, nat)>,
-    /// Total pool size in bytes.
+    ///  Total pool size in bytes.
     pub pool_size: nat,
-    /// Unique identifier.
+    ///  Unique identifier.
     pub pool_id: nat,
-    /// Whether the pool is alive.
+    ///  Whether the pool is alive.
     pub alive: bool,
 }
 
-/// A decision to alias two resources in the same memory range,
-/// because their lifetimes don't overlap.
+///  A decision to alias two resources in the same memory range,
+///  because their lifetimes don't overlap.
 pub struct AliasingDecision {
     pub resource_a: ResourceId,
     pub resource_b: ResourceId,
     pub shared_range: MemoryRange,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// A transient memory pool is well-formed.
+///  A transient memory pool is well-formed.
 pub open spec fn transient_pool_well_formed(pool: TransientMemoryPool) -> bool {
     pool.alive
     && pool.pool_size > 0
-    // All allocations are within pool bounds
+    //  All allocations are within pool bounds
     && (forall|r: ResourceId| pool.allocations.contains_key(r)
         ==> pool.allocations[r].offset + pool.allocations[r].size <= pool.pool_size)
-    // All allocated resources have lifetimes
+    //  All allocated resources have lifetimes
     && (forall|r: ResourceId| pool.allocations.contains_key(r)
         ==> pool.lifetimes.contains_key(r))
-    // Lifetimes are valid (first <= last)
+    //  Lifetimes are valid (first <= last)
     && (forall|r: ResourceId| pool.lifetimes.contains_key(r)
         ==> pool.lifetimes[r].0 <= pool.lifetimes[r].1)
-    // All allocations have positive size
+    //  All allocations have positive size
     && (forall|r: ResourceId| pool.allocations.contains_key(r)
         ==> pool.allocations[r].size > 0)
 }
 
-/// Whether a transient attachment fits within the pool.
+///  Whether a transient attachment fits within the pool.
 pub open spec fn attachment_fits_pool(
     pool: TransientMemoryPool,
     attachment: TransientAttachment,
@@ -82,7 +82,7 @@ pub open spec fn attachment_fits_pool(
     offset + attachment.size <= pool.pool_size
 }
 
-/// Compute the lifetime of a resource from the render graph.
+///  Compute the lifetime of a resource from the render graph.
 pub open spec fn lifetime_from_graph(
     lifetimes: Map<ResourceId, ResourceLifetime>,
     resource: ResourceId,
@@ -92,7 +92,7 @@ pub open spec fn lifetime_from_graph(
     (lifetimes[resource].first_use, lifetimes[resource].last_use)
 }
 
-/// Two resources can be aliased if their lifetimes don't overlap.
+///  Two resources can be aliased if their lifetimes don't overlap.
 pub open spec fn can_alias_resources(
     pool: TransientMemoryPool,
     a: ResourceId,
@@ -101,12 +101,12 @@ pub open spec fn can_alias_resources(
     pool.lifetimes.contains_key(a)
     && pool.lifetimes.contains_key(b)
     && a != b
-    // Non-overlapping lifetimes: a ends before b starts, or b ends before a starts
+    //  Non-overlapping lifetimes: a ends before b starts, or b ends before a starts
     && (pool.lifetimes[a].1 < pool.lifetimes[b].0
         || pool.lifetimes[b].1 < pool.lifetimes[a].0)
 }
 
-/// An aliasing plan is valid: all decisions alias compatible resources.
+///  An aliasing plan is valid: all decisions alias compatible resources.
 pub open spec fn aliasing_plan_valid(
     pool: TransientMemoryPool,
     decisions: Seq<AliasingDecision>,
@@ -118,7 +118,7 @@ pub open spec fn aliasing_plan_valid(
     }
 }
 
-/// Compute the total memory used without aliasing.
+///  Compute the total memory used without aliasing.
 pub open spec fn peak_memory_usage(
     pool: TransientMemoryPool,
 ) -> nat {
@@ -127,7 +127,7 @@ pub open spec fn peak_memory_usage(
     )
 }
 
-/// Memory savings from aliasing: sum of shared range sizes.
+///  Memory savings from aliasing: sum of shared range sizes.
 pub open spec fn aliased_memory_savings(
     _pool: TransientMemoryPool,
     decisions: Seq<AliasingDecision>,
@@ -137,12 +137,12 @@ pub open spec fn aliased_memory_savings(
     )
 }
 
-/// Pool utilization: allocated / total.
+///  Pool utilization: allocated / total.
 pub open spec fn pool_utilization(pool: TransientMemoryPool) -> nat {
     peak_memory_usage(pool)
 }
 
-/// All alias decisions are safe: aliased resources never overlap in time.
+///  All alias decisions are safe: aliased resources never overlap in time.
 pub open spec fn all_aliases_safe(
     pool: TransientMemoryPool,
     decisions: Seq<AliasingDecision>,
@@ -150,12 +150,12 @@ pub open spec fn all_aliases_safe(
     aliasing_plan_valid(pool, decisions)
 }
 
-/// A transient attachment is valid: positive size.
+///  A transient attachment is valid: positive size.
 pub open spec fn transient_attachment_valid(att: TransientAttachment) -> bool {
     att.size > 0
 }
 
-/// Two formats are compatible for aliasing: they are in the same size class.
+///  Two formats are compatible for aliasing: they are in the same size class.
 pub open spec fn format_compatible_for_aliasing(
     fmt_a: FormatSizeClass,
     fmt_b: FormatSizeClass,
@@ -163,7 +163,7 @@ pub open spec fn format_compatible_for_aliasing(
     fmt_a == fmt_b
 }
 
-/// Create a fresh transient memory pool.
+///  Create a fresh transient memory pool.
 pub open spec fn create_transient_pool_spec(id: nat, size: nat) -> TransientMemoryPool {
     TransientMemoryPool {
         allocations: Map::empty(),
@@ -174,7 +174,7 @@ pub open spec fn create_transient_pool_spec(id: nat, size: nat) -> TransientMemo
     }
 }
 
-/// Destroy a transient memory pool.
+///  Destroy a transient memory pool.
 pub open spec fn destroy_transient_pool_spec(pool: TransientMemoryPool) -> TransientMemoryPool
     recommends pool.alive,
 {
@@ -184,7 +184,7 @@ pub open spec fn destroy_transient_pool_spec(pool: TransientMemoryPool) -> Trans
     }
 }
 
-/// Allocate a transient resource in the pool.
+///  Allocate a transient resource in the pool.
 pub open spec fn allocate_transient_spec(
     pool: TransientMemoryPool,
     resource: ResourceId,
@@ -198,7 +198,7 @@ pub open spec fn allocate_transient_spec(
     }
 }
 
-/// Free a transient resource from the pool.
+///  Free a transient resource from the pool.
 pub open spec fn free_transient_spec(
     pool: TransientMemoryPool,
     resource: ResourceId,
@@ -210,7 +210,7 @@ pub open spec fn free_transient_spec(
     }
 }
 
-/// Alias two resources by assigning them the same memory range.
+///  Alias two resources by assigning them the same memory range.
 pub open spec fn alias_resources_spec(
     pool: TransientMemoryPool,
     a: ResourceId,
@@ -223,7 +223,7 @@ pub open spec fn alias_resources_spec(
     }
 }
 
-/// Remove aliasing between two resources.
+///  Remove aliasing between two resources.
 pub open spec fn unalias_resources_spec(
     pool: TransientMemoryPool,
     a: ResourceId,
@@ -235,13 +235,13 @@ pub open spec fn unalias_resources_spec(
     }
 }
 
-// ── Runtime ─────────────────────────────────────────────────────────────
+//  ── Runtime ─────────────────────────────────────────────────────────────
 
-/// Runtime wrapper for a transient memory pool.
+///  Runtime wrapper for a transient memory pool.
 pub struct RuntimeTransientPool {
-    /// Opaque handle for the underlying VkDeviceMemory.
+    ///  Opaque handle for the underlying VkDeviceMemory.
     pub handle: u64,
-    /// Ghost model of the pool.
+    ///  Ghost model of the pool.
     pub state: Ghost<TransientMemoryPool>,
 }
 
@@ -250,12 +250,12 @@ impl View for RuntimeTransientPool {
     open spec fn view(&self) -> TransientMemoryPool { self.state@ }
 }
 
-/// Well-formedness of runtime transient pool.
+///  Well-formedness of runtime transient pool.
 pub open spec fn runtime_transient_pool_wf(pool: &RuntimeTransientPool) -> bool {
     transient_pool_well_formed(pool@)
 }
 
-/// Exec: create a transient memory pool.
+///  Exec: create a transient memory pool.
 pub fn create_transient_pool_exec(
     handle: u64,
     id: Ghost<nat>,
@@ -272,7 +272,7 @@ pub fn create_transient_pool_exec(
     }
 }
 
-/// Exec: allocate a transient resource in the pool.
+///  Exec: allocate a transient resource in the pool.
 pub fn allocate_transient_exec(
     pool: &mut RuntimeTransientPool,
     resource: Ghost<ResourceId>,
@@ -289,7 +289,7 @@ pub fn allocate_transient_exec(
     pool.state = Ghost(allocate_transient_spec(pool.state@, resource@, range@, lifetime@));
 }
 
-/// Exec: free a transient resource from the pool.
+///  Exec: free a transient resource from the pool.
 pub fn free_transient_exec(
     pool: &mut RuntimeTransientPool,
     resource: Ghost<ResourceId>,
@@ -303,19 +303,19 @@ pub fn free_transient_exec(
     pool.state = Ghost(free_transient_spec(pool.state@, resource@));
 }
 
-/// Exec: compute an aliasing plan (returns ghost plan).
+///  Exec: compute an aliasing plan (returns ghost plan).
 pub fn compute_aliasing_exec(
     pool: &RuntimeTransientPool,
 ) -> (out: Ghost<Seq<AliasingDecision>>)
     requires runtime_transient_pool_wf(pool),
     ensures all_aliases_safe(pool@, out@),
 {
-    // In practice this would run a greedy aliasing algorithm;
-    // here we return an empty plan (trivially safe)
+    //  In practice this would run a greedy aliasing algorithm;
+    //  here we return an empty plan (trivially safe)
     Ghost(Seq::empty())
 }
 
-/// Exec: validate that an aliasing plan is safe.
+///  Exec: validate that an aliasing plan is safe.
 pub fn validate_aliasing_exec(
     pool: &RuntimeTransientPool,
     plan: Ghost<Seq<AliasingDecision>>,
@@ -326,7 +326,7 @@ pub fn validate_aliasing_exec(
     Ghost(all_aliases_safe(pool.state@, plan@))
 }
 
-/// Exec: destroy a transient memory pool.
+///  Exec: destroy a transient memory pool.
 pub fn destroy_transient_pool_exec(
     pool: &mut RuntimeTransientPool,
 )
@@ -340,7 +340,7 @@ pub fn destroy_transient_pool_exec(
     pool.state = Ghost(destroy_transient_pool_spec(pool.state@));
 }
 
-/// Exec: alias two resources in the pool to share the same memory range.
+///  Exec: alias two resources in the pool to share the same memory range.
 pub fn alias_resources_exec(
     pool: &mut RuntimeTransientPool,
     a: Ghost<ResourceId>,
@@ -357,7 +357,7 @@ pub fn alias_resources_exec(
     pool.state = Ghost(alias_resources_spec(pool.state@, a@, b@, range@));
 }
 
-/// Exec: remove aliasing between two resources.
+///  Exec: remove aliasing between two resources.
 pub fn unalias_resources_exec(
     pool: &mut RuntimeTransientPool,
     a: Ghost<ResourceId>,
@@ -373,7 +373,7 @@ pub fn unalias_resources_exec(
     pool.state = Ghost(unalias_resources_spec(pool.state@, a@, b@));
 }
 
-/// Exec: check if two formats are compatible for aliasing.
+///  Exec: check if two formats are compatible for aliasing.
 pub fn format_compatible_check_exec(
     fmt_a: Ghost<FormatSizeClass>,
     fmt_b: Ghost<FormatSizeClass>,
@@ -383,9 +383,9 @@ pub fn format_compatible_check_exec(
     Ghost(format_compatible_for_aliasing(fmt_a@, fmt_b@))
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// Destroying an empty, well-formed pool makes it not alive.
+///  Destroying an empty, well-formed pool makes it not alive.
 pub proof fn lemma_destroy_pool_requires_empty(
     pool: TransientMemoryPool,
 )
@@ -397,7 +397,7 @@ pub proof fn lemma_destroy_pool_requires_empty(
 {
 }
 
-/// Aliasing then unaliasing removes both resources from allocations.
+///  Aliasing then unaliasing removes both resources from allocations.
 pub proof fn lemma_alias_unalias_roundtrip(
     pool: TransientMemoryPool,
     a: ResourceId,
@@ -420,8 +420,8 @@ pub proof fn lemma_alias_unalias_roundtrip(
 {
 }
 
-/// Non-overlapping lifetimes make aliasing safe: aliased resources
-/// can share memory because they are never both live at the same time.
+///  Non-overlapping lifetimes make aliasing safe: aliased resources
+///  can share memory because they are never both live at the same time.
 pub proof fn lemma_aliasing_safe_non_overlapping_lifetimes(
     pool: TransientMemoryPool,
     a: ResourceId,
@@ -432,18 +432,18 @@ pub proof fn lemma_aliasing_safe_non_overlapping_lifetimes(
         can_alias_resources(pool, a, b),
         range.offset + range.size <= pool.pool_size,
     ensures
-        // Non-overlapping lifetimes hold
+        //  Non-overlapping lifetimes hold
         pool.lifetimes[a].1 < pool.lifetimes[b].0
             || pool.lifetimes[b].1 < pool.lifetimes[a].0,
-        // A single-decision plan using this aliasing is valid
+        //  A single-decision plan using this aliasing is valid
         aliasing_plan_valid(pool, seq![AliasingDecision {
             resource_a: a, resource_b: b, shared_range: range,
         }]),
 {
 }
 
-/// Aliasing saves exactly the shared range size per decision:
-/// the savings from a single aliasing decision equals the shared range size.
+///  Aliasing saves exactly the shared range size per decision:
+///  the savings from a single aliasing decision equals the shared range size.
 pub proof fn lemma_aliasing_reduces_memory(
     pool: TransientMemoryPool,
     a: ResourceId,
@@ -459,7 +459,7 @@ pub proof fn lemma_aliasing_reduces_memory(
         range.offset + range.size <= pool.pool_size,
         range.size > 0,
     ensures ({
-        // After aliasing, both resources share the same range
+        //  After aliasing, both resources share the same range
         let aliased = alias_resources_spec(pool, a, b, range);
         aliased.allocations.contains_key(a)
         && aliased.allocations.contains_key(b)
@@ -469,7 +469,7 @@ pub proof fn lemma_aliasing_reduces_memory(
 {
 }
 
-/// Pool is well-formed after allocating a valid transient.
+///  Pool is well-formed after allocating a valid transient.
 pub proof fn lemma_pool_wf_after_allocate(
     pool: TransientMemoryPool,
     resource: ResourceId,
@@ -493,7 +493,7 @@ pub proof fn lemma_pool_wf_after_allocate(
 {
 }
 
-/// Pool is well-formed after freeing a resource.
+///  Pool is well-formed after freeing a resource.
 pub proof fn lemma_pool_wf_after_free(
     pool: TransientMemoryPool,
     resource: ResourceId,
@@ -511,7 +511,7 @@ pub proof fn lemma_pool_wf_after_free(
 {
 }
 
-/// Aliasing preserves pool structure.
+///  Aliasing preserves pool structure.
 pub proof fn lemma_alias_preserves_pool_wf(
     pool: TransientMemoryPool,
     a: ResourceId,
@@ -533,7 +533,7 @@ pub proof fn lemma_alias_preserves_pool_wf(
 {
 }
 
-/// Empty plan is always valid (no decisions to violate).
+///  Empty plan is always valid (no decisions to violate).
 pub proof fn lemma_no_alias_no_hazard(
     pool: TransientMemoryPool,
 )
@@ -544,8 +544,8 @@ pub proof fn lemma_no_alias_no_hazard(
 {
 }
 
-/// Transient lifetime first_pass ≤ last_pass, and the resource has
-/// a valid allocation within pool bounds.
+///  Transient lifetime first_pass ≤ last_pass, and the resource has
+///  a valid allocation within pool bounds.
 pub proof fn lemma_transient_lifetime_bounded(
     pool: TransientMemoryPool,
     resource: ResourceId,
@@ -560,7 +560,7 @@ pub proof fn lemma_transient_lifetime_bounded(
 {
 }
 
-/// All allocations fit within the pool: no allocation exceeds pool_size.
+///  All allocations fit within the pool: no allocation exceeds pool_size.
 pub proof fn lemma_all_allocations_fit(
     pool: TransientMemoryPool,
     resource: ResourceId,
@@ -574,7 +574,7 @@ pub proof fn lemma_all_allocations_fit(
 {
 }
 
-/// Format compatibility is symmetric.
+///  Format compatibility is symmetric.
 pub proof fn lemma_format_compatible_symmetric(fmt_a: FormatSizeClass, fmt_b: FormatSizeClass)
     ensures
         format_compatible_for_aliasing(fmt_a, fmt_b)
@@ -582,7 +582,7 @@ pub proof fn lemma_format_compatible_symmetric(fmt_a: FormatSizeClass, fmt_b: Fo
 {
 }
 
-/// Created pool is well-formed.
+///  Created pool is well-formed.
 pub proof fn lemma_create_pool_wf(id: nat, size: nat)
     requires size > 0,
     ensures
@@ -590,20 +590,20 @@ pub proof fn lemma_create_pool_wf(id: nat, size: nat)
 {
 }
 
-/// Destroying pool invalidates it: alive becomes false, preventing further use.
+///  Destroying pool invalidates it: alive becomes false, preventing further use.
 pub proof fn lemma_destroy_pool_invalidates(pool: TransientMemoryPool)
     requires transient_pool_well_formed(pool),
     ensures
         !destroy_transient_pool_spec(pool).alive,
         !transient_pool_well_formed(destroy_transient_pool_spec(pool)),
-        // Structure is preserved
+        //  Structure is preserved
         destroy_transient_pool_spec(pool).pool_id == pool.pool_id,
         destroy_transient_pool_spec(pool).pool_size == pool.pool_size,
 {
 }
 
-/// Allocate then free roundtrip: allocating then immediately freeing
-/// a fresh resource restores the original allocations and lifetimes.
+///  Allocate then free roundtrip: allocating then immediately freeing
+///  a fresh resource restores the original allocations and lifetimes.
 pub proof fn lemma_allocate_free_roundtrip(
     pool: TransientMemoryPool,
     resource: ResourceId,
@@ -628,7 +628,7 @@ pub proof fn lemma_allocate_free_roundtrip(
 {
 }
 
-/// Unaliasing removes both resources from allocations.
+///  Unaliasing removes both resources from allocations.
 pub proof fn lemma_unalias_restores_exclusive(
     pool: TransientMemoryPool,
     a: ResourceId,
@@ -648,7 +648,7 @@ pub proof fn lemma_unalias_restores_exclusive(
 {
 }
 
-/// Aliasing from graph: resources with non-overlapping graph lifetimes can be aliased.
+///  Aliasing from graph: resources with non-overlapping graph lifetimes can be aliased.
 pub proof fn lemma_all_aliases_from_graph(
     pool: TransientMemoryPool,
     a: ResourceId,
@@ -667,12 +667,12 @@ pub proof fn lemma_all_aliases_from_graph(
         pool.lifetimes[b] == lifetime_from_graph(graph_lifetimes, b),
     ensures
         can_alias_resources(pool, a, b),
-        // The lifetimes are properly ordered (a finishes before b starts)
+        //  The lifetimes are properly ordered (a finishes before b starts)
         pool.lifetimes[a].1 < pool.lifetimes[b].0,
 {
 }
 
-/// Aliasing is symmetric: if a can alias with b, then b can alias with a.
+///  Aliasing is symmetric: if a can alias with b, then b can alias with a.
 pub proof fn lemma_aliasing_symmetric(
     pool: TransientMemoryPool,
     a: ResourceId,
@@ -683,7 +683,7 @@ pub proof fn lemma_aliasing_symmetric(
 {
 }
 
-/// A valid aliasing plan has all decisions within pool bounds.
+///  A valid aliasing plan has all decisions within pool bounds.
 pub proof fn lemma_valid_plan_within_bounds(
     pool: TransientMemoryPool,
     decisions: Seq<AliasingDecision>,
@@ -698,4 +698,4 @@ pub proof fn lemma_valid_plan_within_bounds(
 {
 }
 
-} // verus!
+} //  verus!

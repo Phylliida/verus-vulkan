@@ -3,27 +3,27 @@ use crate::resource::*;
 
 verus! {
 
-// ── Types ───────────────────────────────────────────────────────────────
+//  ── Types ───────────────────────────────────────────────────────────────
 
-/// Ownership state of a resource with respect to queue families.
+///  Ownership state of a resource with respect to queue families.
 ///
-/// In Vulkan, resources accessed by multiple queue families require
-/// explicit ownership transfers via release/acquire barrier pairs.
-/// Without these, GPU caches may not be flushed/invalidated correctly.
+///  In Vulkan, resources accessed by multiple queue families require
+///  explicit ownership transfers via release/acquire barrier pairs.
+///  Without these, GPU caches may not be flushed/invalidated correctly.
 pub struct QueueFamilyOwnership {
-    /// Current owning queue family (None = unowned / concurrent mode).
+    ///  Current owning queue family (None = unowned / concurrent mode).
     pub owner: Option<nat>,
-    /// Whether a release barrier has been issued but acquire not yet done.
+    ///  Whether a release barrier has been issued but acquire not yet done.
     pub release_pending: bool,
-    /// Source family of pending transfer (valid when release_pending).
+    ///  Source family of pending transfer (valid when release_pending).
     pub pending_src_family: nat,
-    /// Destination family of pending transfer (valid when release_pending).
+    ///  Destination family of pending transfer (valid when release_pending).
     pub pending_dst_family: nat,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// Initial ownership: created on a specific queue family.
+///  Initial ownership: created on a specific queue family.
 pub open spec fn initial_ownership(family: nat) -> QueueFamilyOwnership {
     QueueFamilyOwnership {
         owner: Some(family),
@@ -33,7 +33,7 @@ pub open spec fn initial_ownership(family: nat) -> QueueFamilyOwnership {
     }
 }
 
-/// Concurrent ownership: no specific owner (VK_SHARING_MODE_CONCURRENT).
+///  Concurrent ownership: no specific owner (VK_SHARING_MODE_CONCURRENT).
 pub open spec fn concurrent_ownership() -> QueueFamilyOwnership {
     QueueFamilyOwnership {
         owner: None,
@@ -43,15 +43,15 @@ pub open spec fn concurrent_ownership() -> QueueFamilyOwnership {
     }
 }
 
-/// Whether a resource is owned by the given queue family and can be accessed.
+///  Whether a resource is owned by the given queue family and can be accessed.
 pub open spec fn can_access(ownership: QueueFamilyOwnership, family: nat) -> bool {
-    // Concurrent mode: any family can access
+    //  Concurrent mode: any family can access
     ownership.owner.is_none()
-    // Exclusive mode: must be the owner and no pending transfer
+    //  Exclusive mode: must be the owner and no pending transfer
     || (ownership.owner == Some(family) && !ownership.release_pending)
 }
 
-/// Issue a release barrier: starts an ownership transfer.
+///  Issue a release barrier: starts an ownership transfer.
 pub open spec fn release_ownership(
     ownership: QueueFamilyOwnership,
     src_family: nat,
@@ -69,7 +69,7 @@ pub open spec fn release_ownership(
     }
 }
 
-/// Issue an acquire barrier: completes an ownership transfer.
+///  Issue an acquire barrier: completes an ownership transfer.
 pub open spec fn acquire_ownership(
     ownership: QueueFamilyOwnership,
     dst_family: nat,
@@ -84,8 +84,8 @@ pub open spec fn acquire_ownership(
     }
 }
 
-/// An ownership transfer is valid: release must have been issued with
-/// matching destination, and the source must have been the owner.
+///  An ownership transfer is valid: release must have been issued with
+///  matching destination, and the source must have been the owner.
 pub open spec fn transfer_valid(
     ownership: QueueFamilyOwnership,
     dst_family: nat,
@@ -95,7 +95,7 @@ pub open spec fn transfer_valid(
     && ownership.owner == Some(ownership.pending_src_family)
 }
 
-/// Same-family access: no transfer needed.
+///  Same-family access: no transfer needed.
 pub open spec fn same_family_access(
     ownership: QueueFamilyOwnership,
     family: nat,
@@ -103,7 +103,7 @@ pub open spec fn same_family_access(
     ownership.owner == Some(family) && !ownership.release_pending
 }
 
-/// Cross-family access is safe only after a completed transfer.
+///  Cross-family access is safe only after a completed transfer.
 pub open spec fn cross_family_access_safe(
     before: QueueFamilyOwnership,
     after: QueueFamilyOwnership,
@@ -112,9 +112,9 @@ pub open spec fn cross_family_access_safe(
     can_access(after, new_family)
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// After release + acquire, the new family owns the resource.
+///  After release + acquire, the new family owns the resource.
 pub proof fn lemma_release_acquire_transfers(
     ownership: QueueFamilyOwnership,
     src_family: nat,
@@ -133,7 +133,7 @@ pub proof fn lemma_release_acquire_transfers(
 {
 }
 
-/// Same-family access doesn't need a transfer.
+///  Same-family access doesn't need a transfer.
 pub proof fn lemma_same_family_no_transfer(
     ownership: QueueFamilyOwnership,
     family: nat,
@@ -146,14 +146,14 @@ pub proof fn lemma_same_family_no_transfer(
 {
 }
 
-/// Concurrent mode allows any family to access.
+///  Concurrent mode allows any family to access.
 pub proof fn lemma_concurrent_any_family(family: nat)
     ensures
         can_access(concurrent_ownership(), family),
 {
 }
 
-/// After release without acquire, no one can access (exclusive mode).
+///  After release without acquire, no one can access (exclusive mode).
 pub proof fn lemma_release_blocks_access(
     ownership: QueueFamilyOwnership,
     src_family: nat,
@@ -165,22 +165,22 @@ pub proof fn lemma_release_blocks_access(
         src_family != dst_family,
     ensures ({
         let released = release_ownership(ownership, src_family, dst_family);
-        // Source can't access (release_pending)
+        //  Source can't access (release_pending)
         !can_access(released, src_family)
-        // Destination can't access yet (still owned by source)
+        //  Destination can't access yet (still owned by source)
         && !can_access(released, dst_family)
     }),
 {
 }
 
-/// Initial ownership allows the creating family to access.
+///  Initial ownership allows the creating family to access.
 pub proof fn lemma_initial_owner_can_access(family: nat)
     ensures
         can_access(initial_ownership(family), family),
 {
 }
 
-/// A transfer is valid after release with matching dst_family.
+///  A transfer is valid after release with matching dst_family.
 pub proof fn lemma_transfer_valid_after_release(
     ownership: QueueFamilyOwnership,
     src_family: nat,
@@ -197,4 +197,4 @@ pub proof fn lemma_transfer_valid_after_release(
 {
 }
 
-} // verus!
+} //  verus!

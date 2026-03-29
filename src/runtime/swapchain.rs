@@ -8,11 +8,11 @@ use super::image_layout::RuntimeImageLayoutTracker;
 
 verus! {
 
-/// Runtime wrapper for a Vulkan swapchain.
+///  Runtime wrapper for a Vulkan swapchain.
 pub struct RuntimeSwapchain {
-    /// Opaque handle (maps to VkSwapchainKHR).
+    ///  Opaque handle (maps to VkSwapchainKHR).
     pub handle: u64,
-    /// Ghost model of the swapchain state.
+    ///  Ghost model of the swapchain state.
     pub state: Ghost<SwapchainState>,
 }
 
@@ -21,7 +21,7 @@ impl View for RuntimeSwapchain {
     open spec fn view(&self) -> SwapchainState { self.state@ }
 }
 
-/// Well-formedness of the runtime swapchain.
+///  Well-formedness of the runtime swapchain.
 pub open spec fn runtime_swapchain_wf(sc: &RuntimeSwapchain) -> bool {
     sc@.alive && sc@.image_states.len() > 0
     && sc@.current_image_ids.len() == sc@.image_states.len()
@@ -29,51 +29,51 @@ pub open spec fn runtime_swapchain_wf(sc: &RuntimeSwapchain) -> bool {
         sc@.current_image_ids[j] < sc@.next_image_id
 }
 
-/// Number of images in the swapchain.
+///  Number of images in the swapchain.
 pub open spec fn swapchain_image_count(sc: &RuntimeSwapchain) -> nat {
     sc@.image_states.len()
 }
 
-/// Number of currently acquired images.
+///  Number of currently acquired images.
 pub open spec fn swapchain_acquired_count(sc: &RuntimeSwapchain) -> nat {
     count_acquired(sc@)
 }
 
-/// Number of present-pending images.
+///  Number of present-pending images.
 pub open spec fn swapchain_present_pending_count(sc: &RuntimeSwapchain) -> nat {
     count_present_pending(sc@)
 }
 
-/// Total in-flight images (acquired + present-pending).
+///  Total in-flight images (acquired + present-pending).
 pub open spec fn swapchain_in_flight_count(sc: &RuntimeSwapchain) -> nat {
     count_in_flight(sc@)
 }
 
-/// Whether the swapchain has any available images to acquire.
+///  Whether the swapchain has any available images to acquire.
 pub open spec fn swapchain_has_available(sc: &RuntimeSwapchain) -> bool {
     exists|i: int| 0 <= i < sc@.image_states.len()
         && sc@.image_states[i] == SwapchainImageState::Available
 }
 
-/// All images are currently in Available state.
+///  All images are currently in Available state.
 pub open spec fn swapchain_all_available(sc: &RuntimeSwapchain) -> bool {
     all_available(sc@)
 }
 
-/// Swapchain ID.
+///  Swapchain ID.
 pub open spec fn swapchain_id(sc: &RuntimeSwapchain) -> nat {
     sc@.id
 }
 
-/// Current logical image id for swapchain image at `idx`.
+///  Current logical image id for swapchain image at `idx`.
 pub open spec fn swapchain_current_image_id(sc: &RuntimeSwapchain, idx: nat) -> nat
     recommends idx < sc@.current_image_ids.len(),
 {
     sc@.current_image_ids[idx as int]
 }
 
-/// Whether a specific image can be acquired.
-/// Destroyed or retired swapchains cannot acquire images.
+///  Whether a specific image can be acquired.
+///  Destroyed or retired swapchains cannot acquire images.
 pub open spec fn can_acquire_image(sc: &RuntimeSwapchain, idx: nat) -> bool {
     sc@.alive
     && !sc@.retired
@@ -81,13 +81,13 @@ pub open spec fn can_acquire_image(sc: &RuntimeSwapchain, idx: nat) -> bool {
     && sc@.image_states[idx as int] == SwapchainImageState::Available
 }
 
-/// Whether a specific image can be presented.
+///  Whether a specific image can be presented.
 pub open spec fn can_present_image(sc: &RuntimeSwapchain, idx: nat) -> bool {
     idx < sc@.image_states.len()
     && sc@.image_states[idx as int] == SwapchainImageState::Acquired
 }
 
-/// Exec: create a swapchain with all images initially available.
+///  Exec: create a swapchain with all images initially available.
 pub fn create_swapchain_exec(
     handle: u64,
     id: Ghost<nat>,
@@ -122,9 +122,9 @@ pub fn create_swapchain_exec(
     }
 }
 
-/// Exec: acquire the next available image at index `idx`.
-/// Caller must prove exclusive access to the swapchain.
-/// After acquire, the image id at `idx` is rotated to a fresh value.
+///  Exec: acquire the next available image at index `idx`.
+///  Caller must prove exclusive access to the swapchain.
+///  After acquire, the image id at `idx` is rotated to a fresh value.
 pub fn acquire_next_image_exec(
     sc: &mut RuntimeSwapchain,
     idx: u64,
@@ -139,7 +139,7 @@ pub fn acquire_next_image_exec(
         sc@ == acquire_image(old(sc)@, idx as nat).unwrap(),
         sc@.image_states[idx as int] == SwapchainImageState::Acquired,
         sc@.image_states.len() == old(sc)@.image_states.len(),
-        // Image-id rotation: the old id is gone, a fresh id is assigned
+        //  Image-id rotation: the old id is gone, a fresh id is assigned
         sc@.current_image_ids[idx as int] == old(sc)@.next_image_id,
         sc@.next_image_id == old(sc)@.next_image_id + 1,
         sc@.current_image_ids.len() == old(sc)@.current_image_ids.len(),
@@ -147,9 +147,9 @@ pub fn acquire_next_image_exec(
     sc.state = Ghost(acquire_image(sc.state@, idx as nat).unwrap());
 }
 
-/// Exec: present the image at index `idx`.
-/// Caller must prove the image is in PresentSrc layout via their layout tracker.
-/// Requires exclusive access to both the swapchain and the presentation queue.
+///  Exec: present the image at index `idx`.
+///  Caller must prove the image is in PresentSrc layout via their layout tracker.
+///  Requires exclusive access to both the swapchain and the presentation queue.
 pub fn present_exec(
     sc: &mut RuntimeSwapchain,
     idx: u64,
@@ -165,7 +165,7 @@ pub fn present_exec(
         can_present_image(&*old(sc), idx as nat),
         layout_tracker@.contains_key(image_resource@),
         layout_tracker@[image_resource@] == ImageLayout::PresentSrc,
-        // Rendering-complete semaphore must be signaled before present
+        //  Rendering-complete semaphore must be signaled before present
         wait_semaphore@.signaled,
         holds_exclusive(reg@, SyncObjectId::Handle(old(sc)@.id), thread@),
         holds_exclusive(reg@, SyncObjectId::Queue(queue_id@), thread@),
@@ -177,8 +177,8 @@ pub fn present_exec(
     sc.state = Ghost(present_image(sc.state@, idx as nat).unwrap());
 }
 
-/// Exec: mark a present-pending image as available (presentation completed).
-/// Caller must prove exclusive access to the swapchain.
+///  Exec: mark a present-pending image as available (presentation completed).
+///  Caller must prove exclusive access to the swapchain.
 pub fn present_complete_exec(
     sc: &mut RuntimeSwapchain,
     idx: u64,
@@ -198,7 +198,7 @@ pub fn present_complete_exec(
     sc.state = Ghost(present_complete(sc.state@, idx as nat).unwrap());
 }
 
-/// Exec: get image count (queries the driver).
+///  Exec: get image count (queries the driver).
 #[verifier::external_body]
 pub fn get_swapchain_image_count_exec(sc: &RuntimeSwapchain) -> (out: u64)
     requires
@@ -209,9 +209,9 @@ pub fn get_swapchain_image_count_exec(sc: &RuntimeSwapchain) -> (out: u64)
     unimplemented!()
 }
 
-/// Exec: recreate swapchain with new image count (all images reset to Available).
-/// Caller must prove no images are in-flight (all Available) and exclusive access.
-/// Image ids are re-initialized from `base_image_id`.
+///  Exec: recreate swapchain with new image count (all images reset to Available).
+///  Caller must prove no images are in-flight (all Available) and exclusive access.
+///  Image ids are re-initialized from `base_image_id`.
 pub fn recreate_swapchain_exec(
     sc: &mut RuntimeSwapchain,
     new_image_count: u64,
@@ -249,9 +249,9 @@ pub fn recreate_swapchain_exec(
     true
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// Creating a swapchain gives a well-formed result.
+///  Creating a swapchain gives a well-formed result.
 pub proof fn lemma_create_swapchain_wf(
     id: nat, image_count: nat, base_image_id: nat, info: SwapchainImageInfo,
 )
@@ -271,7 +271,7 @@ pub proof fn lemma_create_swapchain_wf(
 {
 }
 
-/// Acquiring a valid image succeeds (delegates to spec lemma).
+///  Acquiring a valid image succeeds (delegates to spec lemma).
 pub proof fn lemma_acquire_valid(sc: &RuntimeSwapchain, idx: nat)
     requires
         runtime_swapchain_wf(sc),
@@ -282,7 +282,7 @@ pub proof fn lemma_acquire_valid(sc: &RuntimeSwapchain, idx: nat)
     lemma_acquire_available_succeeds(sc@, idx);
 }
 
-/// Presenting a valid image succeeds.
+///  Presenting a valid image succeeds.
 pub proof fn lemma_present_valid(sc: &RuntimeSwapchain, idx: nat)
     requires
         runtime_swapchain_wf(sc),
@@ -292,7 +292,7 @@ pub proof fn lemma_present_valid(sc: &RuntimeSwapchain, idx: nat)
 {
 }
 
-/// Full roundtrip: acquire → present → complete returns to Available.
+///  Full roundtrip: acquire → present → complete returns to Available.
 pub proof fn lemma_acquire_present_roundtrip(sc: &RuntimeSwapchain, idx: nat)
     requires
         runtime_swapchain_wf(sc),
@@ -307,7 +307,7 @@ pub proof fn lemma_acquire_present_roundtrip(sc: &RuntimeSwapchain, idx: nat)
     lemma_full_cycle_returns_available(sc@, idx);
 }
 
-/// Image count is bounded by in-flight.
+///  Image count is bounded by in-flight.
 pub proof fn lemma_acquired_leq_total(sc: &RuntimeSwapchain)
     requires runtime_swapchain_wf(sc),
     ensures
@@ -326,7 +326,7 @@ proof fn lemma_acquired_leq_total_helper(states: Seq<SwapchainImageState>, start
     }
 }
 
-/// Present-pending count is bounded by total.
+///  Present-pending count is bounded by total.
 pub proof fn lemma_present_pending_leq_total(sc: &RuntimeSwapchain)
     requires runtime_swapchain_wf(sc),
     ensures
@@ -345,7 +345,7 @@ proof fn lemma_present_pending_leq_total_helper(states: Seq<SwapchainImageState>
     }
 }
 
-/// In-flight count is bounded: acquired ≤ total and present_pending ≤ total.
+///  In-flight count is bounded: acquired ≤ total and present_pending ≤ total.
 pub proof fn lemma_in_flight_bounded(sc: &RuntimeSwapchain)
     requires runtime_swapchain_wf(sc),
     ensures
@@ -356,7 +356,7 @@ pub proof fn lemma_in_flight_bounded(sc: &RuntimeSwapchain)
     lemma_present_pending_leq_total(sc);
 }
 
-/// Acquire preserves other images.
+///  Acquire preserves other images.
 pub proof fn lemma_acquire_preserves_other(sc: &RuntimeSwapchain, idx: nat, other: nat)
     requires
         runtime_swapchain_wf(sc),
@@ -370,8 +370,8 @@ pub proof fn lemma_acquire_preserves_other(sc: &RuntimeSwapchain, idx: nat, othe
     crate::swapchain::lemma_acquire_preserves_other(sc@, idx, other);
 }
 
-/// Recreate preserves the swapchain ID, resets all images to Available,
-/// and the result is well-formed.
+///  Recreate preserves the swapchain ID, resets all images to Available,
+///  and the result is well-formed.
 pub proof fn lemma_recreate_preserves_id(
     old_sc: SwapchainState,
     new_image_count: nat,
@@ -395,4 +395,4 @@ pub proof fn lemma_recreate_preserves_id(
 {
 }
 
-} // verus!
+} //  verus!

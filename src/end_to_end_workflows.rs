@@ -17,12 +17,12 @@ use crate::fence::*;
 
 verus! {
 
-// ══════════════════════════════════════════════════════════════════════
-// Chain 8: Pipeline Library → Draw
-// pipeline_library.rs + draw_state.rs
-// ══════════════════════════════════════════════════════════════════════
+//  ══════════════════════════════════════════════════════════════════════
+//  Chain 8: Pipeline Library → Draw
+//  pipeline_library.rs + draw_state.rs
+//  ══════════════════════════════════════════════════════════════════════
 
-/// 4 libraries of distinct types linked → produces a complete pipeline.
+///  4 libraries of distinct types linked → produces a complete pipeline.
 pub proof fn lemma_link_libraries_enables_draw(
     vi: PipelineLibraryState,
     pr: PipelineLibraryState,
@@ -53,7 +53,7 @@ pub proof fn lemma_link_libraries_enables_draw(
     lemma_link_is_complete(libs);
 }
 
-/// Linked pipeline's descriptor layouts come from the constituent libraries.
+///  Linked pipeline's descriptor layouts come from the constituent libraries.
 pub proof fn lemma_library_descriptors_propagate(
     vi: PipelineLibraryState,
     pr: PipelineLibraryState,
@@ -70,8 +70,8 @@ pub proof fn lemma_library_descriptors_propagate(
     lemma_link_preserves_library_ids(seq![vi, pr, fs, fo]);
 }
 
-/// After linking, destroying individual library parts doesn't affect the
-/// linked pipeline's completeness (it's a snapshot of the library states).
+///  After linking, destroying individual library parts doesn't affect the
+///  linked pipeline's completeness (it's a snapshot of the library states).
 pub proof fn lemma_library_link_then_destroy_parts(
     vi: PipelineLibraryState,
     pr: PipelineLibraryState,
@@ -82,7 +82,7 @@ pub proof fn lemma_library_link_then_destroy_parts(
         link_valid(seq![vi, pr, fs, fo]),
     ensures ({
         let linked = link_libraries_ghost(seq![vi, pr, fs, fo]);
-        // Destroying original libraries doesn't change the linked pipeline
+        //  Destroying original libraries doesn't change the linked pipeline
         let _destroyed_vi = destroy_library_ghost(vi);
         linked.complete
     }),
@@ -90,12 +90,12 @@ pub proof fn lemma_library_link_then_destroy_parts(
     lemma_link_is_complete(seq![vi, pr, fs, fo]);
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// Chain 9: Descriptor Buffer → Dispatch
-// descriptor_buffer.rs + compute_validation.rs
-// ══════════════════════════════════════════════════════════════════════
+//  ══════════════════════════════════════════════════════════════════════
+//  Chain 9: Descriptor Buffer → Dispatch
+//  descriptor_buffer.rs + compute_validation.rs
+//  ══════════════════════════════════════════════════════════════════════
 
-/// Fresh state → bind buffers → descriptor state has the buffers.
+///  Fresh state → bind buffers → descriptor state has the buffers.
 pub proof fn lemma_bind_descriptor_buffer_enables_dispatch(
     limits: DescriptorBufferLimits,
     binding: DescriptorBufferBinding,
@@ -114,8 +114,8 @@ pub proof fn lemma_bind_descriptor_buffer_enables_dispatch(
     lemma_bind_sets_binding(state, seq![binding], 0);
 }
 
-/// Device alignment → buffer address aligned → offset aligned (alignment
-/// transitivity chain).
+///  Device alignment → buffer address aligned → offset aligned (alignment
+///  transitivity chain).
 pub proof fn lemma_descriptor_buffer_alignment_chain(
     device_alignment: nat,
     buffer_alignment: nat,
@@ -131,12 +131,12 @@ pub proof fn lemma_descriptor_buffer_alignment_chain(
     lemma_offset_alignment_transitive(offset, buffer_alignment, device_alignment);
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// Chain 10: Mesh Shading Pipeline Lifecycle
-// mesh_shading.rs + flags.rs + device.rs + fence.rs
-// ══════════════════════════════════════════════════════════════════════
+//  ══════════════════════════════════════════════════════════════════════
+//  Chain 10: Mesh Shading Pipeline Lifecycle
+//  mesh_shading.rs + flags.rs + device.rs + fence.rs
+//  ══════════════════════════════════════════════════════════════════════
 
-/// Full mesh pipeline lifecycle: create → dispatch → fence wait → destroy.
+///  Full mesh pipeline lifecycle: create → dispatch → fence wait → destroy.
 pub proof fn lemma_mesh_pipeline_full_lifecycle(
     id: nat,
     mesh_shader: nat,
@@ -153,13 +153,13 @@ pub proof fn lemma_mesh_pipeline_full_lifecycle(
         params.group_count_x * params.group_count_y * params.group_count_z
             <= limits.max_draw_mesh_tasks_count,
     ensures ({
-        // Create
+        //  Create
         let pipeline = create_mesh_pipeline_ghost(id, None, mesh_shader, layouts, 1, 1);
-        // Pipeline is well-formed
+        //  Pipeline is well-formed
         let wf = mesh_pipeline_well_formed(pipeline, limits);
-        // Dispatch is valid
+        //  Dispatch is valid
         let dv = mesh_dispatch_valid(pipeline, params, limits);
-        // Destroy
+        //  Destroy
         let destroyed = destroy_mesh_pipeline_ghost(pipeline);
         wf && dv && !destroyed.alive
     }),
@@ -169,8 +169,8 @@ pub proof fn lemma_mesh_pipeline_full_lifecycle(
     lemma_task_optional(id, mesh_shader, layouts, limits);
 }
 
-/// Mesh dispatch and vertex draw are mutually exclusive: mesh pipeline
-/// stages don't include vertex shader stages.
+///  Mesh dispatch and vertex draw are mutually exclusive: mesh pipeline
+///  stages don't include vertex shader stages.
 pub proof fn lemma_mesh_dispatch_excludes_vertex_draw(
     state: MeshPipelineState,
 )
@@ -182,7 +182,7 @@ pub proof fn lemma_mesh_dispatch_excludes_vertex_draw(
     lemma_mesh_excludes_vertex(state);
 }
 
-/// Mesh pipeline stages are a subset of all known stages.
+///  Mesh pipeline stages are a subset of all known stages.
 pub proof fn lemma_mesh_stages_in_pipeline_mask(
     state: MeshPipelineState,
 )
@@ -198,21 +198,21 @@ pub proof fn lemma_mesh_stages_in_pipeline_mask(
     }
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// Chain 11: Host Image Copy + Layout Transition
-// host_image_copy.rs + image_layout.rs + image_layout_fsm.rs
-// ══════════════════════════════════════════════════════════════════════
+//  ══════════════════════════════════════════════════════════════════════
+//  Chain 11: Host Image Copy + Layout Transition
+//  host_image_copy.rs + image_layout.rs + image_layout_fsm.rs
+//  ══════════════════════════════════════════════════════════════════════
 
-/// Host copy to image (TransferDstOptimal) → host transition to
-/// ShaderReadOnlyOptimal: valid end-to-end sequence.
+///  Host copy to image (TransferDstOptimal) → host transition to
+///  ShaderReadOnlyOptimal: valid end-to-end sequence.
 pub proof fn lemma_host_copy_to_then_transition(
     image: ResourceId,
     map: ImageLayoutMap,
 )
     ensures ({
-        // TransferDstOptimal is valid for destination
+        //  TransferDstOptimal is valid for destination
         let dst_valid = host_copy_layout_valid_for_dst(ImageLayout::TransferDstOptimal);
-        // Transition from TransferDstOptimal to ShaderReadOnlyOptimal is valid
+        //  Transition from TransferDstOptimal to ShaderReadOnlyOptimal is valid
         let transition = HostImageTransition {
             image,
             old_layout: ImageLayout::TransferDstOptimal,
@@ -225,8 +225,8 @@ pub proof fn lemma_host_copy_to_then_transition(
     lemma_transfer_dst_valid_for_dst();
 }
 
-/// Host copy roundtrip: copy_to needs dst layout, copy_from needs src layout.
-/// Both are valid with General.
+///  Host copy roundtrip: copy_to needs dst layout, copy_from needs src layout.
+///  Both are valid with General.
 pub proof fn lemma_host_copy_roundtrip_layouts()
     ensures
         host_copy_layout_valid_for_dst(ImageLayout::General),
@@ -236,7 +236,7 @@ pub proof fn lemma_host_copy_roundtrip_layouts()
     lemma_src_layout_allows_general();
 }
 
-/// Two sequential host transitions compose: A→B then B→C.
+///  Two sequential host transitions compose: A→B then B→C.
 pub proof fn lemma_host_transition_chain(
     image: ResourceId,
     map: ImageLayoutMap,
@@ -263,12 +263,12 @@ pub proof fn lemma_host_transition_chain(
     lemma_transition_updates_layout(map1, t2);
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// Chain 12: Device Generated Commands Lifecycle
-// device_generated_commands.rs
-// ══════════════════════════════════════════════════════════════════════
+//  ══════════════════════════════════════════════════════════════════════
+//  Chain 12: Device Generated Commands Lifecycle
+//  device_generated_commands.rs
+//  ══════════════════════════════════════════════════════════════════════
 
-/// Full DGC lifecycle: create layout → preprocess → execute → consumed.
+///  Full DGC lifecycle: create layout → preprocess → execute → consumed.
 pub proof fn lemma_dgc_preprocess_execute_lifecycle(
     layout_id: nat,
     tokens: Seq<IndirectCommandsLayoutToken>,
@@ -285,9 +285,9 @@ pub proof fn lemma_dgc_preprocess_execute_lifecycle(
         info.preprocess_size >= info.sequence_count * stride,
     ensures ({
         let layout = create_layout_ghost(layout_id, tokens, stride, stage_flags);
-        // Preprocess produces preprocessed state
+        //  Preprocess produces preprocessed state
         let pp = preprocess_ghost(info);
-        // Execute consumes the preprocess
+        //  Execute consumes the preprocess
         let consumed = execute_ghost(pp);
         pp.preprocessed && !consumed.preprocessed
         && layout.alive
@@ -300,7 +300,7 @@ pub proof fn lemma_dgc_preprocess_execute_lifecycle(
     lemma_execute_consumes_preprocess(pp);
 }
 
-/// DGC execution set references a pipeline — the pipeline must be alive.
+///  DGC execution set references a pipeline — the pipeline must be alive.
 pub proof fn lemma_dgc_layout_requires_pipeline(
     exec_set: IndirectExecutionSetState,
 )
@@ -309,7 +309,7 @@ pub proof fn lemma_dgc_layout_requires_pipeline(
 {
 }
 
-/// After execute consumes preprocess, a new preprocess can be issued.
+///  After execute consumes preprocess, a new preprocess can be issued.
 pub proof fn lemma_dgc_repreprocess_after_consume(
     info: GeneratedCommandsInfo,
 )
@@ -326,4 +326,4 @@ pub proof fn lemma_dgc_repreprocess_after_consume(
     lemma_preprocess_sets_preprocessed(info);
 }
 
-} // verus!
+} //  verus!

@@ -8,9 +8,9 @@ use crate::flags::*;
 
 verus! {
 
-// ── Types ───────────────────────────────────────────────────────────────
+//  ── Types ───────────────────────────────────────────────────────────────
 
-/// A region for an image-to-image copy.
+///  A region for an image-to-image copy.
 pub struct ImageCopyRegion {
     pub src_subresource: ImageSubresource,
     pub src_offset_x: nat,
@@ -25,7 +25,7 @@ pub struct ImageCopyRegion {
     pub extent_depth: nat,
 }
 
-/// A region for a buffer-to-image or image-to-buffer copy.
+///  A region for a buffer-to-image or image-to-buffer copy.
 pub struct BufferImageCopyRegion {
     pub buffer_offset: nat,
     pub buffer_row_length: nat,
@@ -39,21 +39,21 @@ pub struct BufferImageCopyRegion {
     pub image_extent_depth: nat,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// Whether an image layout is valid as a copy source.
+///  Whether an image layout is valid as a copy source.
 pub open spec fn valid_copy_src_layout(layout: ImageLayout) -> bool {
     layout == ImageLayout::TransferSrcOptimal
     || layout == ImageLayout::General
 }
 
-/// Whether an image layout is valid as a copy destination.
+///  Whether an image layout is valid as a copy destination.
 pub open spec fn valid_copy_dst_layout(layout: ImageLayout) -> bool {
     layout == ImageLayout::TransferDstOptimal
     || layout == ImageLayout::General
 }
 
-/// A copy region is within the bounds of the source image.
+///  A copy region is within the bounds of the source image.
 pub open spec fn region_in_src_bounds(
     region: ImageCopyRegion,
     src: ImageState,
@@ -63,7 +63,7 @@ pub open spec fn region_in_src_bounds(
     && region.src_offset_z + region.extent_depth <= src.depth
 }
 
-/// A copy region is within the bounds of the destination image.
+///  A copy region is within the bounds of the destination image.
 pub open spec fn region_in_dst_bounds(
     region: ImageCopyRegion,
     dst: ImageState,
@@ -73,7 +73,7 @@ pub open spec fn region_in_dst_bounds(
     && region.dst_offset_z + region.extent_depth <= dst.depth
 }
 
-/// Whether source and destination images have the required transfer usage flags.
+///  Whether source and destination images have the required transfer usage flags.
 pub open spec fn copy_image_usage_valid(
     src: ImageState,
     dst: ImageState,
@@ -82,7 +82,7 @@ pub open spec fn copy_image_usage_valid(
     && dst.usage.contains(USAGE_TRANSFER_DST())
 }
 
-/// An image copy is valid: layouts, bounds, formats compatible, both alive, usage flags.
+///  An image copy is valid: layouts, bounds, formats compatible, both alive, usage flags.
 pub open spec fn copy_image_valid(
     src: ImageState,
     dst: ImageState,
@@ -100,7 +100,7 @@ pub open spec fn copy_image_valid(
         && region_in_dst_bounds(regions[i], dst))
 }
 
-/// Buffer-image copy region is within image bounds.
+///  Buffer-image copy region is within image bounds.
 pub open spec fn buffer_image_region_in_bounds(
     region: BufferImageCopyRegion,
     image: ImageState,
@@ -110,20 +110,20 @@ pub open spec fn buffer_image_region_in_bounds(
     && region.image_offset_z + region.image_extent_depth <= image.depth
 }
 
-/// Buffer-image copy region fits in buffer.
+///  Buffer-image copy region fits in buffer.
 pub open spec fn buffer_image_region_fits_buffer(
     region: BufferImageCopyRegion,
     buffer: BufferState,
 ) -> bool {
-    // Simplified: the buffer must have enough space from the offset
-    // for the full image data. Actual Vulkan uses row_length and image_height
-    // for tight packing, but this is a conservative bound.
+    //  Simplified: the buffer must have enough space from the offset
+    //  for the full image data. Actual Vulkan uses row_length and image_height
+    //  for tight packing, but this is a conservative bound.
     region.buffer_offset
         + region.image_extent_width * region.image_extent_height * region.image_extent_depth
         <= buffer.size
 }
 
-/// A copy from buffer to image is valid.
+///  A copy from buffer to image is valid.
 pub open spec fn copy_buffer_to_image_valid(
     buffer: BufferState,
     image: ImageState,
@@ -139,7 +139,7 @@ pub open spec fn copy_buffer_to_image_valid(
         && buffer_image_region_fits_buffer(regions[i], buffer))
 }
 
-/// A copy from image to buffer is valid.
+///  A copy from image to buffer is valid.
 pub open spec fn copy_image_to_buffer_valid(
     image: ImageState,
     buffer: BufferState,
@@ -155,7 +155,7 @@ pub open spec fn copy_image_to_buffer_valid(
         && buffer_image_region_fits_buffer(regions[i], buffer))
 }
 
-/// Whether source and destination images have the required blit usage flags.
+///  Whether source and destination images have the required blit usage flags.
 pub open spec fn blit_image_usage_valid(
     src: ImageState,
     dst: ImageState,
@@ -164,9 +164,9 @@ pub open spec fn blit_image_usage_valid(
     && dst.usage.contains(USAGE_TRANSFER_DST())
 }
 
-/// A blit operation is valid: layouts correct, both alive, usage flags.
-/// (Blit also requires format support for linear filtering, but we
-/// abstract that as a precondition.)
+///  A blit operation is valid: layouts correct, both alive, usage flags.
+///  (Blit also requires format support for linear filtering, but we
+///  abstract that as a precondition.)
 pub open spec fn blit_image_valid(
     src: ImageState,
     dst: ImageState,
@@ -179,21 +179,21 @@ pub open spec fn blit_image_valid(
     && blit_image_usage_valid(src, dst)
 }
 
-// ── Proofs ──────────────────────────────────────────────────────────────
+//  ── Proofs ──────────────────────────────────────────────────────────────
 
-/// TransferSrcOptimal is a valid source layout.
+///  TransferSrcOptimal is a valid source layout.
 pub proof fn lemma_transfer_src_optimal_valid()
     ensures valid_copy_src_layout(ImageLayout::TransferSrcOptimal),
 {
 }
 
-/// TransferDstOptimal is a valid destination layout.
+///  TransferDstOptimal is a valid destination layout.
 pub proof fn lemma_transfer_dst_optimal_valid()
     ensures valid_copy_dst_layout(ImageLayout::TransferDstOptimal),
 {
 }
 
-/// General layout is valid for both source and destination.
+///  General layout is valid for both source and destination.
 pub proof fn lemma_general_layout_valid_both()
     ensures
         valid_copy_src_layout(ImageLayout::General),
@@ -201,8 +201,8 @@ pub proof fn lemma_general_layout_valid_both()
 {
 }
 
-/// An empty regions list trivially makes image copy valid
-/// (given layout, format, and usage constraints).
+///  An empty regions list trivially makes image copy valid
+///  (given layout, format, and usage constraints).
 pub proof fn lemma_empty_regions_copy_valid(
     src: ImageState,
     dst: ImageState,
@@ -220,7 +220,7 @@ pub proof fn lemma_empty_regions_copy_valid(
 {
 }
 
-/// copy_image_valid implies both images are alive.
+///  copy_image_valid implies both images are alive.
 pub proof fn lemma_copy_valid_implies_alive(
     src: ImageState,
     dst: ImageState,
@@ -233,7 +233,7 @@ pub proof fn lemma_copy_valid_implies_alive(
 {
 }
 
-/// copy_image_valid implies formats match.
+///  copy_image_valid implies formats match.
 pub proof fn lemma_copy_valid_implies_format_match(
     src: ImageState,
     dst: ImageState,
@@ -246,13 +246,13 @@ pub proof fn lemma_copy_valid_implies_format_match(
 {
 }
 
-/// ColorAttachmentOptimal is NOT a valid copy source layout.
+///  ColorAttachmentOptimal is NOT a valid copy source layout.
 pub proof fn lemma_color_attachment_not_copy_src()
     ensures !valid_copy_src_layout(ImageLayout::ColorAttachmentOptimal),
 {
 }
 
-/// Undefined is NOT a valid copy source or destination layout.
+///  Undefined is NOT a valid copy source or destination layout.
 pub proof fn lemma_undefined_not_copy_layout()
     ensures
         !valid_copy_src_layout(ImageLayout::Undefined),
@@ -260,7 +260,7 @@ pub proof fn lemma_undefined_not_copy_layout()
 {
 }
 
-/// Having both TRANSFER_SRC and TRANSFER_DST usage flags satisfies copy_image_usage_valid.
+///  Having both TRANSFER_SRC and TRANSFER_DST usage flags satisfies copy_image_usage_valid.
 pub proof fn lemma_transfer_usage_implies_valid(
     src: ImageState,
     dst: ImageState,
@@ -272,16 +272,16 @@ pub proof fn lemma_transfer_usage_implies_valid(
 {
 }
 
-// ── Phase 3: Buffer-to-Buffer Copy ──────────────────────────────────────
+//  ── Phase 3: Buffer-to-Buffer Copy ──────────────────────────────────────
 
-/// A region for a buffer-to-buffer copy.
+///  A region for a buffer-to-buffer copy.
 pub struct BufferCopyRegion {
     pub src_offset: nat,
     pub dst_offset: nat,
     pub size: nat,
 }
 
-/// A buffer copy region is within the source buffer bounds.
+///  A buffer copy region is within the source buffer bounds.
 pub open spec fn buffer_copy_region_in_src_bounds(
     region: BufferCopyRegion,
     src: BufferState,
@@ -289,7 +289,7 @@ pub open spec fn buffer_copy_region_in_src_bounds(
     region.src_offset + region.size <= src.size
 }
 
-/// A buffer copy region is within the destination buffer bounds.
+///  A buffer copy region is within the destination buffer bounds.
 pub open spec fn buffer_copy_region_in_dst_bounds(
     region: BufferCopyRegion,
     dst: BufferState,
@@ -297,7 +297,7 @@ pub open spec fn buffer_copy_region_in_dst_bounds(
     region.dst_offset + region.size <= dst.size
 }
 
-/// A buffer-to-buffer copy is valid: both alive, usage flags, all regions in bounds.
+///  A buffer-to-buffer copy is valid: both alive, usage flags, all regions in bounds.
 pub open spec fn copy_buffer_valid(
     src: BufferState,
     dst: BufferState,
@@ -311,7 +311,7 @@ pub open spec fn copy_buffer_valid(
         && buffer_copy_region_in_dst_bounds(regions[i], dst))
 }
 
-/// Empty regions trivially make buffer copy valid.
+///  Empty regions trivially make buffer copy valid.
 pub proof fn lemma_empty_regions_buffer_copy_valid(
     src: BufferState,
     dst: BufferState,
@@ -324,7 +324,7 @@ pub proof fn lemma_empty_regions_buffer_copy_valid(
 {
 }
 
-/// A valid buffer copy implies both buffers are alive.
+///  A valid buffer copy implies both buffers are alive.
 pub proof fn lemma_copy_buffer_valid_implies_alive(
     src: BufferState,
     dst: BufferState,
@@ -335,7 +335,7 @@ pub proof fn lemma_copy_buffer_valid_implies_alive(
 {
 }
 
-/// A single region copying [0, min(src.size, dst.size)) is in bounds for both.
+///  A single region copying [0, min(src.size, dst.size)) is in bounds for both.
 pub proof fn lemma_full_buffer_copy_in_bounds(
     src: BufferState,
     dst: BufferState,
@@ -355,9 +355,9 @@ pub proof fn lemma_full_buffer_copy_in_bounds(
 {
 }
 
-// ── Format-Aware Transfer Validation ────────────────────────────────────
+//  ── Format-Aware Transfer Validation ────────────────────────────────────
 
-/// Both source and destination formats support transfer operations on this device.
+///  Both source and destination formats support transfer operations on this device.
 pub open spec fn transfer_formats_supported(
     src: ImageState,
     dst: ImageState,
@@ -369,8 +369,8 @@ pub open spec fn transfer_formats_supported(
     && format_supports_transfer(dev.format_properties[dst.format])
 }
 
-/// Image copy with format feature validation: basic copy_image_valid
-/// plus device format support for both images.
+///  Image copy with format feature validation: basic copy_image_valid
+///  plus device format support for both images.
 pub open spec fn copy_image_valid_with_formats(
     src: ImageState,
     dst: ImageState,
@@ -383,7 +383,7 @@ pub open spec fn copy_image_valid_with_formats(
     && transfer_formats_supported(src, dst, dev)
 }
 
-/// Transfer format support implies both formats are registered on the device.
+///  Transfer format support implies both formats are registered on the device.
 pub proof fn lemma_transfer_formats_implies_registered(
     src: ImageState, dst: ImageState, dev: DeviceState,
 )
@@ -394,7 +394,7 @@ pub proof fn lemma_transfer_formats_implies_registered(
 {
 }
 
-/// Copy with formats implies basic copy validity.
+///  Copy with formats implies basic copy validity.
 pub proof fn lemma_copy_with_formats_implies_basic(
     src: ImageState, dst: ImageState,
     src_layout: ImageLayout, dst_layout: ImageLayout,
@@ -405,4 +405,4 @@ pub proof fn lemma_copy_with_formats_implies_basic(
 {
 }
 
-} // verus!
+} //  verus!

@@ -2,9 +2,9 @@ use vstd::prelude::*;
 
 verus! {
 
-// ── Types ───────────────────────────────────────────────────────────────
+//  ── Types ───────────────────────────────────────────────────────────────
 
-/// Shader stages (VK_EXT_shader_object).
+///  Shader stages (VK_EXT_shader_object).
 pub enum ShaderStage {
     Vertex,
     Fragment,
@@ -16,7 +16,7 @@ pub enum ShaderStage {
     Task,
 }
 
-/// State of a shader object.
+///  State of a shader object.
 pub struct ShaderObjectState {
     pub id: nat,
     pub stage: ShaderStage,
@@ -25,7 +25,7 @@ pub struct ShaderObjectState {
     pub push_constant_ranges: Seq<nat>,
 }
 
-/// Tracks which shader objects are bound per stage.
+///  Tracks which shader objects are bound per stage.
 pub struct BoundShaderObjects {
     pub vertex: Option<nat>,
     pub fragment: Option<nat>,
@@ -37,9 +37,9 @@ pub struct BoundShaderObjects {
     pub task: Option<nat>,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// Create a fresh shader object.
+///  Create a fresh shader object.
 pub open spec fn create_shader_object(
     id: nat,
     stage: ShaderStage,
@@ -55,7 +55,7 @@ pub open spec fn create_shader_object(
     }
 }
 
-/// Ghost update: destroy a shader object.
+///  Ghost update: destroy a shader object.
 pub open spec fn destroy_shader_object(state: ShaderObjectState) -> ShaderObjectState {
     ShaderObjectState {
         alive: false,
@@ -63,12 +63,12 @@ pub open spec fn destroy_shader_object(state: ShaderObjectState) -> ShaderObject
     }
 }
 
-/// A shader object is well-formed.
+///  A shader object is well-formed.
 pub open spec fn shader_object_well_formed(state: ShaderObjectState) -> bool {
     state.alive
 }
 
-/// Ghost update: bind a shader object to its stage.
+///  Ghost update: bind a shader object to its stage.
 pub open spec fn bind_shader_object(
     bound: BoundShaderObjects,
     shader: ShaderObjectState,
@@ -85,7 +85,7 @@ pub open spec fn bind_shader_object(
     }
 }
 
-/// No shader objects are bound.
+///  No shader objects are bound.
 pub open spec fn no_shader_objects_bound() -> BoundShaderObjects {
     BoundShaderObjects {
         vertex: None,
@@ -99,18 +99,18 @@ pub open spec fn no_shader_objects_bound() -> BoundShaderObjects {
     }
 }
 
-/// Draw calls require at least VS+FS bound when using shader objects.
+///  Draw calls require at least VS+FS bound when using shader objects.
 pub open spec fn shader_objects_draw_valid(bound: BoundShaderObjects) -> bool {
     bound.vertex.is_some()
     && bound.fragment.is_some()
 }
 
-/// Dispatch calls require compute shader bound when using shader objects.
+///  Dispatch calls require compute shader bound when using shader objects.
 pub open spec fn shader_objects_dispatch_valid(bound: BoundShaderObjects) -> bool {
     bound.compute.is_some()
 }
 
-/// Get the bound shader id for a given stage.
+///  Get the bound shader id for a given stage.
 pub open spec fn get_bound_shader(
     bound: BoundShaderObjects,
     stage: ShaderStage,
@@ -127,9 +127,9 @@ pub open spec fn get_bound_shader(
     }
 }
 
-// ── Lemmas ──────────────────────────────────────────────────────────────
+//  ── Lemmas ──────────────────────────────────────────────────────────────
 
-/// A freshly created shader object is alive.
+///  A freshly created shader object is alive.
 pub proof fn lemma_create_is_alive(
     id: nat, stage: ShaderStage, layouts: Seq<nat>, push_ranges: Seq<nat>,
 )
@@ -137,37 +137,37 @@ pub proof fn lemma_create_is_alive(
 {
 }
 
-/// A destroyed shader object is not alive.
+///  A destroyed shader object is not alive.
 pub proof fn lemma_destroy_not_alive(state: ShaderObjectState)
     ensures !destroy_shader_object(state).alive,
 {
 }
 
-/// Draw valid implies vertex is bound.
+///  Draw valid implies vertex is bound.
 pub proof fn lemma_draw_valid_has_vertex(bound: BoundShaderObjects)
     requires shader_objects_draw_valid(bound),
     ensures bound.vertex.is_some(),
 {
 }
 
-/// Draw valid implies fragment is bound.
+///  Draw valid implies fragment is bound.
 pub proof fn lemma_draw_valid_has_fragment(bound: BoundShaderObjects)
     requires shader_objects_draw_valid(bound),
     ensures bound.fragment.is_some(),
 {
 }
 
-/// Dispatch valid implies compute is bound.
+///  Dispatch valid implies compute is bound.
 pub proof fn lemma_dispatch_valid_has_compute(bound: BoundShaderObjects)
     requires shader_objects_dispatch_valid(bound),
     ensures bound.compute.is_some(),
 {
 }
 
-/// Destroying preserves the shader id.
+///  Destroying preserves the shader id.
 pub proof fn lemma_destroy_preserves_id(state: ShaderObjectState)
     ensures destroy_shader_object(state).id == state.id,
 {
 }
 
-} // verus!
+} //  verus!

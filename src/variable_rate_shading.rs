@@ -2,9 +2,9 @@ use vstd::prelude::*;
 
 verus! {
 
-// ── Types ───────────────────────────────────────────────────────────────
+//  ── Types ───────────────────────────────────────────────────────────────
 
-/// Fragment shading rates.
+///  Fragment shading rates.
 pub enum ShadingRate {
     Rate1x1,
     Rate1x2,
@@ -15,7 +15,7 @@ pub enum ShadingRate {
     Rate4x4,
 }
 
-/// Combiner operations for combining shading rates from different sources.
+///  Combiner operations for combining shading rates from different sources.
 pub enum ShadingRateCombinerOp {
     Keep,
     Replace,
@@ -24,23 +24,23 @@ pub enum ShadingRateCombinerOp {
     Mul,
 }
 
-/// Tracks the current fragment shading rate state.
+///  Tracks the current fragment shading rate state.
 pub struct ShadingRateState {
-    /// Pipeline-specified shading rate.
+    ///  Pipeline-specified shading rate.
     pub pipeline_rate: ShadingRate,
-    /// Primitive-specified shading rate.
+    ///  Primitive-specified shading rate.
     pub primitive_rate: ShadingRate,
-    /// Attachment-specified shading rate.
+    ///  Attachment-specified shading rate.
     pub attachment_rate: ShadingRate,
-    /// Combiner for pipeline vs primitive.
+    ///  Combiner for pipeline vs primitive.
     pub combiner_op_0: ShadingRateCombinerOp,
-    /// Combiner for (pipeline+primitive) vs attachment.
+    ///  Combiner for (pipeline+primitive) vs attachment.
     pub combiner_op_1: ShadingRateCombinerOp,
 }
 
-// ── Spec Functions ──────────────────────────────────────────────────────
+//  ── Spec Functions ──────────────────────────────────────────────────────
 
-/// Default shading rate state: 1x1 everywhere, Keep combiners.
+///  Default shading rate state: 1x1 everywhere, Keep combiners.
 pub open spec fn default_shading_rate_state() -> ShadingRateState {
     ShadingRateState {
         pipeline_rate: ShadingRate::Rate1x1,
@@ -51,7 +51,7 @@ pub open spec fn default_shading_rate_state() -> ShadingRateState {
     }
 }
 
-/// Ghost update: set the fragment shading rate (pipeline rate + combiner ops).
+///  Ghost update: set the fragment shading rate (pipeline rate + combiner ops).
 pub open spec fn set_fragment_shading_rate(
     state: ShadingRateState,
     rate: ShadingRate,
@@ -66,12 +66,12 @@ pub open spec fn set_fragment_shading_rate(
     }
 }
 
-/// A shading rate state is well-formed.
+///  A shading rate state is well-formed.
 pub open spec fn shading_rate_well_formed(state: ShadingRateState) -> bool {
-    true // All enum values are valid by construction.
+    true //  All enum values are valid by construction.
 }
 
-/// Get the texel size (width * height) for a shading rate.
+///  Get the texel size (width * height) for a shading rate.
 pub open spec fn shading_rate_texel_size(rate: ShadingRate) -> nat {
     match rate {
         ShadingRate::Rate1x1 => 1,
@@ -84,7 +84,7 @@ pub open spec fn shading_rate_texel_size(rate: ShadingRate) -> nat {
     }
 }
 
-/// Get the width component of a shading rate.
+///  Get the width component of a shading rate.
 pub open spec fn shading_rate_width(rate: ShadingRate) -> nat {
     match rate {
         ShadingRate::Rate1x1 => 1,
@@ -97,7 +97,7 @@ pub open spec fn shading_rate_width(rate: ShadingRate) -> nat {
     }
 }
 
-/// Get the height component of a shading rate.
+///  Get the height component of a shading rate.
 pub open spec fn shading_rate_height(rate: ShadingRate) -> nat {
     match rate {
         ShadingRate::Rate1x1 => 1,
@@ -110,7 +110,7 @@ pub open spec fn shading_rate_height(rate: ShadingRate) -> nat {
     }
 }
 
-/// An attachment shading rate image is valid with respect to framebuffer dimensions.
+///  An attachment shading rate image is valid with respect to framebuffer dimensions.
 pub open spec fn attachment_shading_rate_valid(
     image_width: nat,
     image_height: nat,
@@ -125,27 +125,27 @@ pub open spec fn attachment_shading_rate_valid(
     && image_height * texel_height >= fb_height
 }
 
-// ── Lemmas ──────────────────────────────────────────────────────────────
+//  ── Lemmas ──────────────────────────────────────────────────────────────
 
-/// Default shading rate state is well-formed.
+///  Default shading rate state is well-formed.
 pub proof fn lemma_default_well_formed()
     ensures shading_rate_well_formed(default_shading_rate_state()),
 {
 }
 
-/// 1x1 shading rate has texel size 1 (identity).
+///  1x1 shading rate has texel size 1 (identity).
 pub proof fn lemma_1x1_is_identity()
     ensures shading_rate_texel_size(ShadingRate::Rate1x1) == 1,
 {
 }
 
-/// Texel size is always positive.
+///  Texel size is always positive.
 pub proof fn lemma_texel_size_positive(rate: ShadingRate)
     ensures shading_rate_texel_size(rate) > 0,
 {
 }
 
-/// Texel size equals width * height.
+///  Texel size equals width * height.
 pub proof fn lemma_texel_size_is_product(rate: ShadingRate)
     ensures
         shading_rate_texel_size(rate)
@@ -153,7 +153,7 @@ pub proof fn lemma_texel_size_is_product(rate: ShadingRate)
 {
 }
 
-/// Setting fragment shading rate preserves attachment and primitive rates.
+///  Setting fragment shading rate preserves attachment and primitive rates.
 pub proof fn lemma_set_rate_preserves_attachment(
     state: ShadingRateState,
     rate: ShadingRate,
@@ -166,4 +166,4 @@ pub proof fn lemma_set_rate_preserves_attachment(
 {
 }
 
-} // verus!
+} //  verus!

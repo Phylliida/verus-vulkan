@@ -7,13 +7,13 @@ use super::device::RuntimeDevice;
 
 verus! {
 
-// ── Image View Runtime ─────────────────────────────────────────────────
+//  ── Image View Runtime ─────────────────────────────────────────────────
 
-/// Runtime wrapper for a Vulkan image view.
+///  Runtime wrapper for a Vulkan image view.
 pub struct RuntimeImageView {
-    /// Opaque handle (maps to VkImageView).
+    ///  Opaque handle (maps to VkImageView).
     pub handle: u64,
-    /// Ghost model of the image view state.
+    ///  Ghost model of the image view state.
     pub state: Ghost<ImageViewState>,
 }
 
@@ -22,12 +22,12 @@ impl View for RuntimeImageView {
     open spec fn view(&self) -> ImageViewState { self.state@ }
 }
 
-/// Well-formedness of the runtime image view.
+///  Well-formedness of the runtime image view.
 pub open spec fn runtime_image_view_wf(view: &RuntimeImageView) -> bool {
     image_view_well_formed(view@)
 }
 
-/// Exec: create an image view.
+///  Exec: create an image view.
 pub fn create_image_view_exec(
     ivs: Ghost<ImageViewState>,
 ) -> (out: RuntimeImageView)
@@ -42,8 +42,8 @@ pub fn create_image_view_exec(
     }
 }
 
-/// Exec: destroy an image view.
-/// Caller must prove exclusive access.
+///  Exec: destroy an image view.
+///  Caller must prove exclusive access.
 pub fn destroy_image_view_exec(
     view: &mut RuntimeImageView,
     dev: &RuntimeDevice,
@@ -52,7 +52,7 @@ pub fn destroy_image_view_exec(
 )
     requires
         runtime_image_view_wf(&*old(view)),
-        // All pending submissions must be completed
+        //  All pending submissions must be completed
         forall|i: int| 0 <= i < dev@.pending_submissions.len()
             ==> (#[trigger] dev@.pending_submissions[i]).completed,
         holds_exclusive(reg@, SyncObjectId::Handle(old(view)@.id), thread@),
@@ -63,13 +63,13 @@ pub fn destroy_image_view_exec(
     view.state = Ghost(destroy_image_view_ghost(view.state@));
 }
 
-// ── Framebuffer Runtime ────────────────────────────────────────────────
+//  ── Framebuffer Runtime ────────────────────────────────────────────────
 
-/// Runtime wrapper for a Vulkan framebuffer.
+///  Runtime wrapper for a Vulkan framebuffer.
 pub struct RuntimeFramebuffer {
-    /// Opaque handle (maps to VkFramebuffer).
+    ///  Opaque handle (maps to VkFramebuffer).
     pub handle: u64,
-    /// Ghost model of the framebuffer state.
+    ///  Ghost model of the framebuffer state.
     pub state: Ghost<FramebufferState>,
 }
 
@@ -78,12 +78,12 @@ impl View for RuntimeFramebuffer {
     open spec fn view(&self) -> FramebufferState { self.state@ }
 }
 
-/// Well-formedness of the runtime framebuffer (alive).
+///  Well-formedness of the runtime framebuffer (alive).
 pub open spec fn runtime_framebuffer_wf(fb: &RuntimeFramebuffer) -> bool {
     fb@.alive
 }
 
-/// Exec: create a framebuffer.
+///  Exec: create a framebuffer.
 pub fn create_framebuffer_exec(
     fbs: Ghost<FramebufferState>,
 ) -> (out: RuntimeFramebuffer)
@@ -98,8 +98,8 @@ pub fn create_framebuffer_exec(
     }
 }
 
-/// Exec: destroy a framebuffer.
-/// Caller must prove exclusive access.
+///  Exec: destroy a framebuffer.
+///  Caller must prove exclusive access.
 pub fn destroy_framebuffer_exec(
     fb: &mut RuntimeFramebuffer,
     dev: &RuntimeDevice,
@@ -108,7 +108,7 @@ pub fn destroy_framebuffer_exec(
 )
     requires
         runtime_framebuffer_wf(&*old(fb)),
-        // All pending submissions must be completed
+        //  All pending submissions must be completed
         forall|i: int| 0 <= i < dev@.pending_submissions.len()
             ==> (#[trigger] dev@.pending_submissions[i]).completed,
         holds_exclusive(reg@, SyncObjectId::Handle(old(fb)@.id), thread@),
@@ -119,19 +119,19 @@ pub fn destroy_framebuffer_exec(
     fb.state = Ghost(destroy_framebuffer_ghost(fb.state@));
 }
 
-// ── Extended Specs & Proofs ──────────────────────────────────────────
+//  ── Extended Specs & Proofs ──────────────────────────────────────────
 
-/// Image view is alive.
+///  Image view is alive.
 pub open spec fn image_view_alive(view: &RuntimeImageView) -> bool {
     view@.alive
 }
 
-/// Framebuffer is alive.
+///  Framebuffer is alive.
 pub open spec fn framebuffer_alive(fb: &RuntimeFramebuffer) -> bool {
     fb@.alive
 }
 
-/// Proof: creating an image view produces an alive view.
+///  Proof: creating an image view produces an alive view.
 pub proof fn lemma_create_image_view_alive(ivs: Ghost<ImageViewState>)
     requires ivs@.alive,
     ensures image_view_alive(&RuntimeImageView {
@@ -141,7 +141,7 @@ pub proof fn lemma_create_image_view_alive(ivs: Ghost<ImageViewState>)
 {
 }
 
-/// Proof: creating a framebuffer produces an alive framebuffer.
+///  Proof: creating a framebuffer produces an alive framebuffer.
 pub proof fn lemma_create_framebuffer_alive(fbs: Ghost<FramebufferState>)
     requires fbs@.alive,
     ensures framebuffer_alive(&RuntimeFramebuffer {
@@ -151,18 +151,18 @@ pub proof fn lemma_create_framebuffer_alive(fbs: Ghost<FramebufferState>)
 {
 }
 
-/// Proof: destroying an image view preserves its id.
+///  Proof: destroying an image view preserves its id.
 pub proof fn lemma_destroy_image_view_preserves_id_rt(view: &RuntimeImageView)
     requires runtime_image_view_wf(view),
     ensures destroy_image_view_ghost(view@).id == view@.id,
 {
 }
 
-/// Proof: destroying a framebuffer preserves its id.
+///  Proof: destroying a framebuffer preserves its id.
 pub proof fn lemma_destroy_framebuffer_preserves_id_rt(fb: &RuntimeFramebuffer)
     requires runtime_framebuffer_wf(fb),
     ensures destroy_framebuffer_ghost(fb@).id == fb@.id,
 {
 }
 
-} // verus!
+} //  verus!
