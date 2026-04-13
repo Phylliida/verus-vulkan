@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-vstd = { path = "../verus/source/vstd" }
-builtin = { package = "verus_builtin", path = "../verus/source/builtin" }
+vstd = { path = "../verus-dev/source/vstd" }
+builtin = { package = "verus_builtin", path = "../verus-dev/source/builtin" }
 verus-cutedsl = { path = "../verus-cutedsl" }
 ash = { version = "0.38", default-features = true }
 verus-gui = { path = "../verus-gui", optional = true }
